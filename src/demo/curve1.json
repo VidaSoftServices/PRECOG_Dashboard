@@ -1,0 +1,219 @@
+{
+  "curves": [
+    {
+      "curvePeriod": 101,
+      "curveData": [
+        {
+          "period": 0,
+          "measuredAt": "2025-08-16T01:12:11.4098903+00:00",
+          "actual": 673,
+          "target": 2000,
+          "tolerance": 50
+        },
+        {
+          "period": 1,
+          "measuredAt": "2025-08-16T01:13:11.4098906+00:00",
+          "actual": 179,
+          "target": 220,
+          "tolerance": 10
+        },
+        {
+          "period": 2,
+          "measuredAt": "2025-08-16T01:14:11.4098909+00:00",
+          "actual": 291,
+          "target": 370,
+          "tolerance": 70
+        },
+        {
+          "period": 3,
+          "measuredAt": "2025-08-16T01:15:11.4098912+00:00",
+          "actual": 200,
+          "target": 500,
+          "tolerance": 100
+        },
+        {
+          "period": 4,
+          "measuredAt": "2025-08-16T01:16:11.4098914+00:00",
+          "actual": 711,
+          "target": 810,
+          "tolerance": 220
+        },
+        {
+          "period": 5,
+          "measuredAt": "2025-08-16T01:17:11.4098917+00:00",
+          "actual": 500,
+          "target": 970,
+          "tolerance": 260
+        },
+        {
+          "period": 6,
+          "measuredAt": "2025-08-16T01:18:11.409892+00:00",
+          "actual": 37,
+          "target": 680,
+          "tolerance": 130
+        },
+        {
+          "period": 7,
+          "measuredAt": "2025-08-16T01:19:11.4098923+00:00",
+          "actual": 83,
+          "target": 610,
+          "tolerance": 110
+        },
+        {
+          "period": 8,
+          "measuredAt": "2025-08-16T01:20:11.4098927+00:00",
+          "actual": 1022,
+          "target": 1070,
+          "tolerance": 100
+        },
+        {
+          "period": 9,
+          "measuredAt": "2025-08-16T01:21:11.4098929+00:00",
+          "actual": 1999,
+          "target": 2020,
+          "tolerance": 30
+        },
+        {
+          "period": 10,
+          "measuredAt": "2025-08-16T01:22:11.4098932+00:00",
+          "actual": 1984,
+          "target": 2020,
+          "tolerance": 20
+        },
+        {
+          "period": 11,
+          "measuredAt": "2025-08-16T01:23:11.4098935+00:00",
+          "actual": 1974,
+          "target": 2020,
+          "tolerance": 10
+        },
+        {
+          "period": 12,
+          "measuredAt": "2025-08-16T01:24:11.4098938+00:00",
+          "actual": 1978,
+          "target": 2020,
+          "tolerance": 30
+        },
+        {
+          "period": 13,
+          "measuredAt": "2025-08-16T01:25:11.409894+00:00",
+          "actual": 1979,
+          "target": 2020,
+          "tolerance": 30
+        },
+        {
+          "period": 14,
+          "measuredAt": "2025-08-16T01:26:11.4098944+00:00",
+          "actual": 1760,
+          "target": 2010,
+          "tolerance": 40
+        },
+        {
+          "period": 15,
+          "measuredAt": "2025-08-16T01:27:11.4098947+00:00",
+          "actual": 1493,
+          "target": 1940,
+          "tolerance": 110
+        },
+        {
+          "period": 16,
+          "measuredAt": "2025-08-16T01:28:11.409895+00:00",
+          "actual": 1104,
+          "target": 1580,
+          "tolerance": 250
+        },
+        {
+          "period": 17,
+          "measuredAt": "2025-08-16T01:29:11.4098953+00:00",
+          "actual": 908,
+          "target": 1140,
+          "tolerance": 90
+        },
+        {
+          "period": 18,
+          "measuredAt": "2025-08-16T01:30:11.4098956+00:00",
+          "actual": 1091,
+          "target": 1100,
+          "tolerance": 140
+        },
+        {
+          "period": 19,
+          "measuredAt": "2025-08-16T01:31:11.4098959+00:00",
+          "actual": 1054,
+          "target": 940,
+          "tolerance": 100
+        },
+        {
+          "period": 20,
+          "measuredAt": "2025-08-16T01:32:11.4098962+00:00",
+          "actual": 1956,
+          "target": 790,
+          "tolerance": 90
+        },
+        {
+          "period": 21,
+          "measuredAt": "2025-08-16T01:33:11.4098964+00:00",
+          "actual": 2052,
+          "target": 820,
+          "tolerance": 70
+        },
+        {
+          "period": 22,
+          "measuredAt": "2025-08-16T01:34:11.4098967+00:00",
+          "actual": 1317,
+          "target": 780,
+          "tolerance": 60
+        },
+        {
+          "period": 23,
+          "measuredAt": "2025-08-16T01:35:11.4098972+00:00",
+          "actual": 2067,
+          "target": 780,
+          "tolerance": 90
+        },
+        {
+          "period": 24,
+          "measuredAt": "2025-08-16T01:36:11.4098975+00:00",
+          "actual": 1678,
+          "target": 900,
+          "tolerance": 80
+        },
+        {
+          "period": 25,
+          "measuredAt": "2025-08-16T01:37:11.4098978+00:00",
+          "actual": 1765,
+          "target": 1020,
+          "tolerance": 110
+        },
+        {
+          "period": 26,
+          "measuredAt": "2025-08-16T01:38:11.4098981+00:00",
+          "actual": 1244,
+          "target": 1140,
+          "tolerance": 100
+        },
+        {
+          "period": 27,
+          "measuredAt": "2025-08-16T01:39:11.4098984+00:00",
+          "actual": 589,
+          "target": 1000,
+          "tolerance": 80
+        },
+        {
+          "period": 28,
+          "measuredAt": "2025-08-16T01:40:11.4098987+00:00",
+          "actual": 945,
+          "target": 1000,
+          "tolerance": 70
+        },
+        {
+          "period": 29,
+          "measuredAt": "2025-08-16T01:41:11.409899+00:00",
+          "actual": 567,
+          "target": 1040,
+          "tolerance": 70
+        }
+      ]
+    }
+  ]
+}

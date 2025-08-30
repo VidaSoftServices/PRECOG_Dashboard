@@ -1,0 +1,14 @@
+version: '3.9'
+
+services:
+  react-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: vidasoft-dashboard
+    container_name: dashboard
+    ports:
+      - "8432:3000"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
