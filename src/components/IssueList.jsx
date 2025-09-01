@@ -739,12 +739,14 @@ const IssueList = ({ device, hmacKey, issues, selectedIssueId, firstUse, setFirs
               </>
             )}
 
-            <div style={{
-              flex: 1,
-              marginTop: detailsCollapsed ? '10px' : anomalyDecision ? '0px' : '10px',
-              width: '100%',
-              height: detailsCollapsed ? '40%' : (anomalyDecision ? '25%' : '40%'),
-            }}>
+            <div
+              className="issue-chart-container"
+              style={{
+                flex: 1,
+                marginTop: detailsCollapsed ? '10px' : anomalyDecision ? '0px' : '10px',
+                width: '100%',
+                height: detailsCollapsed ? '40%' : (anomalyDecision ? '25%' : '40%'),
+              }}>
               <DataChart selectedIssue={selectedIssue} selectedDevice={device} hmacKey={hmacKey} />
             </div>
           </>

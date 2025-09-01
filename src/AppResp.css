@@ -1,0 +1,179 @@
+/* Responsive adjustments for mobile screens */
+@media (max-width: 1200px) {
+    #root {
+        max-width: 100vw;
+        padding: 0.5rem;
+    }
+
+    .dashboard-content {
+        width: 98vw !important;
+        max-width: 100vw !important;
+        min-width: 0 !important;
+        flex-direction: column;
+        padding: 0.5rem;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        box-sizing: border-box;
+    }
+
+    .device-list-container,
+    .issue-list-container {
+        max-width: 98%;
+        width: 100%;
+        min-width: 0;
+        padding: 0;
+    }
+
+    .device-list-container {
+        min-width: 0;
+        height: auto;
+        max-height: 40vh;
+    }
+
+    /* Device details section under device list */
+    .device-list-container>div:last-child {
+        display: block !important;
+        max-width: 100vw !important;
+        overflow-x: auto !important;
+    }
+
+    /* Make the device details table fill width on mobile */
+    .device-list-container table {
+        width: 100% !important;
+        font-size: 1em;
+    }
+
+    .device-list-container h4 {
+        font-size: 1.1em;
+        padding: 6px 0;
+    }
+
+    .issue-list-container {
+        min-width: 0;
+        height: auto;
+        max-height: 60vh;
+        margin-top: 30px !important;
+    }
+
+    .issue-list-container>div {
+        flex-direction: column !important;
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+    }
+
+    .issue-list-container>div>div {
+        padding: 0 0 10px 0 !important;
+        border-left: none !important;
+        border-top: 1px solid #ccc !important;
+    }
+
+    .issue-list-container>div>div:first-child {
+        border-top: none !important;
+    }
+
+    .header-content {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 10px 5px;
+        gap: 10px;
+    }
+
+    .issue-chart-container {
+        height: 50vh !important;
+        min-height: 200px;
+    }
+
+    .header-controls {
+        flex-wrap: wrap;
+        /* flex-direction: column; */
+        gap: 5px;
+        /* width: 100%; */
+        /* justify-content: flex-start; */
+        align-items: flex-start;
+    }
+
+    .header-controls>div {
+        width: 100%;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: flex-start;
+        white-space: nowrap;
+    }
+
+    .date-label,
+    .date-input {
+        font-size: 1.5em;
+        margin: 0 2px;
+    }
+
+    .login-logo {
+        width: 90vw;
+        max-width: 250px;
+    }
+
+    .login-form {
+        max-width: 95vw;
+        padding: 0;
+    }
+
+    .login-input {
+        width: 100%;
+        font-size: 1em;
+    }
+
+    .login-btn {
+        width: 100%;
+        font-size: 1em;
+    }
+}
+
+/* Extra small screens */
+@media (max-width: 600px) {
+
+    h1,
+    h2,
+    h3,
+    h4 {
+        font-size: 1.2em;
+    }
+
+    .header-title {
+        font-size: 1em;
+    }
+
+    .logo-img {
+        width: 24px;
+        margin-right: 6px;
+    }
+
+    .refresh-img {
+        width: 28px;
+    }
+
+    .date-label,
+    .date-input {
+        font-size: 1.5em;
+        margin: 0 2px;
+    }
+
+    .logout-btn,
+    .login-btn {
+        font-size: 0.95em;
+        padding: 6px 10px;
+    }
+}
+
+/* Make modal dialogs fit mobile screens */
+@media (max-width: 600px) {
+
+    .ReactModal__Content,
+    [style*="position: fixed"][style*="z-index: 1000"] {
+        width: 98vw !important;
+        left: 1vw !important;
+        right: 1vw !important;
+        min-width: 0 !important;
+        max-width: 100vw !important;
+        padding: 5px !important;
+    }
+}

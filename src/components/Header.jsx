@@ -7,6 +7,7 @@ import signal2Data from '../demo/signal2.json';
 import curve1Data from '../demo/curve1.json';
 import { toLocalTime } from '../Utils';
 import '../App.css'; // Added import
+import '../AppResp.css';
 
 const Header = ({ hmacKey, onRefresh, startDate, endDate, setStartDate, setEndDate, readNotification, setReadNotification, displayName }) => {
   const { setCredentials, credentials } = useContext(AuthContext);

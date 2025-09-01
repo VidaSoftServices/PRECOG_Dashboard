@@ -1,6 +1,7 @@
 // App.jsx
 import React, { useContext, useEffect, useState, useRef } from 'react';
 import './App.css';
+import './AppResp.css';
 import { AuthContext, AuthProvider } from './context/AuthContext';
 import Login from './components/Login';
 import Header from './components/Header';
@@ -375,7 +376,7 @@ function AppContent() {
   }
 
   return (
-    <>
+    <div className="main-container">
       <Header
         hmacKey={hmacKey}
         onRefresh={handleRefresh}
@@ -412,7 +413,7 @@ function AppContent() {
         </div>
       </div>
       <ToastContainer />
-    </>
+    </div>
   );
 }
 
