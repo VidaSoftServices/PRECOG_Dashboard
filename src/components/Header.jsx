@@ -8,7 +8,7 @@ import curve1Data from '../demo/curve1.json';
 import { toLocalTime } from '../Utils';
 import '../App.css'; // Added import
 
-const Header = ({ hmacKey, onRefresh, startDate, endDate, setStartDate, setEndDate, readNotification, setReadNotification }) => {
+const Header = ({ hmacKey, onRefresh, startDate, endDate, setStartDate, setEndDate, readNotification, setReadNotification, displayName }) => {
   const { setCredentials, credentials } = useContext(AuthContext);
   const [clickCount, setClickCount] = useState(0);
   const [showSecretButtons, setShowSecretButtons] = useState(false);
@@ -189,7 +189,7 @@ const Header = ({ hmacKey, onRefresh, startDate, endDate, setStartDate, setEndDa
             />
           </button>
           {credentials?.userName && (
-            <span className="username">{credentials.userName}</span>
+            <span className="username">{displayName != null ? displayName : credentials.userName}</span>
           )}
           <button
             onClick={handleLogout}

@@ -61,16 +61,17 @@ function AppContent() {
   const lastIssuesUpdatedAtRef = useRef(null);
   const [readNotification, setReadNotification] = useState(false);
   const readNotificationRef = useRef(false);
+  const [userDisplayName, setUserDisplayName] = useState(isAuthenticating.userName);
 
   useEffect(() => {
-    document.title = "PRECOG Dashboard";
+    //document.title = "PRECOG Dashboard";
     let link = document.querySelector("link[rel~='icon']");
     if (!link) {
       link = document.createElement('link');
       link.rel = 'icon';
       document.getElementsByTagName('head')[0].appendChild(link);
     }
-    link.href = favLogo;
+    //link.href = favLogo;
   }, []);
 
 
@@ -241,6 +242,31 @@ function AppContent() {
     }
   };
 
+  const requestUserDisplayName = async () => {
+    try {
+
+      const response = await fetch(
+        'https://precog.vidasoftapi.com/api/User/GetUserDetails',
+        {
+          headers: {
+            accept: '*/*',
+            HMAC_Key: hmacKey,
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();  // parse the response
+        return data.displayName; // fallback if displayName missing
+      } else {
+        return null;
+      }
+    } catch (err) {
+      return null;
+    }
+  };
+
+
   const handleRefresh = async () => {
     const latestDevices = await fetchDevices(); // ✅ Await the result
 
@@ -258,6 +284,8 @@ function AppContent() {
     if (!hmacKey) return;
 
     handleRefresh();
+
+    requestUserDisplayName().then((name) => setUserDisplayName(name));
 
     const interval = setInterval(async () => {
       const latestDevices = await fetchDevices(); // ✅ Await the result
@@ -357,6 +385,7 @@ function AppContent() {
         setEndDate={setEndDate}
         readNotification={readNotification}
         setReadNotification={setReadNotification}
+        displayName={userDisplayName}
       />
       <div className="dashboard-content">
         <div className="device-list-container">
