@@ -36,6 +36,12 @@ body {
   min-height: 100vh;
 }
 
+.main-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  width: 100%;
+}
+
 @media (prefers-color-scheme: dark) {
 
   html,
@@ -169,7 +175,6 @@ button:focus:not(:focus-visible) {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  transition: background 0.2s;
 }
 
 .login-btn:disabled {
@@ -183,19 +188,13 @@ button:focus:not(:focus-visible) {
   white-space: pre-line;
 }
 
-.dashboard-content {
-  display: flex;
-  flex-direction: row;
-  padding: 20px;
-  gap: 10px;
-}
-
 .device-list-container {
   flex: 1;
 }
 
 .issue-list-container {
   flex: 2;
+  max-width: 70%;
 }
 
 .logo {
@@ -227,6 +226,15 @@ button:focus:not(:focus-visible) {
   background-color: #0077CB;
   color: white;
   box-sizing: border-box;
+}
+
+.dashboard-content {
+  max-width: 98% !important;
+  width: 98% !important;
+  display: flex;
+  flex-direction: row;
+  padding: 20px;
+  gap: 10px;
 }
 
 .header-content {
