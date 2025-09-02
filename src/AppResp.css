@@ -52,7 +52,7 @@
         min-width: 0;
         height: auto;
         max-height: 60vh;
-        margin-top: 30px !important;
+        margin-top: 80px !important;
     }
 
     .issue-list-container>div {
@@ -102,11 +102,12 @@
     }
 
     .date-label,
-    .date-input {
-        font-size: 1.5em;
+    .date-input,
+    .end-btn {
+        font-size: 1.1em;
         margin: 0 2px;
     }
-
+    
     .login-logo {
         width: 90vw;
         max-width: 250px;
@@ -152,8 +153,9 @@
     }
 
     .date-label,
-    .date-input {
-        font-size: 1.5em;
+    .date-input,
+    .end-btn {
+        font-size: 1.1em;
         margin: 0 2px;
     }
 
