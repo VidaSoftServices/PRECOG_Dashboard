@@ -8,6 +8,8 @@ import nokimg from '../images/FalsePositive.png';
 import noimg from '../images/NoImg.png';
 import DataChart from './DataChart';
 import { toLocalTime } from '../Utils';
+import '../App.css';
+import '../AppResp.css';
 
 function formatDate(dateString) {
   const date = new Date(dateString);
@@ -648,7 +650,7 @@ const IssueList = ({ device, hmacKey, issues, selectedIssueId, firstUse, setFirs
                             e.target.style.backgroundColor = '#ccc';
                           }}
                           style={{
-                            width: '100%',
+                            width: '98%',
                             padding: '8px',
                             fontSize: '14px',
                             backgroundColor: '#ccc',
