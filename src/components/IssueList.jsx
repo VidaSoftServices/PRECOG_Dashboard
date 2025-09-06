@@ -39,7 +39,7 @@ const IssueList = ({ device, hmacKey, issues, selectedIssueId, firstUse, setFirs
   const [filterNotConfirmed, setFilterNotConfirmed] = useState(false);
   const [filterAnomaly, setFilterAnomaly] = useState(false);
   const [filterOthers, setFilterOthers] = useState(false);
-  const [detailsCollapsed, setDetailsCollapsed] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Filter logic
   const filteredIssues = issues.filter(issue => {
@@ -299,8 +299,320 @@ const IssueList = ({ device, hmacKey, issues, selectedIssueId, firstUse, setFirs
     return <p>No issues found for this device.</p>;
   }
 
+  function renderDetailsSection() {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', minWidth: '250px' }}>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px', padding: '0px' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '10px', paddingBottom: '0px' }}>
+            {selectedIssue.periodFrom !== null ? 'Issue #' : 'Curve Period #'}
+            {selectedIssue.issueId}</h3>
+        </div>
+
+        <div style={{ margin: 0 }}>
+          <div style={{ display: selectedIssue.periodFrom !== null ? 'block' : 'none' }}>
+            <strong>Issue:</strong> {selectedIssue.isAnomaly ? 'Yes' : 'No'}
+            <br />
+            <strong>Confirmed:</strong> {selectedIssue.confirmed ? 'Yes' : 'No'}
+          </div>
+
+          <div style={{ display: device.application === 'Continuous' ? 'none' : 'block' }}>
+            <strong>Issue score:</strong> {selectedIssue.issueScore}
+          </div>
+        </div>
+
+        {selectedIssue.periodFrom !== null && (
+          <table style={{ margin: '10px 0px 10px 0px', padding: 0, borderSpacing: 0 }}>
+            <tbody>
+              <tr>
+                <td style={{ paddingRight: '10px' }}><strong>From:</strong></td>
+                <td>{formatDate(selectedIssue.measuredAtFrom)}</td>
+              </tr>
+              <tr>
+                <td style={{ paddingRight: '10px' }}><strong>To:</strong></td>
+                <td>{formatDate(selectedIssue.measuredAtTo)}</td>
+              </tr>
+            </tbody>
+          </table>
+        )}
+        <p style={{ display: selectedIssue.periodFrom !== null ? 'none' : 'block' }}><strong>Date:</strong> {formatDate(selectedIssue.measuredAtTo)}</p>
+
+        <div style={{ display: selectedIssue.periodFrom !== null ? 'block' : 'none' }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '8px'
+          }}>
+            <strong>Message:</strong>
+            <button
+              onClick={() => readAloud(selectedIssue.message)}
+              disabled={!selectedIssue.message}
+              style={{
+                border: 'none',
+                background: 'none',
+                cursor: selectedIssue.message ? 'pointer' : 'not-allowed',
+                padding: '0',
+                fontSize: '1.2em',
+                color: '#014F91',
+              }}
+              aria-label="Read message aloud"
+              title={selectedIssue.message ? 'Read message aloud' : 'No message to read'}
+            >
+              🔊
+            </button>
+          </div>
+
+          <ul style={{ paddingLeft: '0px', margin: '0px' }}>
+            {selectedIssue.message === null
+              ? 'No message'
+              : selectedIssue.message
+                .split(/(?<=[\.\?!;:])\s+/)
+                .filter(Boolean)
+                .map((sentence, index) => (
+                  <p
+                    key={index}
+                    style={{
+                      margin: '0px',
+                      marginTop: '5px',
+                      padding: '0px',
+                    }}
+                  >
+                    {sentence.trim()}
+                  </p>
+                ))}
+          </ul>
+        </div>
+
+
+        <div style={{
+          display: 'flex',
+          flexDirection: 'row',
+          justifyContent: 'flex-end',
+          gap: '10px',
+          marginTop: '15px',
+          marginRight: '10px'
+        }}>
+          <button
+            onClick={() => { setAnomalyDecision('Yes'); setIsModalOpen(true); }}
+            style={{
+              width: '40px',
+              height: '40px',
+              padding: 0,
+              borderRadius: '10px',
+              cursor: 'pointer',
+              fontSize: '20px',
+              fontStyle: 'bold',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: anomalyDecision === 'Yes' ? 'none' : '5px 5px 8px rgba(0,0,0,0.5)'
+            }}
+          >
+            <img
+              src={okimg}
+              alt="Yes icon"
+              style={{
+                width: '40px',
+                height: '40px',
+                verticalAlign: 'middle',
+                borderRadius: '10px',
+                border: anomalyDecision === 'Yes' ? '2px solid #6b6b6bff' : 'none'
+              }}
+            />
+          </button>
+
+          <button
+            onClick={() => { setAnomalyDecision('No'); setIsModalOpen(true); }}
+            style={{
+              width: '40px',
+              height: '40px',
+              padding: 0,
+              borderRadius: '10px',
+              cursor: 'pointer',
+              fontSize: '20px',
+              fontStyle: 'bold',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: anomalyDecision === 'No' ? 'none' : '5px 5px 8px rgba(0,0,0,0.5)'
+            }}
+          >
+            <img
+              src={nokimg}
+              alt="No icon"
+              style={{
+                width: '40px',
+                height: '40px',
+                verticalAlign: 'middle',
+                borderRadius: '10px',
+                border: anomalyDecision === 'No' ? '2px solid #6b6b6bff' : 'none'
+              }}
+            />
+          </button>
+        </div>
+
+      </div>
+    )
+  }
+
+  function renderDecisionChanges() {
+    return (
+      <>
+        {renderDetailsSection()}
+
+        <div style={{ marginTop: '15px' }}>
+          {
+            <div style={{ display: 'flex', gap: '10px' }}>
+
+              {anomalyDecision
+                && device.application !== 'Continuous'
+                && selectedIssue.periodFrom !== null && (
+                  <table style={{ margin: '0px', paddingLeft: '10px' }}>
+                    <tbody>
+                      <tr>
+                        <td>From:</td>
+                        <td>
+                          <input
+                            type="datetime-local"
+                            step="1"
+                            value={measuredFrom ? toLocalTime(measuredFrom).toISOString().slice(0, 19) : ''}
+                            onChange={(e) => setMeasuredFrom(e.target.value)}
+                          />
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>To:</td>
+                        <td>
+                          <input
+                            type="datetime-local"
+                            step="1"
+                            value={toLocalTime(measuredTo).toISOString().slice(0, 19)}
+                            onChange={(e) => setMeasuredTo(e.target.value)}
+                          />
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                )}
+
+            </div>
+          }
+
+          {anomalyDecision && (
+            <>
+              <textarea
+                rows={10}
+                placeholder={selectedIssue.message || 'Add a message...'}
+                value={userMessage}
+                onChange={(e) => setUserMessage(e.target.value)}
+                onFocus={(e) => {
+                  e.target.style.backgroundColor = '#f9f9f9';
+                }}
+                onBlur={(e) => {
+                  e.target.style.backgroundColor = '#ccc';
+                }}
+                style={{
+                  width: '98%',
+                  padding: '8px',
+                  fontSize: '14px',
+                  backgroundColor: '#ccc',
+                  color: '#014F91',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  resize: 'vertical',
+                  marginTop: '20px',
+                  marginBottom: '0px',
+                }}
+              />
+              Max 440 characters.
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px', padding: '0px' }}>
+                <button
+                  onClick={() => {
+                    if (anomalyDecision) {
+                      if (device.application === 'Continuous') {
+                        handleAnomalyResponse(anomalyDecision === 'No');
+                      }
+                      else {
+                        if (selectedIssue.periodFrom !== null) {
+                          handleAnomalyResponse(anomalyDecision === 'No');
+                        }
+                        else {
+                          handleCreatePeriodicIssue(anomalyDecision === 'No')
+                        }
+                      }
+                    }
+                    setAnomalyDecision(null);
+                    setUserMessage('');
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#014F91',
+                    border: 'none',
+                    borderRadius: '4px',
+                    color: 'white',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Submit
+                </button>
+
+                <button
+                  onClick={() => {
+                    setCreatingNewIssue(false);
+                    setAnomalyDecision(null);
+                    setUserMessage('');
+                    setApiResponseMessage('');
+                    setIsModalOpen(false);
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#014F91',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    display: selectedIssue.confirmed ? 'none' : 'block'
+                  }}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  onClick={() => { handleDeleteIssue(); }}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#C23B22',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    display: selectedIssue.confirmed ? 'block' : 'none'
+                  }}
+                >
+                  {device.application === 'Continuous' ? 'Remove' : 'Delete'}
+                </button>
+              </div>
+            </>
+          )}
+
+          {apiResponseMessage && (
+            <div style={{ marginTop: '10px', color: '#007BFF' }}>{apiResponseMessage}</div>
+          )}
+        </div>
+      </>
+    );
+  }
+
   return (
-    <div style={{ display: 'flex', height: '80vh', overflow: 'hidden' }}>
+    <div style={{
+      display: 'flex',
+      height: device.application === 'Continuous' ? '50vh' : '80vh',
+      overflow: 'hidden'
+    }}>
       {/* Left side: Issue list */}
       <div
         style={{
@@ -440,318 +752,97 @@ const IssueList = ({ device, hmacKey, issues, selectedIssueId, firstUse, setFirs
         }}
       >
         {selectedIssue ? (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px', padding: '0px' }}>
-              <h3 style={{ marginTop: 0, marginBottom: '10px', paddingBottom: '0px' }}>
-                {selectedIssue.periodFrom !== null ? 'Issue #' : 'Curve Period #'}
-                {selectedIssue.issueId}</h3>
-              <button
-                onClick={() => setDetailsCollapsed(!detailsCollapsed)}
-                style={{
-                  backgroundColor: '#f0f0f0',
-                  border: '1px solid #ccc',
-                  borderRadius: '4px',
-                  padding: '4px 8px',
-                  cursor: 'pointer',
-                  margin: '0px',
-                  height: '30px',
-                  color: '#014F91',
-                }}
-              >
-                {detailsCollapsed ? 'Show Details ▲' : 'Hide Details ▼'}
-              </button>
+          <div className="issue-list-container-details"
+            style={{
+              flexDirection: device.application === "Continuous" ? 'row' : 'column',
+            }}
+          >
+            <div className="issue-list-details"
+              style={{
+                width: device.application === "Continuous" ? '50%' : '100%',
+              }}
+            >
+              {renderDetailsSection()}
             </div>
-
-
-
-            <div style={{ margin: 0 }}>
-              <div style={{ display: selectedIssue.periodFrom !== null ? 'block' : 'none' }}>
-                <strong>Issue:</strong> {selectedIssue.isAnomaly ? 'Yes' : 'No'}
-                <br />
-                <strong>Confirmed:</strong> {selectedIssue.confirmed ? 'Yes' : 'No'}
-              </div>
-
-              <div style={{ display: device.application === 'Continuous' ? 'none' : 'block' }}>
-                <strong>Issue score:</strong> {selectedIssue.issueScore}
-              </div>
-            </div>
-
-
-            {selectedIssue.periodFrom !== null && (
-              <table style={{ margin: '10px 0px 10px 0px', padding: 0, borderSpacing: 0 }}>
-                <tbody>
-                  <tr>
-                    <td style={{ paddingRight: '10px' }}><strong>From:</strong></td>
-                    <td>{formatDate(selectedIssue.measuredAtFrom)}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ paddingRight: '10px' }}><strong>To:</strong></td>
-                    <td>{formatDate(selectedIssue.measuredAtTo)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            )}
-            <p style={{ display: selectedIssue.periodFrom !== null ? 'none' : 'block' }}><strong>Date:</strong> {formatDate(selectedIssue.measuredAtTo)}</p>
-
-
-            <div style={{ display: selectedIssue.periodFrom !== null ? 'block' : 'none' }}>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '8px'
-              }}>
-                <strong>Message:</strong>
-                <button
-                  onClick={() => readAloud(selectedIssue.message)}
-                  disabled={!selectedIssue.message}
-                  style={{
-                    border: 'none',
-                    background: 'none',
-                    cursor: selectedIssue.message ? 'pointer' : 'not-allowed',
-                    padding: '0',
-                    fontSize: '1.2em',
-                    color: '#014F91',
-                  }}
-                  aria-label="Read message aloud"
-                  title={selectedIssue.message ? 'Read message aloud' : 'No message to read'}
-                >
-                  🔊
-                </button>
-              </div>
-
-              <ul style={{ paddingLeft: '0px', margin: '0px' }}>
-                {selectedIssue.message === null
-                  ? 'No message'
-                  : selectedIssue.message
-                    .split(/(?<=[\.\?!;:])\s+/)
-                    .filter(Boolean)
-                    .map((sentence, index) => (
-                      <p
-                        key={index}
-                        style={{
-                          margin: '0px',
-                          marginTop: '5px',
-                          padding: '0px',
-                        }}
-                      >
-                        {sentence.trim()}
-                      </p>
-                    ))}
-              </ul>
-            </div>
-
-            {!detailsCollapsed && (
-              <>
-
-                {
-                  <div style={{ marginTop: '20px', borderTop: '1px solid #ccc', paddingTop: '20px' }}>
-                    {
-                      <div style={{ display: 'flex', gap: '10px' }}>
-                        <button
-                          onClick={() => setAnomalyDecision('Yes')}
-                          style={{
-                            padding: '8px 16px',
-                            backgroundColor: anomalyDecision === 'Yes' ? '#014F91' : '#fff',
-                            color: anomalyDecision === 'Yes' ? '#fff' : '#014F91',
-                            border: '1px solid #ccc',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '20px',
-                            fontStyle: 'bold',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          <img
-                            src={okimg}
-                            alt="Issue icon"
-                            style={{
-                              width: '45px',
-                              verticalAlign: 'middle',
-                              marginRight: '8px',
-                              marginBottom: '3px',
-                            }}
-                          />
-                          Yes
-                        </button>
-
-                        <button
-                          onClick={() => setAnomalyDecision('No')}
-                          style={{
-                            padding: '8px 16px',
-                            backgroundColor: anomalyDecision === 'No' ? '#014F91' : '#fff',
-                            color: anomalyDecision === 'No' ? '#fff' : '#014F91',
-                            border: '1px solid #ccc',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '20px',
-                            fontStyle: 'bold',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          <img
-                            src={nokimg}
-                            alt="Issue icon"
-                            style={{
-                              width: '45px',
-                              verticalAlign: 'middle',
-                              marginRight: '8px',
-                              marginBottom: '3px',
-                            }}
-                          />
-                          No
-                        </button>
-
-                        {anomalyDecision
-                          && device.application !== 'Continuous'
-                          && selectedIssue.periodFrom !== null && (
-                            <table style={{ margin: '0px', paddingLeft: '10px' }}>
-                              <tbody>
-                                <tr>
-                                  <td>From:</td>
-                                  <td>
-                                    <input
-                                      type="datetime-local"
-                                      step="1"
-                                      value={measuredFrom ? toLocalTime(measuredFrom).toISOString().slice(0, 19) : ''}
-                                      onChange={(e) => setMeasuredFrom(e.target.value)}
-                                    />
-                                  </td>
-                                </tr>
-                                <tr>
-                                  <td>To:</td>
-                                  <td>
-                                    <input
-                                      type="datetime-local"
-                                      step="1"
-                                      value={toLocalTime(measuredTo).toISOString().slice(0, 19)}
-                                      onChange={(e) => setMeasuredTo(e.target.value)}
-                                    />
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          )}
-
-                      </div>
-                    }
-
-                    {anomalyDecision && (
-                      <>
-                        <textarea
-                          rows={4}
-                          placeholder={selectedIssue.message || 'Add a message...'}
-                          value={userMessage}
-                          onChange={(e) => setUserMessage(e.target.value)}
-                          onFocus={(e) => {
-                            e.target.style.backgroundColor = '#f9f9f9';
-                          }}
-                          onBlur={(e) => {
-                            e.target.style.backgroundColor = '#ccc';
-                          }}
-                          style={{
-                            width: '98%',
-                            padding: '8px',
-                            fontSize: '14px',
-                            backgroundColor: '#ccc',
-                            color: '#014F91',
-                            border: '1px solid #ccc',
-                            borderRadius: '4px',
-                            resize: 'vertical',
-                            marginTop: '20px',
-                            marginBottom: '0px',
-                          }}
-                        />
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px', padding: '0px' }}>
-                          <button
-                            onClick={() => {
-                              if (anomalyDecision) {
-                                if (device.application === 'Continuous') {
-                                  handleAnomalyResponse(anomalyDecision === 'No');
-                                }
-                                else {
-                                  if (selectedIssue.periodFrom !== null) {
-                                    handleAnomalyResponse(anomalyDecision === 'No');
-                                  }
-                                  else {
-                                    handleCreatePeriodicIssue(anomalyDecision === 'No')
-                                  }
-                                }
-                              }
-                              setAnomalyDecision(null);
-                              setUserMessage('');
-                            }}
-                            style={{
-                              padding: '8px 16px',
-                              backgroundColor: '#014F91',
-                              border: 'none',
-                              borderRadius: '4px',
-                              color: 'white',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            Submit
-                          </button>
-
-                          <button
-                            onClick={() => {
-                              setCreatingNewIssue(false);
-                              setAnomalyDecision(null);
-                              setUserMessage('');
-                              setApiResponseMessage('');
-                            }}
-                            style={{
-                              padding: '8px 16px',
-                              backgroundColor: '#014F91',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              display: selectedIssue.confirmed ? 'none' : 'block'
-                            }}
-                          >
-                            Cancel
-                          </button>
-
-                          <button
-                            onClick={() => { handleDeleteIssue(); }}
-                            style={{
-                              padding: '8px 16px',
-                              backgroundColor: '#C23B22',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              display: selectedIssue.confirmed ? 'block' : 'none'
-                            }}
-                          >
-                            {device.application === 'Continuous' ? 'Remove' : 'Delete'}
-                          </button>
-                        </div>
-                      </>
-                    )}
-
-                    {apiResponseMessage && (
-                      <div style={{ marginTop: '10px', color: '#007BFF' }}>{apiResponseMessage}</div>
-                    )}
-                  </div>
-                }
-
-              </>
-            )}
 
             <div
               className="issue-chart-container"
               style={{
-                flex: 1,
-                marginTop: detailsCollapsed ? '10px' : anomalyDecision ? '0px' : '10px',
-                width: '100%',
-                height: detailsCollapsed ? '40%' : (anomalyDecision ? '25%' : '40%'),
+                marginTop: '10px',
+                marginLeft: '20px',
+                height: '95%',
+                width: device.application === "Continuous" ? '50%' : '100%',
               }}>
               <DataChart selectedIssue={selectedIssue} selectedDevice={device} hmacKey={hmacKey} />
             </div>
-          </>
+
+            {isModalOpen && (
+              <div
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  width: '100vw',
+                  height: '100vh',
+                  backgroundColor: 'rgba(0,0,0,0.8)',
+                  zIndex: 1000,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+                onClick={() => {
+                  if (selectedIssue?.confirmed) {
+                    setAnomalyDecision(selectedIssue.isAnomaly ? 'No' : 'Yes');
+                  } else {
+                    setAnomalyDecision(null);
+                  }
+                  setIsModalOpen(false);
+                }}
+              >
+                <div
+                  style={{
+                    width: '90%',
+                    maxWidth: '700px',
+                    backgroundColor: 'white',
+                    borderRadius: '8px',
+                    padding: '10px',
+                    position: 'relative',
+                    overflowY: 'auto',
+                  }}
+                  onClick={e => e.stopPropagation()}
+                >
+                  <button
+                    onClick={() => {
+                      if (selectedIssue?.confirmed) {
+                        setAnomalyDecision(selectedIssue.isAnomaly ? 'No' : 'Yes');
+                      } else {
+                        setAnomalyDecision(null);
+                      }
+                      setIsModalOpen(false);
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: 10,
+                      right: 10,
+                      background: 'transparent',
+                      border: 'none',
+                      fontSize: '24px',
+                      color: '#014F91',
+                      cursor: 'pointer',
+                    }}
+                    title="Close"
+                  >
+                    ×
+                  </button>
+                  <div style={{ height: '100%', width: '100%' }}>
+                    {renderDecisionChanges()}
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </div>
         ) : (
           <p>Select an issue to view details.</p>
         )}

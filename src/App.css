@@ -188,13 +188,34 @@ button:focus:not(:focus-visible) {
 }
 
 .device-list-container {
-  flex: 0 0 400px; /* fixed width */
+  flex: 0 0 400px;
+  /* fixed width */
   width: 400px;
 }
 
 .issue-list-container {
-  flex: 1 1 0; /* take remaining space */
+  flex: 1 1 0;
+  /* take remaining space */
   min-width: 0;
+}
+
+.issue-list-container-details {
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+  height: 100%;
+}
+
+.issue-list-details {
+  flex: 1;
+  height: 50%;
+}
+
+.issue-chart-container {
+  flex: 1;
+  margin-top: 10px;
+  margin-left: '20px';
+  height: 50%;
 }
 
 .logo {

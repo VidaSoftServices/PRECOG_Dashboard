@@ -15,6 +15,7 @@ import favLogo from './images/PG.png';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { toLocalTime } from './Utils';
+import RealTimeChart from './components/RealTimeChart';
 
 const shownIssueNotifications = new Set();
 const shownDeviceNotifications = new Set();
@@ -63,6 +64,7 @@ function AppContent() {
   const [readNotification, setReadNotification] = useState(false);
   const readNotificationRef = useRef(false);
   const [userDisplayName, setUserDisplayName] = useState(isAuthenticating.userName);
+  const [modalDevice, setModalDevice] = useState(null);
 
   useEffect(() => {
     //document.title = "PRECOG Dashboard";
@@ -400,18 +402,83 @@ function AppContent() {
         </div>
         <div className="issue-list-container">
           {selectedDevice && (
-            <IssueList
-              device={selectedDevice}
-              hmacKey={hmacKey}
-              issues={issues}
-              selectedIssueId={firstUse ? selectedIssueId : null}
-              firstUse={firstUse}
-              setFirstUse={setFirstUse}
-              onRefresh={handleRefresh}
-            />
+            <>
+              <IssueList
+                device={selectedDevice}
+                hmacKey={hmacKey}
+                issues={issues}
+                selectedIssueId={firstUse ? selectedIssueId : null}
+                firstUse={firstUse}
+                setFirstUse={setFirstUse}
+                onRefresh={handleRefresh}
+              />
+
+              {selectedDevice.application === "Continuous" && (
+                <RealTimeChart
+                  device={selectedDevice}
+                  hmacKey={hmacKey}
+                  startDate={startDate}
+                  endDate={endDate}
+                  small={true}
+                  openModal={() => setModalDevice(selectedDevice)}
+                />
+              )}
+            </>
           )}
         </div>
       </div>
+
+      {modalDevice && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, width: '100vw', height: '100vh',
+            backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1000,
+            display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center'
+          }}
+          onClick={() => setModalDevice(null)}
+        >
+          <div
+            style={{
+              width: '90%',
+              height: '80%',
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              padding: '10px',
+              position: 'relative',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setModalDevice(null)}
+              style={{
+                position: 'absolute',
+                top: 10,
+                right: 10,
+                background: 'transparent',
+                border: 'none',
+                fontSize: '24px',
+                color: '#014F91',
+                cursor: 'pointer',
+              }}
+              title="Close"
+            >
+              ×
+            </button>
+            <div style={{ height: '100%', width: '100%' }}>
+              <RealTimeChart
+                device={modalDevice}
+                hmacKey={hmacKey}
+                startDate={startDate}
+                endDate={endDate}
+                isModalOpen={true}
+                visible={modalDevice !== null}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       <ToastContainer />
     </div>
   );
