@@ -33,6 +33,8 @@ const RealTimeChart = ({
     const fetchChartData = async () => {
         if (!device || !hmacKey || !startDate || !endDate) return;
         try {
+            const isBidirectional = device.direction === 'BiDirectional';
+
             const start = encodeURIComponent(toLocalTime(startDate).toISOString().substring(0, 19));
             const end = encodeURIComponent(toLocalTime(endDate).toISOString().substring(0, 19));
             const url = `https://precog.vidasoftapi.com/api/Continuous/MeasuredDateRange?DeviceId=${device.deviceId}&StartDate=${start}&EndDate=${end}`;
@@ -140,7 +142,7 @@ const RealTimeChart = ({
                         return isModalOpen
                             ? `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} ` +
                             `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
-                            : `${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+                            : `${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
                     },
                     maxRotation: 90,
                     minRotation: 90,
