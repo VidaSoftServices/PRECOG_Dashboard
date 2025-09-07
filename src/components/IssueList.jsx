@@ -303,7 +303,7 @@ const IssueList = ({ device, hmacKey, issues, selectedIssueId, firstUse, setFirs
     return (
       <div style={{ display: 'flex', flexDirection: 'column', minWidth: '250px' }}>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px', padding: '0px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0px', padding: '0px' }}>
           <h3 style={{ marginTop: 0, marginBottom: '10px', paddingBottom: '0px' }}>
             {selectedIssue.periodFrom !== null ? 'Issue #' : 'Curve Period #'}
             {selectedIssue.issueId}</h3>
@@ -418,7 +418,8 @@ const IssueList = ({ device, hmacKey, issues, selectedIssueId, firstUse, setFirs
                 height: '40px',
                 verticalAlign: 'middle',
                 borderRadius: '10px',
-                border: anomalyDecision === 'Yes' ? '2px solid #6b6b6bff' : 'none'
+                border: anomalyDecision === 'Yes' ? '2px solid #6b6b6bff' : 'none',
+                boxShadow: 'rgba(60, 64, 67, 0.3) 0px 1px 2px 0px, rgba(60, 64, 67, 0.15) 0px 1px 3px 1px',
               }}
             />
           </button>
@@ -448,7 +449,9 @@ const IssueList = ({ device, hmacKey, issues, selectedIssueId, firstUse, setFirs
                 height: '40px',
                 verticalAlign: 'middle',
                 borderRadius: '10px',
-                border: anomalyDecision === 'No' ? '2px solid #6b6b6bff' : 'none'
+                border: anomalyDecision === 'No' ? '1px solid #a80a0aff' : 'none',
+                boxShadow: 'rgba(60, 64, 67, 0.3) 0px 1px 2px 0px, rgba(60, 64, 67, 0.15) 0px 1px 3px 1px',
+
               }}
             />
           </button>
@@ -521,9 +524,10 @@ const IssueList = ({ device, hmacKey, issues, selectedIssueId, firstUse, setFirs
                   backgroundColor: '#ccc',
                   color: '#014F91',
                   border: '1px solid #ccc',
-                  borderRadius: '4px',
+                  borderRadius: '15px',
                   resize: 'vertical',
                   marginTop: '20px',
+                  boxShadow:'rgba(60, 64, 67, 0.3) 0px 1px 2px 0px, rgba(60, 64, 67, 0.15) 0px 1px 3px 1px',
                   marginBottom: '0px',
                 }}
               />
@@ -552,7 +556,7 @@ const IssueList = ({ device, hmacKey, issues, selectedIssueId, firstUse, setFirs
                     padding: '8px 16px',
                     backgroundColor: '#014F91',
                     border: 'none',
-                    borderRadius: '4px',
+                    borderRadius: '15px',
                     color: 'white',
                     cursor: 'pointer',
                   }}
@@ -573,7 +577,7 @@ const IssueList = ({ device, hmacKey, issues, selectedIssueId, firstUse, setFirs
                     backgroundColor: '#014F91',
                     color: 'white',
                     border: 'none',
-                    borderRadius: '4px',
+                    borderRadius: '15px',
                     cursor: 'pointer',
                     display: selectedIssue.confirmed ? 'none' : 'block'
                   }}
@@ -588,7 +592,7 @@ const IssueList = ({ device, hmacKey, issues, selectedIssueId, firstUse, setFirs
                     backgroundColor: '#C23B22',
                     color: 'white',
                     border: 'none',
-                    borderRadius: '4px',
+                    borderRadius: '15px',
                     cursor: 'pointer',
                     display: selectedIssue.confirmed ? 'block' : 'none'
                   }}

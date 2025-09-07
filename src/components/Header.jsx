@@ -1,6 +1,6 @@
 import React, { useContext, useState } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import precogLogo2 from '../images/PG.png';
+import precogLogo2 from '../images/Precog-Dashboard.svg';
 import refreshLogo from '../images/RefreshBtn.png';
 import signal1Data from '../demo/signal1.json';
 import signal2Data from '../demo/signal2.json';
@@ -107,7 +107,7 @@ const Header = ({ hmacKey, onRefresh, startDate, endDate, setStartDate, setEndDa
             alt="PRECOG Logo"
             className="logo-img"
           />
-          PRECOG {showSecretButtons ? '' : 'DASHBOARD'}
+           {showSecretButtons ? '' : ''}
 
           {showSecretButtons && (
             <div className="secret-btns">

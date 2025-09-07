@@ -71,7 +71,7 @@ const DeviceList = ({ devices, hmacKey, selectedDevice, onSelectDevice, onRefres
   // Example function to get the border style based on device.heartBeat
   function getBorderStyle(device) {
     //alert('dfafs');
-    if (device != null && !device.heartBeat) return '3px dashed #bbb';
+    if (device != null && !device.heartBeat) return '1px dashed #bbb';
 
     // Convert heartBeat to local time if needed
     const heartBeatTime = toLocalTime(device.heartBeat);
@@ -84,7 +84,7 @@ const DeviceList = ({ devices, hmacKey, selectedDevice, onSelectDevice, onRefres
     if (diffHours <= 1) {
       return '1px solid #ccc';
     } else {
-      return '3px dashed #bbb';
+      return '2px dashed #bbb';
     }
   }
 
@@ -229,7 +229,7 @@ const DeviceList = ({ devices, hmacKey, selectedDevice, onSelectDevice, onRefres
         display: 'flex',
         height: '80vh',
         overflow: 'hidden',
-        borderRight: '1px solid #ccc',
+        borderRight: '0px solid #ccc',
         flexDirection: 'column',
         minWidth: '300px',
         padding: '0px',
@@ -306,7 +306,7 @@ const DeviceList = ({ devices, hmacKey, selectedDevice, onSelectDevice, onRefres
                 selectedDevice?.deviceId === device.deviceId ? '#DADBDF' : '#f9f9f9',
               color: '#11131A',
               border: getBorderStyle(device),
-              borderRadius: '4px',
+              borderRadius: '14px',
               cursor: 'pointer',
               whiteSpace: 'nowrap',
               verticalAlign: 'middle',
@@ -417,12 +417,13 @@ const DeviceList = ({ devices, hmacKey, selectedDevice, onSelectDevice, onRefres
           padding: '0px',
           borderTop: '1px solid #ccc',
           maxHeight: '50%',
+          borderRadius: '8px',
           overflowY: 'auto',
         }}
       >
         {selectedDevice ? (
           <>
-            <h4 style={{ margin: 0, paddingTop: 1, paddingBottom: 1, backgroundColor: '#0077CB', color: '#ffffff' }}>Device Details</h4>
+            <h4 style={{ margin: 0, paddingTop: 3, paddingLeft:7, paddingBottom: 3, backgroundColor: '#0077CB', color: '#ffffff' }}>DEVICE DETAILS</h4>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <tbody>
                 <tr>

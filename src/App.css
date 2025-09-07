@@ -3,54 +3,172 @@
   font-weight: 400;
   color-scheme: light dark;
   color: #014F91;
-  background-color: #fff;
+  background-color: #f5f5f5;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   margin: 0;
   padding: 0;
-  height: 100%;
+  height: 100vh;
 }
 
 #root {
-  width: 98%;
-  margin: 0 auto;
-  padding: 0%;
+  width: 100vw;
+  margin: 0;
+  padding: 10px;
   text-align: center;
+  box-sizing: border-box;
 }
 
 html,
 body {
-  background-color: #fff;
+  background-color: #f5f5f5;
   color: #014F91;
-  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", Oxygen,
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
     Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
 }
 
 body {
   margin: 0;
   display: flex;
-  justify-content: center;
+  align-items: flex-start;
   min-width: 320px;
   min-height: 100vh;
-  padding: 2vh 0;
+  width: 100vw;
   box-sizing: border-box;
 }
 
 .main-container {
   width: 100%;
-  margin: auto;
+  margin: 0;
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
+/* @media (prefers-color-scheme: dark) {
+  :root {
+    color: #e5e5e5;
+    background-color: #1a1a1a;
+  }
 
   html,
   body {
-    background-color: #fff;
-    color: #014F91;
+    background-color: #1a1a1a;a
+    color: #e5e5e5;
   }
-}
+
+  .header-bar {
+    background-color: #2d2d2d!important;
+    box-shadow: rgba(0, 0, 0, 0.4) 0px 1px 2px 0px, rgba(0, 0, 0, 0.25) 0px 1px 3px 1px;
+  }
+
+  .device-list-container,
+  .issue-list-container {
+    background-color: #2d2d2d!important;
+    box-shadow: rgba(0, 0, 0, 0.4) 0px 1px 2px 0px, rgba(0, 0, 0, 0.25) 0px 1px 3px 1px;
+  }
+
+  .header-title,
+  .date-label,
+  .end-btn,
+  .username {
+    color: #66b3ff;
+  }
+
+  .login-title {
+    color: #66b3ff;
+  }
+
+  .audio-btn {
+    color: #66b3ff;
+    background-color: #3a3a3a;
+    box-shadow: rgba(0, 0, 0, 0.4) 0px 1px 2px 0px, rgba(0, 0, 0, 0.25) 0px 1px 3px 1px;
+  }
+
+  .audio-btn.disabled {
+    background-color: #3a3a3a;
+    color: #666;
+    box-shadow: rgba(0, 0, 0, 0.4) 0px 1px 2px 0px, rgba(0, 0, 0, 0.25) 0px 1px 3px 1px;
+  }
+
+  .login-input,
+  .date-input {
+    background-color: #3a3a3a;
+    color: #66b3ff;
+    border: 1px solid #555;
+    box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px -2px inset, rgba(0, 0, 0, 0.1) 0px 1px 8px -4px inset;
+  }
+
+  .login-input::placeholder {
+    color: #999;
+  }
+
+  .login-btn {
+    background-color: #3a3a3a;
+    color: #66b3ff;
+    box-shadow: rgba(0, 0, 0, 0.4) 0px 1px 2px 0px, rgba(0, 0, 0, 0.25) 0px 1px 3px 1px;
+  }
+
+  .login-btn:hover {
+    background-color: #4a4a4a;
+    color: #80c7ff;
+    box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px -2px inset, rgba(0, 0, 0, 0.1) 0px 1px 8px -4px inset;
+  }
+
+  .logout-btn {
+    background-color: #3a3a3a;
+    color: #66b3ff;
+    box-shadow: rgba(0, 0, 0, 0.4) 0px 1px 2px 0px, rgba(0, 0, 0, 0.25) 0px 1px 3px 1px;
+  }
+
+  .logout-btn:hover {
+    background-color: #4a4a4a;
+    color: #80c7ff;
+    box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px -2px inset, rgba(0, 0, 0, 0.1) 0px 1px 8px -4px inset;
+  }
+
+  .secret-btn {
+    background-color: #3a3a3a;
+    border: 1px solid #555;
+    color: #66b3ff;
+  }
+
+  .secret-btn.active {
+    background-color: #66b3ff;
+    color: #1a1a1a;
+  }
+
+  .login-error {
+    color: #ff6b6b;
+  }
+
+  button {
+    background-color: #3a3a3a;
+    color: #e5e5e5;
+    border: 1px solid #555;
+  }
+
+  button:hover {
+    border-color: #66b3ff;
+    background-color: #4a4a4a;
+  }
+
+  a {
+    color: #66b3ff;
+  }
+
+  a:hover {
+    color: #80c7ff;
+  }
+
+  h1 {
+    color: #e5e5e5;
+  }
+
+  .read-the-docs {
+    color: #aaa;
+  }
+} */
 
 @media (prefers-color-scheme: light) {
   :root {
@@ -93,8 +211,6 @@ a:hover {
   color: #535bf2;
 }
 
-
-
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
@@ -106,7 +222,7 @@ button {
   padding: 0.6em 1.2em;
   font-size: 1em;
   font-weight: 500;
-  font-family: 'Roboto', inherit;
+  font-family: inherit;
   background-color: #1a1a1a;
   cursor: pointer;
   transition: border-color 0.25s;
@@ -125,37 +241,48 @@ button:focus:not(:focus-visible) {
   outline: none;
 }
 
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  width: 100vw;
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+
 .login-main {
-  width: 100%;
+  width: 98%;
   margin: 0 auto;
   text-align: center;
   padding: 20px;
-  border-radius: 10px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  overflow-x: hidden;
+  overflow-y: hidden;
 }
 
 .login-logo {
-  width: 300px;
+  width: 500px;
   margin-bottom: 20px;
 }
 
 .login-title {
   margin-bottom: 30px;
   white-space: pre-line;
+  text-align: center;
   color: #014F91;
 }
 
 .vss-logo {
   height: 40px;
-  margin-top: 30px;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
 }
 
 .login-form {
   max-width: 400px;
   margin: 0 auto;
-  border-radius: 10px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  padding: 20px;
 }
 
 .login-input-group {
@@ -164,24 +291,40 @@ button:focus:not(:focus-visible) {
 
 .login-input {
   width: 95%;
-  padding: 8px;
+  padding: 10px 15px 10px 15px;
+  border-radius: 15px;
+  background-color: #eaeaea;
+  box-shadow: rgba(50, 50, 93, 0.12) 0px 10px 10px -12px inset, rgba(0, 0, 0, 0.1) 0px 1px 36px -31px inset;
+  border: 0 transparent;
   font-size: 1em;
-  border-radius: 4px;
+  border-radius: 15px;
   border: 1px solid #ccc;
   box-sizing: border-box;
-  font-family: 'Roboto', inherit;
+  color: #0077cb;
+}
+
+.login-btn:hover {
+  padding: 8px 16px;
+  background-color: #dadada;
+  box-shadow: rgba(50, 50, 93, 0.12) 0px 10px 10px -12px inset, rgba(0, 0, 0, 0.1) 0px 1px 36px -31px inset;
+  border: 0 transparent;
+  border: none;
+  border-radius: 15px;
+  color: #0077cb;
+  cursor: pointer;
+  transition: all 0.5s ease;
+  transform: scale(0.95);
 }
 
 .login-btn {
   padding: 8px 16px;
-  background-color: #014F91;
-  color: white;
-  border: 1px solid #014F91;
-  border-radius: 4px;
+  background-color: #eaeaea;
+  box-shadow: rgba(60, 64, 67, 0.3) 0px 1px 2px 0px, rgba(60, 64, 67, 0.15) 0px 1px 3px 1px;
+  border: none;
+  border-radius: 15px;
+  transition: all 0.5s ease;
+  color: #0077cb;
   cursor: pointer;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: 'Roboto', inherit;
 }
 
 .login-btn:disabled {
@@ -196,22 +339,23 @@ button:focus:not(:focus-visible) {
 }
 
 .device-list-container {
-  flex: 0 0 400px;
-  /* fixed width */
-  width: 400px;
-  border-radius: 10px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  padding: 15px;
-  margin-right: 10px;
+  flex: 0 0 380px;
+  border-radius: 20px;
+  padding: 10px;
+  padding-bottom: 30px;
+  text-align: left;
+  box-shadow: rgba(60, 64, 67, 0.3) 0px 1px 2px 0px, rgba(60, 64, 67, 0.15) 0px 1px 3px 1px;
+  background-color: #fbfbfb;
+  width: 380px;
 }
 
 .issue-list-container {
+  border-radius: 20px;
+  padding: 10px;
+  box-shadow: rgba(60, 64, 67, 0.3) 0px 1px 2px 0px, rgba(60, 64, 67, 0.15) 0px 1px 3px 1px;
+  background-color: #fbfbfb;
   flex: 1 1 0;
-  /* take remaining space */
   min-width: 0;
-  border-radius: 10px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  padding: 15px;
 }
 
 .issue-list-container-details {
@@ -219,12 +363,12 @@ button:focus:not(:focus-visible) {
   flex-direction: row;
   gap: 20px;
   height: 100%;
+  overflow-x: hidden;
 }
 
 .issue-list-details {
   flex: 1;
   height: 50%;
-  padding: 15px;
 }
 
 .issue-chart-container {
@@ -232,9 +376,6 @@ button:focus:not(:focus-visible) {
   margin-top: 10px;
   margin-left: '20px';
   height: 50%;
-  border-radius: 10px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  padding: 15px;
 }
 
 .logo {
@@ -254,31 +395,30 @@ button:focus:not(:focus-visible) {
 
 .card {
   padding: 2em;
-  border-radius: 10px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .read-the-docs {
   color: #888;
 }
 
-/* Header styles */
 .header-bar {
   width: 100%;
-  background-color: #0077CB;
+  background-color: #fbfbfb;
+  box-shadow: rgba(60, 64, 67, 0.3) 0px 1px 2px 0px, rgba(60, 64, 67, 0.15) 0px 1px 3px 1px;
+  padding: 5px 0 5px 0;
+  border-radius: 20px;
+  margin-bottom: 15px;
   color: white;
   box-sizing: border-box;
-  border-radius: 20px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  margin-bottom: 10px;
 }
 
 .dashboard-content {
-  width: 100%;
+  max-width: 100%;
   display: flex;
   flex-direction: row;
   padding: 0px;
   gap: 10px;
+  box-sizing: border-box;
 }
 
 .header-content {
@@ -286,19 +426,19 @@ button:focus:not(:focus-visible) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 10px;
+  padding: 10px 20px;
 }
 
 .header-title {
   margin: 0;
   display: flex;
+  color: #0077cb;
   align-items: center;
   white-space: nowrap;
-  font-family: 'Roboto', inherit;
 }
 
 .logo-img {
-  width: 30px;
+  height: 40px;
   margin-right: 10px;
   vertical-align: middle;
   padding-bottom: 0px;
@@ -318,7 +458,6 @@ button:focus:not(:focus-visible) {
   color: #268cd5ff;
   border-radius: 4px;
   cursor: pointer;
-  font-family: 'Roboto', inherit;
 }
 
 .secret-btn.active {
@@ -334,46 +473,54 @@ button:focus:not(:focus-visible) {
 
 .date-label {
   margin: 0px 10px 0px 20px;
-  font-family: 'Roboto', inherit;
+  color: #0077cb;
+  font-weight: 600;
 }
 
 .date-input {
   margin: 0px 10px 0px 10px;
-  padding: 5px 15px 5px 15px;
-  font-size: 1rem;
+  padding: 10px 15px 10px 15px;
   border-radius: 15px;
-  border: 1px solid #ccc;
+  background-color: #eaeaea;
+  box-shadow: rgba(50, 50, 93, 0.12) 0px 10px 10px -12px inset, rgba(0, 0, 0, 0.1) 0px 1px 36px -31px inset;
+  border: 0 transparent;
+  color: #0077cb;
+  font-size: 1rem;
 }
 
 .end-btn {
   margin: 0px 10px 0px 0px;
   background-color: transparent;
-  border: 1px solid transparent;
-  color: white;
+  border: none;
+  color: #0077cb;
   cursor: default;
   font-size: 1rem;
-  border-radius: 15px;
   padding: 0;
-  font-family: 'Roboto', inherit;
 }
 
 .audio-btn {
-  border: 1px solid transparent;
+  border: none;
   background: none;
   cursor: pointer;
   padding: 0;
   font-size: 1.4em;
   color: #014F91;
   margin-right: 5px;
+  padding: 3px;
+  border-radius: 20px;
+  box-shadow: rgba(60, 64, 67, 0.3) 0px 1px 2px 0px, rgba(60, 64, 67, 0.15) 0px 1px 3px 1px;
 }
 
 .audio-btn.disabled {
   cursor: not-allowed;
+  padding: 3px;
+  border-radius: 20px;
+  box-shadow: rgba(60, 64, 67, 0.3) 0px 1px 2px 0px, rgba(60, 64, 67, 0.15) 0px 1px 3px 1px;
 }
 
 .refresh-btn {
   padding: 0;
-  border: 1px solid transparent;
+  border: none;
   cursor: pointer;
   border-radius: 0;
   margin-right: 10px;
@@ -382,21 +529,35 @@ button:focus:not(:focus-visible) {
 
 .refresh-img {
   width: 35px;
+  border-radius: 25px;
   vertical-align: middle;
 }
 
 .username {
   font-weight: bold;
-  font-family: 'Roboto', inherit;
+  color: #0077cb;
+}
+
+.logout-btn:hover {
+  padding: 8px 16px;
+  background-color: #dadada;
+  box-shadow: rgba(50, 50, 93, 0.12) 0px 10px 10px -12px inset, rgba(0, 0, 0, 0.1) 0px 1px 36px -31px inset;
+  border: 0 transparent;
+  border: none;
+  border-radius: 15px;
+  color: #0077cb;
+  cursor: pointer;
+  transition: all 0.5s ease;
+  transform: scale(0.95);
 }
 
 .logout-btn {
   padding: 8px 16px;
-  background-color: #014F91;
-  border: 1px solid #014F91;
-  border-radius: 4px;
-  color: white;
-  border-radius: 13px;
+  background-color: #eaeaea;
+  box-shadow: rgba(60, 64, 67, 0.3) 0px 1px 2px 0px, rgba(60, 64, 67, 0.15) 0px 1px 3px 1px;
+  border: none;
+  border-radius: 15px;
+  transition: all 0.5s ease;
+  color: #0077cb;
   cursor: pointer;
-  font-family: 'Roboto', inherit;
 }

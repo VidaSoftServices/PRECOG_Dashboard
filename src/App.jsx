@@ -9,7 +9,7 @@ import DeviceList from './components/DeviceList';
 import IssueList from './components/IssueList';
 import Notifier from 'react-desktop-notification';
 import alertimg from './images/Alert.png';
-import precogLogo from './images/PRECOG_Logo.png';
+import precogLogo from './images/Precog-Logo.svg';
 import vssLogo from './images/Vida_Soft.svg';
 import favLogo from './images/PG.png';
 import { ToastContainer, toast } from 'react-toastify';
@@ -358,6 +358,7 @@ function AppContent() {
 
   if (!hmacKey) {
     return (
+      <div className="login-container">
       <main className="login-main">
         <img
           src={precogLogo}
@@ -374,6 +375,7 @@ function AppContent() {
           className="vss-logo"
         />
       </main>
+      </div>
     );
   }
 
