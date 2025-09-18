@@ -14,8 +14,9 @@ import vssLogo from './images/Vida_Soft.svg';
 import favLogo from './images/PG.png';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { toLocalTime } from './Utils';
+import { toLocalTime, fetchDeviceData } from './Utils';
 import RealTimeChart from './components/RealTimeChart';
+import CompareChart from './components/CompareChart';
 
 const shownIssueNotifications = new Set();
 const shownDeviceNotifications = new Set();
@@ -57,6 +58,7 @@ function AppContent() {
   const [devices, setDevices] = useState([]);
   const [issues, setIssues] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState(null);
+  const [selectedDevices, setSelectedDevices] = useState([]);
   const [initializedFromUrl, setInitializedFromUrl] = useState(false);
   const [selectedIssueId, setSelectedIssueId] = useState(null);
   const [firstUse, setFirstUse] = useState(true);
@@ -65,6 +67,10 @@ function AppContent() {
   const readNotificationRef = useRef(false);
   const [userDisplayName, setUserDisplayName] = useState(isAuthenticating.userName);
   const [modalDevice, setModalDevice] = useState(null);
+  const [compareData1, setCompareData1] = useState([]);
+  const [compareData2, setCompareData2] = useState([]);
+  const [singleDeviceData, setSingleDeviceData] = useState([]);
+  const [allDevicesData, setAllDevicesData] = useState([]);
 
   useEffect(() => {
     //document.title = "PRECOG Dashboard";
@@ -245,6 +251,60 @@ function AppContent() {
     }
   };
 
+  // When two or more devices are selected, fetch datasets for CompareChart
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (selectedDevices?.length >= 2) {
+        // Fetch data for all selected devices
+        const fetchPromises = selectedDevices.map(device => 
+          fetchDeviceData(device?.deviceId, hmacKey, endDate, { 
+            periods: 40, 
+            biDirectional: device?.direction === 'BiDirectional' 
+          })
+        );
+        
+        const allDeviceData = await Promise.all(fetchPromises);
+        
+        if (!cancelled) {
+          // For backward compatibility, keep the first two devices in separate state
+          setCompareData1(allDeviceData[0] || []);
+          setCompareData2(allDeviceData[1] || []);
+          
+          // Store all device data for the new multi-device CompareChart
+          setAllDevicesData(allDeviceData.map((data, index) => ({
+            data: data,
+            name: selectedDevices[index]?.name || `Device ${selectedDevices[index]?.deviceId}`
+          })));
+        }
+      } else {
+        setCompareData1([]);
+        setCompareData2([]);
+        setAllDevicesData([]);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line
+  }, [JSON.stringify(selectedDevices), hmacKey, startDate, endDate]);
+
+  // When exactly one device is selected, fetch its dataset for RealTimeChart
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (selectedDevices?.length === 1) {
+        const d = selectedDevices[0];
+        const s = await fetchDeviceData(d?.deviceId, hmacKey, endDate, { periods: 40, biDirectional: d?.direction === 'BiDirectional' });
+        if (!cancelled) setSingleDeviceData(s);
+      } else {
+        setSingleDeviceData([]);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line
+  }, [JSON.stringify(selectedDevices), hmacKey, startDate, endDate]);
+
   const requestUserDisplayName = async () => {
     try {
 
@@ -330,6 +390,8 @@ function AppContent() {
   useEffect(() => {
     if (devices.length > 0 && !selectedDevice) {
       setSelectedDevice(devices[0]);
+      // Automatikusan kiválasztjuk az első eszközt a multi-select listában is
+      setSelectedDevices([devices[0]]);
     }
   }, [devices, selectedDevice]);
 
@@ -400,10 +462,16 @@ function AppContent() {
             selectedDevice={selectedDevice}
             onSelectDevice={setSelectedDevice}
             onRefresh={handleRefresh}
+            selectedDevices={selectedDevices}
+            onDeviceSelectionChange={setSelectedDevices}
           />
         </div>
         <div className="issue-list-container">
-          {selectedDevice && (
+          {selectedDevices.length === 0 && (
+            <div style={{ padding: 16, color: '#666' }}>Please select one or two devices.</div>
+          )}
+
+          {selectedDevices.length === 1 && selectedDevice && (
             <>
               <IssueList
                 device={selectedDevice}
@@ -423,9 +491,24 @@ function AppContent() {
                   endDate={endDate}
                   small={true}
                   openModal={() => setModalDevice(selectedDevice)}
+                  // dataset passed for future use or potential optimization
+                  data={singleDeviceData}
                 />
               )}
             </>
+          )}
+
+          {selectedDevices.length > 1 && (
+            <div style={{ width: '100%', height: '100%' }}>
+              <CompareChart
+                devicesData={allDevicesData}
+                // Backward compatibility props (will be ignored if devicesData is provided)
+                device1Data={compareData1}
+                device2Data={compareData2}
+                device1Name={selectedDevices[0]?.name || `Device ${selectedDevices[0]?.deviceId}`}
+                device2Name={selectedDevices[1]?.name || `Device ${selectedDevices[1]?.deviceId}`}
+              />
+            </div>
           )}
         </div>
       </div>
