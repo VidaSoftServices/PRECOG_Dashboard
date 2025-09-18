@@ -182,53 +182,55 @@ const CompareChart = ({
 			});
 		});
 
-		// Combined control limits
-		datasets.push(
-			{
-				label: 'UCL3',
-				data: combinedLimits.map(item => item?.upperControlLimit3S || null),
-				borderColor: 'grey',
-				borderDash: [30, 15],
-				pointRadius: 0,
-				borderWidth: 1.5,
-				tension: 0.1,
-				hidden: isModalOpen ? false : true,
-			},
-			{
-				label: 'UCL2',
-				data: combinedLimits.map(item => item?.upperControlLimit2S || null),
-				borderColor: 'lightGrey',
-				backgroundColor: '#f5f5f5',
-				borderDash: [30, 15],
-				pointRadius: 0,
-				borderWidth: 1.5,
-				tension: 0.1,
-				hidden: isModalOpen ? false : true,
-				fill: '-1',
-			},
-			{
-				label: 'LCL2',
-				data: combinedLimits.map(item => item?.lowerControlLimit2S || null),
-				borderColor: 'lightGrey',
-				borderDash: [30, 15],
-				pointRadius: 0,
-				borderWidth: 1.5,
-				tension: 0.1,
-				hidden: isModalOpen ? false : true,
-			},
-			{
-				label: 'LCL3',
-				data: combinedLimits.map(item => item?.lowerControlLimit3S || null),
-				borderColor: 'grey',
-				backgroundColor: '#f5f5f5',
-				borderDash: [30, 15],
-				pointRadius: 0,
-				borderWidth: 1.5,
-				tension: 0.1,
-				hidden: isModalOpen ? false : true,
-				fill: '-1',
-			}
-		);
+		// Combined control limits - only show for single device comparison
+		if (processedDevicesData.length <= 1) {
+			datasets.push(
+				{
+					label: 'UCL3',
+					data: combinedLimits.map(item => item?.upperControlLimit3S || null),
+					borderColor: 'grey',
+					borderDash: [30, 15],
+					pointRadius: 0,
+					borderWidth: 1.5,
+					tension: 0.1,
+					hidden: isModalOpen ? false : true,
+				},
+				{
+					label: 'UCL2',
+					data: combinedLimits.map(item => item?.upperControlLimit2S || null),
+					borderColor: 'lightGrey',
+					backgroundColor: '#f5f5f5',
+					borderDash: [30, 15],
+					pointRadius: 0,
+					borderWidth: 1.5,
+					tension: 0.1,
+					hidden: isModalOpen ? false : true,
+					fill: '-1',
+				},
+				{
+					label: 'LCL2',
+					data: combinedLimits.map(item => item?.lowerControlLimit2S || null),
+					borderColor: 'lightGrey',
+					borderDash: [30, 15],
+					pointRadius: 0,
+					borderWidth: 1.5,
+					tension: 0.1,
+					hidden: isModalOpen ? false : true,
+				},
+				{
+					label: 'LCL3',
+					data: combinedLimits.map(item => item?.lowerControlLimit3S || null),
+					borderColor: 'grey',
+					backgroundColor: '#f5f5f5',
+					borderDash: [30, 15],
+					pointRadius: 0,
+					borderWidth: 1.5,
+					tension: 0.1,
+					hidden: isModalOpen ? false : true,
+					fill: '-1',
+				}
+			);
+		}
 
 		return {
 			labels,

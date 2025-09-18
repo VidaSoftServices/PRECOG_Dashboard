@@ -469,7 +469,7 @@ const DeviceList = ({ devices, hmacKey, selectedDevice, onSelectDevice, onRefres
           overflowY: 'auto',
         }}
       >
-        {selectedDevice ? (
+        {selectedDevice && selectedDevices.length === 1 ? (
           <>
             <h4 style={{ margin: 0, paddingTop: 3, paddingLeft:7, paddingBottom: 3, backgroundColor: '#0077CB', color: '#ffffff' }}>DEVICE DETAILS</h4>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
