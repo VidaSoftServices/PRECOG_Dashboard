@@ -33,7 +33,14 @@ export async function fetchDeviceData(deviceId, hmacKey, endDate = new Date(), {
         lowerControlLimit2S: item.lowerControlLimit2S,
         lowerControlLimit3S: item.lowerControlLimit3S,
         target: item.target,
-        tolerance: item.tolerance
+        tolerance: item.tolerance,
+        anomaly: item.anomaly,
+        anomalyAbove: item.anomalyAbove,
+        anomalyBelow: item.anomalyBelow,
+        targetAbove: item.targetAbove,
+        toleranceAbove: item.toleranceAbove,
+        targetBelow: item.targetBelow,
+        toleranceBelow: item.toleranceBelow,
       }));
   } catch {
     return [];

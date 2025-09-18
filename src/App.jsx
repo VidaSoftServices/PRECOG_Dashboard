@@ -140,7 +140,7 @@ function AppContent() {
           if (
             device.deviceId !== null &&
             device.hasUnconfirmedIssue &&
-            device.deviceId !== selectedDevice.deviceId &&
+            device.deviceId !== selectedDevice?.deviceId &&
             !shownDeviceNotifications.has(device.deviceId)
           ) {
             Notifier.start(

@@ -145,8 +145,10 @@ const CompareChart = ({
 			const deviceName = deviceNames[deviceIndex];
 			const deviceDataPoints = deviceData[deviceIndex];
 			const color = colorPalette[deviceIndex % colorPalette.length];
+			const device = processedDevicesData[deviceIndex];
+			const isBidirectional = device?.data?.[0]?.anomalyAbove !== undefined || device?.data?.[0]?.anomalyBelow !== undefined;
 
-			// Anomaly points for this device
+			// Always add anomaly datasets (like DataChart does)
 			datasets.push(
 				{
 					label: `Critical${deviceIndex + 1}`,
@@ -168,17 +170,31 @@ const CompareChart = ({
 				}
 			);
 
-			// Main data line for this device
+			// Main data line for this device (like DataChart's "Actual" line)
 			datasets.push({
 				label: deviceName,
 				data: series,
 				borderColor: color,
-				backgroundColor: deviceDataPoints.map((item) => 
-					item?.anomaly === 0 ? color : color.replace('1)', '0.5)')
-				),
+				backgroundColor: color, // csak a vonalhoz
+				pointBackgroundColor: deviceDataPoints.map((item) => {
+					const hasAnomaly = isBidirectional 
+						? (item?.anomalyAbove !== 0 || item?.anomalyBelow !== 0)
+						: (item?.anomaly !== 0);
+					return hasAnomaly ? color.replace('1)', '0.5)') : color;
+				}),
 				tension: 0.2,
-				pointRadius: deviceDataPoints.map((item) => item?.anomaly === 0 ? 8 : 6),
-				pointHoverRadius: deviceDataPoints.map((item) => item?.anomaly === 0 ? 40 : 30),
+				pointRadius: deviceDataPoints.map((item) => {
+					const hasAnomaly = isBidirectional 
+						? (item?.anomalyAbove !== 0 || item?.anomalyBelow !== 0)
+						: (item?.anomaly !== 0);
+					return hasAnomaly ? 6 : 8;  // Back to original: normal points 8px, anomaly points 6px
+				}),
+				pointHoverRadius: deviceDataPoints.map((item) => {
+					const hasAnomaly = isBidirectional 
+						? (item?.anomalyAbove !== 0 || item?.anomalyBelow !== 0)
+						: (item?.anomaly !== 0);
+					return hasAnomaly ? 30 : 40;
+				}),
 			});
 		});
 
@@ -257,8 +273,8 @@ const CompareChart = ({
 				position: 'top',
 				labels: {
 					filter: function (legendItem, data) {
-						// Filter out critical and warning labels from the legend
-						return !['Critical1', 'Warning1', 'Critical2', 'Warning2'].includes(legendItem.text);
+						// Filter out all anomaly labels from the legend (like DataChart does)
+						return !legendItem.text.includes('Critical') && !legendItem.text.includes('Warning');
 					}
 				}
 			},
