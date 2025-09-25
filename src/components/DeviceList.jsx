@@ -429,36 +429,38 @@ const DeviceList = ({ devices, hmacKey, selectedDevice, onSelectDevice, onRefres
         ))}
       </div>
 
-      <button
-        onClick={() => {
-          setNewDevice({
-            deviceId: '',
-            deviceName: '',
-            application: 'Continuous',
-            direction: 'LowerIsBetter',
-            lookback: '',
-            scale: 'Days',
-            minIssueScore: ''
-          });
-          setAddDevice(true);
-          setShowAddDevice(true);
-        }}
-        style={{
-          backgroundColor: 'white',
-          border: 'none',
-          cursor: 'pointer',
-          margin: 'auto',
-          padding: '0px'
-        }}
-      >
-        <img
-          src={addIcon}
-          alt="Add device"
-          style={{
-            width: '35px',
+      {selectedDevices.length <= 1 && (
+        <button
+          onClick={() => {
+            setNewDevice({
+              deviceId: '',
+              deviceName: '',
+              application: 'Continuous',
+              direction: 'LowerIsBetter',
+              lookback: '',
+              scale: 'Days',
+              minIssueScore: ''
+            });
+            setAddDevice(true);
+            setShowAddDevice(true);
           }}
-        />
-      </button>
+          style={{
+            backgroundColor: 'white',
+            border: 'none',
+            cursor: 'pointer',
+            margin: 'auto',
+            padding: '0px'
+          }}
+        >
+          <img
+            src={addIcon}
+            alt="Add device"
+            style={{
+              width: '35px',
+            }}
+          />
+        </button>
+      )}
 
       <div
         style={{
