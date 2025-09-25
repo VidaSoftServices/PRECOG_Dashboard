@@ -1,8 +1,26 @@
 export function toLocalTime(date) {
-  if (!date) return '';
-  if (!(date instanceof Date)) return new Date(date.replace(' ', 'T') + 'Z');
-  if ((date instanceof Date) && !isNaN(date.getTime())) return new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return '';
+  if (!date) return new Date();
+  
+  let dateObj;
+  if (date instanceof Date) {
+    dateObj = date;
+  } else {
+    // Handle string dates
+    try {
+      dateObj = new Date(date.replace(' ', 'T') + 'Z');
+    } catch (e) {
+      console.warn('Invalid date format:', date);
+      return new Date();
+    }
+  }
+  
+  // Check if the date is valid
+  if (isNaN(dateObj.getTime())) {
+    console.warn('Invalid date object:', dateObj);
+    return new Date();
+  }
+  
+  return new Date(dateObj.getTime() - dateObj.getTimezoneOffset() * 60000);
 }
 
 // Fetch recent time-series data for a device

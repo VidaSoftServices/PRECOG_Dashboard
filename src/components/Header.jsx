@@ -137,7 +137,16 @@ const Header = ({ hmacKey, onRefresh, startDate, endDate, setStartDate, setEndDa
               type="datetime-local"
               step="1"
               value={toLocalTime(startDate).toISOString().slice(0, 19)}
-              onChange={(e) => setStartDate(new Date(e.target.value))}
+              onChange={(e) => {
+                try {
+                  const newDate = new Date(e.target.value);
+                  if (!isNaN(newDate.getTime()) && e.target.value) {
+                    setStartDate(newDate);
+                  }
+                } catch (error) {
+                  console.warn('Invalid date input:', e.target.value);
+                }
+              }}
               className="date-input"
             />
           </div>
@@ -165,7 +174,16 @@ const Header = ({ hmacKey, onRefresh, startDate, endDate, setStartDate, setEndDa
               type="datetime-local"
               step="1"
               value={toLocalTime(endDate).toISOString().slice(0, 19)}
-              onChange={(e) => setEndDate(new Date(e.target.value))}
+              onChange={(e) => {
+                try {
+                  const newDate = new Date(e.target.value);
+                  if (!isNaN(newDate.getTime()) && e.target.value) {
+                    setEndDate(newDate);
+                  }
+                } catch (error) {
+                  console.warn('Invalid date input:', e.target.value);
+                }
+              }}
               className="date-input"
             />
           </div>
