@@ -35,16 +35,16 @@ const CompareChart = ({
 }) => {
 	const [isModalOpen, setIsModalOpen] = useState(false);
 
-	// 8 színből álló paletta (piros és sárga nélkül)
+	// 8 színből álló paletta (piros nélkül) — első színek jól elütők: kék, narancs, stb.
 	const colorPalette = [
-		'rgba(1, 79, 145, 1)',     // sötétkék
-		'rgba(25, 135, 84, 1)',    // zöld
+		'rgba(1, 79, 145, 1)',     // sötétkék (első)
+		'rgba(255, 159, 64, 1)',   // narancssárga (második)
 		'rgba(102, 16, 242, 1)',   // lila
 		'rgba(0, 123, 255, 1)',    // világoskék
-		'rgba(40, 167, 69, 1)',    // világoszöld
-		'rgba(220, 53, 69, 1)',    // rózsaszín
+		'rgba(25, 135, 84, 1)',    // zöld
 		'rgba(23, 162, 184, 1)',   // türkiz
 		'rgba(111, 66, 193, 1)',   // sötétlila
+		'rgba(255, 205, 86, 1)',   // sárga
 	];
 
 	// Backward compatibility: ha devicesData nincs megadva, használjuk a régi props-okat
