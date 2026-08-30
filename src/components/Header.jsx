@@ -9,6 +9,11 @@ import { toLocalTime } from '../Utils';
 import '../App.css'; // Added import
 import '../AppResp.css';
 
+// --- ADD THESE LINES ---
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+// -----------------------
+
 const Header = ({ hmacKey, onRefresh, startDate, endDate, setStartDate, setEndDate, readNotification, setReadNotification, displayName }) => {
   const { setCredentials, credentials } = useContext(AuthContext);
   const [clickCount, setClickCount] = useState(0);
@@ -133,12 +138,17 @@ const Header = ({ hmacKey, onRefresh, startDate, endDate, setStartDate, setEndDa
         <div className="header-controls">
           <div>
             <label className="date-label">Start</label>
-            <input
-              type="datetime-local"
-              step="1"
-              value={toLocalTime(startDate).toISOString().slice(0, 19)}
-              onChange={(e) => setStartDate(new Date(e.target.value))}
+            <DatePicker
+              selected={startDate}
+              onChange={(date) => setStartDate(date)}
+              showTimeSelect
+              timeFormat="HH:mm:ss"
+              timeIntervals={1}
+              dateFormat="yyyy-MM-dd HH:mm:ss"
               className="date-input"
+              placeholderText="Start date"
+              popperPlacement="bottom"
+              autoComplete="off"
             />
           </div>
           <div>
@@ -161,12 +171,17 @@ const Header = ({ hmacKey, onRefresh, startDate, endDate, setStartDate, setEndDa
               End
             </button>
 
-            <input
-              type="datetime-local"
-              step="1"
-              value={toLocalTime(endDate).toISOString().slice(0, 19)}
-              onChange={(e) => setEndDate(new Date(e.target.value))}
+            <DatePicker
+              selected={endDate}
+              onChange={(date) => setEndDate(date)}
+              showTimeSelect
+              timeFormat="HH:mm:ss"
+              timeIntervals={1}
+              dateFormat="yyyy-MM-dd HH:mm:ss"
               className="date-input"
+              placeholderText="End date"
+              popperPlacement="bottom"
+              autoComplete="off"
             />
           </div>
 

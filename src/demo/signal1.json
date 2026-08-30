@@ -107,21 +107,21 @@
   {
     "period": 555,
     "measuredAt": "2025-08-16T00:00:00Z",
-    "actual": 1.836,
+    "actual": 1.826,
     "target": 2,
     "tolerance": 0.05
   },
   {
     "period": 556,
     "measuredAt": "2025-08-17T00:00:00Z",
-    "actual": 1.9691,
+    "actual": 1.87,
     "target": 2,
     "tolerance": 0.05
   },
   {
     "period": 557,
     "measuredAt": "2025-08-18T00:00:00Z",
-    "actual": 2.0334,
+    "actual": 1.9,
     "target": 2,
     "tolerance": 0.05
   }

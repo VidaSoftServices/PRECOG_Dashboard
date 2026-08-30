@@ -43,7 +43,7 @@ const buttonStyle = {
   width: '48%',
 };
 
-const DeviceList = ({ devices, hmacKey, selectedDevice, onSelectDevice, onRefresh }) => {
+const DeviceList = ({ devices, hmacKey, selectedDevice, onSelectDevice, onRefresh, selectedDevices = [], onDeviceSelectionChange = () => {} }) => {
   const [showFilter, setShowFilter] = useState(false);
   const [nameFilter, setNameFilter] = useState('');
   const [onlyUnconfirmed, setOnlyUnconfirmed] = useState(false);
@@ -223,6 +223,55 @@ const DeviceList = ({ devices, hmacKey, selectedDevice, onSelectDevice, onRefres
     }
   };
 
+  const isSelected = (devId) => Array.isArray(selectedDevices) && selectedDevices.some(d => d?.deviceId === devId);
+
+  const handleClickDevice = (device, event) => {
+    const current = Array.isArray(selectedDevices) ? selectedDevices : [];
+    const already = current.some(d => d?.deviceId === device.deviceId);
+    const isCtrlPressed = event.ctrlKey || event.metaKey; // metaKey for Mac
+
+    let next;
+
+    if (already) {
+      // Ha már kiválasztott eszközre kattintunk, akkor kiválasztjuk
+      next = current.filter(d => d?.deviceId !== device.deviceId);
+    } else {
+      const isPeriodic = device?.application === 'Periodic';
+      const hasPeriodic = current.some(d => d?.application === 'Periodic');
+      const continuousDevices = current.filter(d => d?.application === 'Continuous');
+
+      if (isPeriodic) {
+        // Periodic eszköz csak egyedül választható ki
+        next = [device];
+      } else {
+        // Continuous eszköz
+        if (hasPeriodic) {
+          // Ha van periodic eszköz kiválasztva, lecseréljük
+          next = [device];
+        } else if (isCtrlPressed) {
+          // Ctrl+click: hozzáadjuk a kiválasztottakhoz (max 8 continuous)
+          if (continuousDevices.length >= 8) {
+            // Ha már 8 continuous eszköz van kiválasztva, ignoráljuk
+            return;
+          }
+          next = [...current, device];
+        } else {
+          // Egyszerű kattintás: lecseréljük az összes kiválasztást
+          next = [device];
+        }
+      }
+    }
+
+    onDeviceSelectionChange(next);
+
+    // Maintain single-selection for existing flows
+    if (!already) {
+      onSelectDevice(device);
+    } else if (selectedDevice?.deviceId === device.deviceId) {
+      onSelectDevice(next.length ? next[0] : null);
+    }
+  };
+
   return (
     <div
       style={{
@@ -296,14 +345,13 @@ const DeviceList = ({ devices, hmacKey, selectedDevice, onSelectDevice, onRefres
         {filteredDevices.map((device) => (
           <div
             key={device.deviceId}
-            onClick={() => onSelectDevice(device)}
+            onClick={(event) => handleClickDevice(device, event)}
             style={{
               display: 'flex',
               width: '100%',
               padding: '6px',
               marginBottom: '10px',
-              backgroundColor:
-                selectedDevice?.deviceId === device.deviceId ? '#DADBDF' : '#f9f9f9',
+              backgroundColor: isSelected(device.deviceId) ? '#DADBDF' : '#f9f9f9',
               color: '#11131A',
               border: getBorderStyle(device),
               borderRadius: '14px',
@@ -381,36 +429,38 @@ const DeviceList = ({ devices, hmacKey, selectedDevice, onSelectDevice, onRefres
         ))}
       </div>
 
-      <button
-        onClick={() => {
-          setNewDevice({
-            deviceId: '',
-            deviceName: '',
-            application: 'Continuous',
-            direction: 'LowerIsBetter',
-            lookback: '',
-            scale: 'Days',
-            minIssueScore: ''
-          });
-          setAddDevice(true);
-          setShowAddDevice(true);
-        }}
-        style={{
-          backgroundColor: 'white',
-          border: 'none',
-          cursor: 'pointer',
-          margin: 'auto',
-          padding: '0px'
-        }}
-      >
-        <img
-          src={addIcon}
-          alt="Add device"
-          style={{
-            width: '35px',
+      {selectedDevices.length <= 1 && (
+        <button
+          onClick={() => {
+            setNewDevice({
+              deviceId: '',
+              deviceName: '',
+              application: 'Continuous',
+              direction: 'LowerIsBetter',
+              lookback: '',
+              scale: 'Days',
+              minIssueScore: ''
+            });
+            setAddDevice(true);
+            setShowAddDevice(true);
           }}
-        />
-      </button>
+          style={{
+            backgroundColor: 'white',
+            border: 'none',
+            cursor: 'pointer',
+            margin: 'auto',
+            padding: '0px'
+          }}
+        >
+          <img
+            src={addIcon}
+            alt="Add device"
+            style={{
+              width: '35px',
+            }}
+          />
+        </button>
+      )}
 
       <div
         style={{
@@ -421,7 +471,7 @@ const DeviceList = ({ devices, hmacKey, selectedDevice, onSelectDevice, onRefres
           overflowY: 'auto',
         }}
       >
-        {selectedDevice ? (
+        {selectedDevice && selectedDevices.length === 1 ? (
           <>
             <h4 style={{ margin: 0, paddingTop: 3, paddingLeft:7, paddingBottom: 3, backgroundColor: '#0077CB', color: '#ffffff' }}>DEVICE DETAILS</h4>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
