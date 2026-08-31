@@ -1,0 +1,30 @@
+/*
+ * The only global stylesheet in this app. Fluent UI v9's FluentProvider and
+ * Griffel-generated component classes deliberately scope themselves to
+ * their own tree and never reset the page shell around them - by design,
+ * so a FluentProvider can be dropped into any host page without clobbering
+ * it. That leaves the browser's own default `body { margin: 8px }` user-agent
+ * rule unreset, which adds exactly 16px (8px top + 8px bottom) of height
+ * beyond the viewport on every route - the real cause of the unwanted
+ * vertical scrollbar (confirmed via direct layout inspection: html.scrollHeight
+ * was 816px against an 800px viewport, an exact 16px = 8+8 match). Fixed
+ * here at the root, not by hiding overflow - every `minHeight: '100vh'`
+ * flex chain already in ThemeContext.tsx/AppShell.tsx now measures against
+ * a page shell with no extra margin baked in.
+ */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+#root {
+  height: 100%;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}

@@ -32,6 +32,7 @@ import { useIssues } from '@/api/hooks/issues';
 import { useNumberSearchParam } from '@/lib/useNumberSearchParam';
 import { toApiIso, formatDateTime, parseApiDate } from '@/lib/dateTime';
 import { useAuth } from '@/auth/AuthContext';
+import { useBreakpoint } from '@/lib/useMediaQuery';
 
 const useStyles = makeStyles({
   toolbar: {
@@ -75,6 +76,7 @@ function defaultRange() {
 /** Single-Device, multiple-Sensor overlay mode (decision #16). */
 function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; start: Date; end: Date }) {
   const styles = useStyles();
+  const breakpoint = useBreakpoint();
   const deviceQuery = useDevice(deviceId);
   const sensorsQuery = useSensors(deviceId);
   const [selectedSensorIds, setSelectedSensorIds] = useState<number[]>([]);
@@ -127,7 +129,7 @@ function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; sta
   });
 
   return (
-    <div className={styles.layout}>
+    <div className={breakpoint === 'desktop' ? styles.layout : styles.layoutMobile}>
       <div>
         <Card className={styles.card}>
           <Body1Strong>Sensors ({effectiveSelection.length} of {Math.min(sensors.length, MAX_OVERLAY_SENSORS)} shown, max {MAX_OVERLAY_SENSORS})</Body1Strong>
@@ -203,6 +205,7 @@ function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; sta
 /** Two-Device comparison mode with compatibility-aware Sensor mapping (decision #17). */
 function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { deviceIdA: number; deviceIdB: number; start: Date; end: Date }) {
   const styles = useStyles();
+  const breakpoint = useBreakpoint();
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const sensorsA = useSensors(deviceIdA);
@@ -277,7 +280,7 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
           />
         </Card>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: tokens.spacingHorizontalM }}>
+        <div style={{ display: 'grid', gridTemplateColumns: breakpoint === 'desktop' ? '1fr 1fr' : '1fr', gap: tokens.spacingHorizontalM }}>
           <Card className={styles.card}>
             <Body1Strong>{deviceA.data?.deviceName ?? 'Device A'}</Body1Strong>
             <TelemetryChart series={[{ label: 'A', points: dataA.data ?? [] }]} mode="single" height={300} />

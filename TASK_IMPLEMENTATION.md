@@ -342,7 +342,7 @@ they don't show up as orphaned modules in a bundler warning).
 | File | Domain | Notable unused exports (see fresh-inspection findings above) |
 |---|---|---|
 | `src/api/hooks/devices.ts` | Device CRUD (no hard delete — disable only) | — |
-| `src/api/hooks/sensors.ts` | Sensor read/create/update | `useCreateSensor`, `useUpdateSensor` (unused — see gap above) |
+| `src/api/hooks/sensors.ts` | Sensor read/create/update | `useCreateSensor`/`useUpdateSensor` now consumed by `DeviceDetailPage.tsx`'s Add/Edit Sensor dialogs, added at the 2026-08-31 completion checkpoint — see Phase 10 |
 | `src/api/hooks/aggregationPolicies.ts` | Per-Sensor aggregation-level CRUD | `useCreateAggregationPolicy`, `useDeactivateAggregationPolicy` (unused) |
 | `src/api/hooks/setpoints.ts` | Direction-aware setpoint history + effective-at-now | — |
 | `src/api/hooks/devicePrincipal.ts` | DevicePrincipal lifecycle (provision/rotate/revoke/enable) | — |
@@ -527,11 +527,9 @@ contract change" above).
 In priority order, all evidence-based (not aspirational) findings from
 this checkpoint:
 
-1. **Decide whether Sensor create/edit is in scope.** If yes, it's a real,
-   sized, well-understood gap — the hooks already exist and are correctly
-   typed; only a page/dialog is missing. If no, correct `DeviceDetailPage.tsx`'s
-   empty-state copy ("Add a Sensor to start collecting telemetry") which
-   currently promises an action that doesn't exist anywhere in the app.
+1. ~~Decide whether Sensor create/edit is in scope.~~ **Resolved at the
+   2026-08-31 completion checkpoint** — built, mocked-browser-verified. See
+   Phase 10 above and the "Completion checkpoint" section below.
 2. **Decide whether Company Member role assignment belongs in this
    dashboard**, given the mirrored-identity ambiguity described above — a
    product decision, not a technical one.
@@ -552,6 +550,98 @@ this checkpoint:
    prepared for whoever runs it, now genuinely including a fresh
    real-authenticated-User smoke test given the app is now confirmed
    loading successfully with a real account.
+
+## Completion checkpoint (2026-08-31, following the source assessment)
+
+A follow-up pass explicitly asked to complete and verify what the source
+assessment above found unfinished, investigate the old dashboard's Git
+history for Admin Device/Sensor/Reader-User workflows, and fix a
+manually-observed vertical-scrollbar defect. Findings and changes:
+
+**Old dashboard investigation (read-only, via Git history at `08f078c^`,
+before the rewrite commit deleted it).** Read `components/DeviceList.jsx`
+(631 lines) and `components/Header.jsx` (222 lines) in full — the two files
+most likely to hold Admin Device/Sensor/settings/Reader-User workflows.
+Findings: `DeviceList.jsx`'s Add/Edit Device dialog operated on the old,
+now-superseded Device-level model (`Direction`/`Lookback`/`Scale`/
+`MinIssueScore` fields directly on the Device — the exact "obsolete
+assumption" the current per-Sensor/per-aggregation-level model already
+documents replacing) and had **no separate Sensor entity or Sensor UI at
+all** — there is nothing Sensor-specific to port forward, only the
+dialog's general modal-form shape informed the new one. `Header.jsx`
+(desktop notifications + the hidden secret-button test harness, both
+already recorded as removed/not migrated) has **no Reader-User management
+of any kind** — confirms `ReadersPage.tsx`'s Device-grant management is a
+wholly new capability with no old-dashboard precedent, not a port; see
+CLAUDE.md's "Tenant and roles" section for the resulting product-scope
+note (Device-access grants vs. role provisioning are different things, and
+only the former has ever been built anywhere, old or new).
+
+**Vertical-scrollbar defect — root cause found and fixed, not hidden.**
+Investigated with a real Chromium session (Playwright) directly measuring
+`document.documentElement`/`body` layout rather than guessing: every page
+showed `scrollHeight` exactly 16px taller than `window.innerHeight` (e.g.
+816px vs. an 800px viewport), regardless of how little content the page
+had. Root cause: the browser's own default `body { margin: 8px }`
+user-agent rule was never reset anywhere in this app — this codebase has
+zero CSS files and zero CSS imports anywhere in `src/` before this
+checkpoint, and Fluent UI v9's `FluentProvider`/Griffel styling
+deliberately never touches the page shell around it, by design. Fixed with
+one new global stylesheet, `src/index.css` (`html, body { margin: 0 }`,
+`#root { height: 100% }`, a global `box-sizing: border-box` default),
+imported once from `main.tsx` — not with `overflow-y: hidden` anywhere,
+which was explicitly ruled out and would have hidden genuinely overflowing
+content instead of fixing the shell. Re-verified with the same layout
+inspection after the fix: `scrollHeight` now exactly equals
+`window.innerHeight` on every page at every checked viewport with no
+excess content. A second, broader Playwright sweep (17 routes × 4
+viewports, 56 checks, reusing the Phase 22 methodology) found the fix held
+everywhere except four page/viewport combinations with small-to-moderate
+remaining overflow (9px–152px) that trace to genuinely tall stacked
+content on a narrow phone viewport (a chart plus several cards) — normal,
+expected responsive scrolling, not this defect, and not "fixed" by cutting
+content. One of those four led to a second real bug (below).
+
+**A second real responsive bug, found via that sweep and fixed.**
+`SmartAnalyticsPage.tsx` defined a `layoutMobile` style (single-column
+stacked grid) that was never actually applied anywhere — both the
+single-Device overlay layout and the two-Device incompatible-comparison
+side-by-side panels rendered their multi-column desktop grid
+unconditionally at every viewport width, the same "defined but dead" code
+shape the source assessment already found in the API hooks layer. On a
+390px phone this squeezed a `minmax(0,1fr) 300px` grid's flexible column
+down to roughly 90px, driving vertical overflow at that viewport from a
+(likely legitimate) ~300px up to 815px. Fixed by wiring both grids to
+`useBreakpoint() === 'desktop'`, matching the pattern already used
+elsewhere in the shell (`AppShell.tsx`'s drawer type,
+`DeviceListPage.tsx`'s DataGrid/card split) — confirmed via re-measurement
+that mobile overflow on that page dropped from 815px to 323px, consistent
+with genuinely-tall-but-now-correctly-stacked content rather than a
+squeezed, badly-proportioned layout.
+
+**Sensor creation and editing built** — see Phase 10 above for the full
+description; not repeated here.
+
+**Live OpenAPI contract re-checked, no further drift found.** Re-fetched
+`swagger.json` again and diffed against the copy from the source-assessment
+checkpoint earlier the same session: the only differences are dynamic
+`@example` timestamps in telemetry-read response documentation (regenerated
+fresh on every request) — no path, operation, parameter, or schema change.
+The Company-profile/`CurrentUserDto` addition found earlier this session
+remains the only real contract change; `schema.generated.ts` did not need
+regenerating again.
+
+**Final verification for this checkpoint**: `npm run typecheck` — 0
+errors. `npm run lint` — 0 errors, 5 warnings (unchanged, all benign
+`react-refresh/only-export-components`). `npm run test` — 84/84 passing
+(unchanged; no new unit tests were added this checkpoint, see Phase 10's
+note on that). `npm run build` — succeeds, `DeviceDetailPage`'s chunk grew
+from 5.93 kB to 9.68 kB with the two new dialogs, `vendor_fluent` remains
+the only >500 kB chunk (unchanged characteristic, not addressed). The new
+Sensor create/edit flow and the scrollbar fix were both independently
+confirmed via a real Chromium session against a network-mocked backend,
+per the established mocked-browser-verified methodology — not claimed as a
+live-API pass.
 
 ## Dependency-ordered phases
 
@@ -619,23 +709,44 @@ and no obsolete competing implementation remains active.
   Secret dialog. Security requirement (never persisted) code-reviewed
   against `AGENTS.md`'s rule.
 
-- [~] **Phase 10: Sensors, aggregation policies, and setpoints** — **Partially implemented (corrected at the 2026-08-31 source-assessment checkpoint — see that section above)**
+- [x] **Phase 10: Sensors, aggregation policies, and setpoints** — **Implemented**
+  **Sensor creation and editing added at the 2026-08-31 completion
+  checkpoint**, closing the gap the 2026-08-31 source-assessment checkpoint
+  found and flagged (this phase had been marked "Implemented" once before
+  without that gap having been noticed — corrected honestly rather than
+  left wrong, and now genuinely resolved rather than just re-labeled).
+  `DeviceDetailPage.tsx` gained an Admin-only "Add Sensor" action (Sensors
+  section header) and a per-row "Edit" action, via
+  `useCreateSensor`/`useUpdateSensor`. Creating a Sensor also creates its
+  raw/base `AggregationPolicy` in the same call (`CreateSensorRequest`
+  requires `rawScale`/`rawLookback`); `isCurve` is derived from the parent
+  Device's `applicationMode`, never a free choice, so a created Sensor can
+  never disagree with its own Device's curve/signal mode. The old
+  dashboard has no equivalent workflow to port — its Device add/edit
+  dialog put Direction/Lookback/Scale/MinIssueScore directly on the
+  Device (confirmed via its Git history), with no separate Sensor entity
+  at all; this form was designed fresh against the current contract,
+  informed only by that dialog's general modal-form shape. Mocked-browser-verified
+  end to end (real Chromium, network-mocked backend, real clicks - not
+  `page.goto()`, per the established methodology): dialog opens, Create
+  stays disabled until the required fields are filled, submits the
+  correct `CreateSensorRequest` body, dialog closes; Edit dialog opens
+  pre-filled, submits the correct `UpdateSensorRequest` body preserving
+  untouched fields; zero console errors either way. **No dedicated unit
+  test was added** for these two new dialogs this checkpoint (stated
+  plainly, not silently skipped) — `DeviceDetailPage.tsx` needs the same
+  full-stack mock (`AuthProvider`+`QueryClientProvider`+`FluentProvider`+
+  route mocks) `TrainingPage.test.tsx` required, and the mocked-browser
+  pass above already exercises the real interaction end to end; a Vitest
+  component test remains a reasonable follow-up, not done here.
   AggregationPolicies (edit only, not create/deactivate) + Setpoints (full
-  history + create) live on `SensorPoliciesPage.tsx`. **Sensor creation and
-  editing has no UI anywhere in this dashboard**, despite `useCreateSensor`/
-  `useUpdateSensor` existing, correctly typed and wired, in
-  `src/api/hooks/sensors.ts` — `DeviceDetailPage.tsx`'s Sensors card is
-  read-only and its own empty-state copy promises an action ("Add a Sensor
-  to start collecting telemetry") that doesn't exist. This was marked
-  "Implemented" in an earlier pass without that gap having been noticed;
-  corrected here rather than silently left wrong. See the source-assessment
-  section's "What should be reviewed or corrected next" for the decision
-  this needs. Setpoints section added in an earlier checkpoint this
-  session: direction-aware form (symmetric `target`/`tolerance` for
-  lowerisbetter/higherisbetter, `targetAbove/Below` +
-  `toleranceAbove/Below` for bidirectional), append-only history table,
-  and the effective-setpoint-at-now `MessageBar`. `npm run typecheck`/
-  `lint`/`test`/`build` all re-verified green after this addition.
+  history + create) live on `SensorPoliciesPage.tsx`, unchanged this
+  checkpoint. Setpoints section: direction-aware form (symmetric
+  `target`/`tolerance` for lowerisbetter/higherisbetter,
+  `targetAbove/Below` + `toleranceAbove/Below` for bidirectional),
+  append-only history table, and the effective-setpoint-at-now
+  `MessageBar`. `npm run typecheck`/`lint`/`test`/`build` all re-verified
+  green after this addition.
 
 - [x] **Phase 11: Telemetry ingestion and bounded exploration** — **Implemented (reads only, by design)**
   All four families' trailing/period-range/date-range/last-period reads
@@ -1052,13 +1163,14 @@ just gating the fetch itself.
 | `TelemetryChart` | Single shared chart for all telemetry visualization | LiveMonitoringPage, SmartAnalyticsPage, IssueDetailPage |
 | `useNumberSearchParam` | Typed URL search-param state | Overview, Devices, Issues, Monitoring, Analytics, Training, Ollama |
 | `usePageVisible` | Page Visibility API hook | LiveMonitoringPage (Training/Ollama gap noted above) |
-| `useBreakpoint`/`useMediaQuery` | Responsive breakpoint detection | AppShell, DeviceListPage |
+| `useBreakpoint`/`useMediaQuery` | Responsive breakpoint detection | AppShell, DeviceListPage, SmartAnalyticsPage (added at the 2026-08-31 completion checkpoint, fixing a `layoutMobile`-defined-but-unused bug — see that checkpoint's section) |
 | DataGrid + mobile-card pattern | Dense list responsive fallback | DeviceListPage (reference implementation; not yet replicated elsewhere) |
 | One-time Secret dialog pattern | Secure credential reveal | DevicePrincipalPage |
 | `activateProps` (`src/lib/useActivateProps.ts`) | Makes a non-native element (Card/div used as a click target) keyboard-operable — role, tabIndex, Enter/Space activation | DeviceListPage's mobile cards, OverviewPage's 3 clickable tiles, IssueDetailPage's member rows, ModelQueryPage's ranked-Issue rows |
 | `ConfirmDialog` | Single reusable confirm/consequential-action dialog (normal/destructive, busy, confirmDisabled) — the only such dialog in the project, replacing every previous raw `window.confirm`/bespoke `Dialog` | SensorPoliciesPage (raw-policy retraining), CategoriesPage (New/Merge category), IssueListPage (Group creation), DevicePrincipalPage (Revoke credential), KnowledgeSharingPage (Revoke share), DeviceDetailPage (Disable Device), `MoveToCanonicalDialog` (built on top of it) |
 | `MoveToCanonicalDialog` | Bounded, searchable Combobox picker for a Move-Group target, backed by `Issue_GetIssues` (canonical-only candidates for the Device), excluding the member itself and its current canonical | IssueDetailPage's `GroupMemberRow` |
 | `AppToastProvider`/`useAppToast` + `toastBridge` | Centralized Fluent Toast layer; module-level bridge lets the singleton `queryClient` surface toasts too | Every page with a mutation (see the toast-wiring note in the correction checkpoint above) |
+| `NewSensorDialog`/`EditSensorDialog` | Add/edit a Sensor, built on `ConfirmDialog` — added at the 2026-08-31 completion checkpoint | `DeviceDetailPage.tsx` |
 
 **Not yet built**: browser desktop notifications (explicitly a future
 enhancement, not required this pass — in-app toast covers the "important
@@ -1206,7 +1318,7 @@ logic and real data:
 - [x] Authentication and role-aware routing work (code-verified + component-tested; login screen and 17 authenticated routes mocked-browser-verified)
 - [x] Admin and Reader workflows implemented, Reader strictly read-only for manual training (frontend rule, stricter than the backend — see correction item 1)
 - [x] DevicePrincipal administration implemented
-- [~] Device, policy, and telemetry workflows implemented; **Sensor create/edit has no UI** — corrected finding, see the 2026-08-31 source-assessment section's Phase 10 note
+- [x] Device, Sensor (create/edit added at the completion checkpoint), policy, and telemetry workflows implemented
 - [x] Live Monitoring implemented
 - [x] Smart Analytics implemented
 - [x] Same-Device Sensor comparison implemented

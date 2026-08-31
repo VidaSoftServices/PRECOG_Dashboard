@@ -59,6 +59,11 @@ flowchart TB
 
 ```text
 src/
+  index.css               the one global stylesheet - resets the browser's
+                           default body margin (Fluent scopes itself to its
+                           own tree and never resets the page shell around
+                           it) plus a global border-box default; imported
+                           once from main.tsx
   api/
     client.ts            centralized apiClient + auth/error/cancellation middleware
     errors.ts             normalizeApiError - the 3 real error-body shapes
@@ -117,6 +122,38 @@ widths and `type="overlay"` (triggered by a `Hamburger`) below 1200px, using
 `useBreakpoint()` (a real `matchMedia`-backed hook, not a guessed width).
 `DeviceListPage.tsx` demonstrates the DataGrid-desktop / card-list-mobile
 pattern that other dense-table pages should follow as they're built out.
+`SmartAnalyticsPage.tsx`'s single-Device overlay layout and its two-Device
+incompatible-comparison side-by-side panels are a second reference
+instance of the same pattern (`useBreakpoint() === 'desktop'` switches
+between a multi-column grid and a stacked single column) — both were
+originally built with a mobile-layout style defined but never actually
+applied (`layoutMobile` sat unused; the desktop grid rendered
+unconditionally at every width), found via a real vertical-overflow defect
+report and fixed by wiring the existing style to the breakpoint rather than
+inventing a new one.
+
+**Vertical overflow root cause, fixed once, globally**: every page had an
+unwanted browser-level vertical scrollbar even on content that should fit
+the viewport. The cause was not any one page's layout - it was the
+browser's own default `body { margin: 8px }` user-agent rule, never reset
+anywhere in this app (Fluent's `FluentProvider` and Griffel-generated
+component styles deliberately never touch the page shell around them, by
+design, so they can be dropped into any host page). That 16px (8px top +
+8px bottom) pushed every page's document height 16px past the viewport,
+on every route, regardless of content. Fixed once, centrally, in
+`src/index.css` (`html, body { margin: 0 }` plus a `#root { height: 100% }`
+chain matching the `minHeight: '100vh'` flex layouts already in
+`ThemeContext.tsx`/`AppShell.tsx`) — not by hiding overflow with
+`overflow-y: hidden` on any container, which would suppress genuinely
+overflowing content instead of fixing the actual cause. Confirmed via
+direct layout inspection (`document.documentElement.scrollHeight` exactly
+matched `window.innerHeight` after the fix, at every viewport, on every
+page, versus a uniform +16px before it) and via the two page-specific
+layout bugs above, which the same investigation surfaced. Content-dense
+pages (Smart Analytics' chart-plus-two-cards column, a phone-width Device
+detail page) can still legitimately need to scroll on a narrow viewport —
+that is expected, normal responsive behavior, not this defect, and is not
+"fixed" by removing real content.
 
 ### Generated OpenAPI types and their ownership
 
@@ -329,6 +366,29 @@ every individual mutation control). DevicePrincipal is a machine identity,
 architecturally unrelated to human roles — see "Authentication and
 security."
 
+**"Managing Reader Users" means Device-access grants, not role
+provisioning.** `ReadersPage.tsx` is this dashboard's complete answer to
+"how does an Admin manage Reader Users" — per-Device grant/revoke, plus a
+read-only view of each Reader's group/location-derived effective access.
+Confirmed against the old dashboard's Git history that this has no
+predecessor to recover: neither its `Header.jsx` nor any other surviving
+component ever managed who held the Reader role, only the new API exposes
+that concept at all. A separate capability — assigning or revoking the
+Admin/Reader role itself on a Company member (`useCompanyMembers`/
+`useAssignCompanyRole`/`useRevokeCompanyRole` in `src/api/hooks/company.ts`,
+correctly typed and wired, but never called from any page) — remains
+deliberately unbuilt. Two explanations are equally plausible and neither
+this dashboard's own decision log nor the backend's documentation settles
+which is true: this may be a genuine missing page, or in a
+`MirroredDatabase`-identity deployment (a Company synchronized from
+WordPress — see `TASK_IMPLEMENTATION.md`'s source-assessment section for
+the full mechanism, not reproduced here since this frontend doesn't
+consume Company-profile data yet) who holds Admin/Reader may be intended to
+flow from the WordPress-side source of truth rather than be edited
+directly in PRECOG, which would make an in-dashboard control actively
+wrong for that deployment mode even though the API accepts it
+unconditionally. Flagged as an open product question, not guessed at.
+
 ### Device and Sensor configuration
 
 ```mermaid
@@ -354,6 +414,29 @@ construction and model compatibility, so `SensorPoliciesPage.tsx`'s
 retraining-impact warning fires only when the **raw** policy's Lookback,
 Scale, or Enabled state changes — never for a MinIssueScore-only edit, and
 never for a non-raw aggregation level.
+
+**Sensor creation and editing** live on `DeviceDetailPage.tsx` (an "Add
+Sensor" action in the Sensors section header, and a per-row "Edit" action),
+Admin-only, via `useCreateSensor`/`useUpdateSensor`. This closed a real gap
+found during a full source assessment: the hooks existed, correctly typed
+against `CreateSensorRequest`/`UpdateSensorRequest`, from early in the
+rewrite, but no page ever called them — `DeviceDetailPage.tsx`'s own
+empty-state copy ("Add a Sensor to start collecting telemetry") promised an
+action that didn't exist. `CreateSensorRequest` creates the Sensor's
+raw/base `AggregationPolicy` in the same call (`rawScale`/`rawLookback` are
+required) — every other aggregation level is still added later from the
+Sensor's own Policies page, which is unaffected. `isCurve` (whether this
+Sensor's telemetry lands in curves/bicurves vs. signals/bisignals) is
+derived from the parent Device's `applicationMode` and never exposed as a
+free choice in the create form — a Sensor whose curve/signal storage
+disagreed with its own Device's mode would be a self-inconsistent state
+nothing else in this app expects. The old dashboard has no equivalent
+workflow to reference here: its own Device add/edit dialog put
+Direction/Lookback/Scale/MinIssueScore directly on the Device (the "obsolete
+assumption" the whole per-aggregation-level model above replaces), with no
+separate per-Sensor entity at all — this UI was designed fresh against the
+current API contract, informed only by that dialog's general shape (a
+modal form with Cancel/Create actions), not its field set.
 
 ### Telemetry
 
