@@ -55,27 +55,25 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // Function form, not the plain per-package object form: the object
-        // form matches by exact package name, which groups the
-        // `react-datepicker` *JS* correctly but leaves
-        // `react-datepicker/dist/react-datepicker.css` (imported once, from
-        // DateTimeField.tsx) as a separate Rollup module ID that the object
-        // form never matches. That CSS still fell back to Rollup's default
-        // shared-chunk naming - observed as a misleadingly large
-        // "aggregationPolicies-*.css" (21.8 kB) sitting next to the
-        // correctly-named, unrelated ~2.4 kB "aggregationPolicies-*.js"
-        // hooks chunk. Same defect class the object-form fix below already
-        // believed it had fully closed for the JS side; matching by
-        // substring against the module ID catches both the JS and its CSS
-        // import under one explicitly-named chunk.
-        manualChunks(id) {
-          if (id.includes('node_modules/react-datepicker')) return 'vendor_datepicker';
-          if (id.includes('node_modules/react-dom') || id.includes('node_modules/react-router-dom') ||
-              /node_modules[\\/]react[\\/]/.test(id)) return 'vendor_react';
-          if (id.includes('node_modules/@fluentui')) return 'vendor_fluent';
-          if (id.includes('node_modules/chart.js') || id.includes('node_modules/react-chartjs-2')) return 'vendor_charts';
-          if (id.includes('node_modules/@tanstack/react-query')) return 'vendor_query';
-          return undefined;
+        // react-datepicker is deliberately left OUT of manualChunks and
+        // grouped by Rollup's own default splitting instead. It was pulled
+        // into its own explicit `vendor_datepicker` chunk at one point purely
+        // to fix a misleading build-output label (its JS - and later, in a
+        // follow-up, its CSS too - was landing inside a chunk auto-named
+        // after an unrelated small hooks file). That produced a real,
+        // reproducible runtime crash instead: "Cannot read properties of
+        // undefined (reading 'useLayoutEffect')" the moment a page using
+        // DateTimeField (SmartAnalyticsPage, SensorPoliciesPage) mounted -
+        // confirmed by reverting this exact change and watching the crash
+        // disappear. Do not re-attempt isolating react-datepicker into its
+        // own manual chunk without first proving chunk load order is safe;
+        // a mislabeled-but-working build is strictly better than a
+        // correctly-labeled, crashing one.
+        manualChunks: {
+          vendor_react: ['react', 'react-dom', 'react-router-dom'],
+          vendor_fluent: ['@fluentui/react-components', '@fluentui/react-icons'],
+          vendor_charts: ['chart.js', 'react-chartjs-2'],
+          vendor_query: ['@tanstack/react-query'],
         },
       },
     },
