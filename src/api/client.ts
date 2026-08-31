@@ -89,16 +89,26 @@ apiClient.use(authMiddleware);
 
 /**
  * openapi-fetch resolves even on non-2xx by default; the middleware above
- * throws before that happens, so `data` here is always defined on the happy
- * path. This thin wrapper exists so call sites don't need the `{data,error}`
- * dance and get a real thrown ApiError for React Query's onError/error
- * boundaries to catch instead.
+ * throws before that happens, so reaching this function at all means the
+ * response was 2xx. This thin wrapper exists so call sites don't need the
+ * `{data,error}` dance and get a real thrown ApiError for React Query's
+ * onError/error boundaries to catch instead.
+ *
+ * A 204 (No Content) response - used by many of this API's mutations, e.g.
+ * Company_AssignRole, Company_RevokeReaderDeviceGrant,
+ * AggregationPolicies_DeactivatePolicy, Devices_SetPrincipalEnabled - is a
+ * *successful* empty body: openapi-fetch itself returns `data: undefined`
+ * for any 204/HEAD/Content-Length:0 response regardless of what the server
+ * actually sent, per its own "handle empty content" branch. That is not a
+ * failure and must not be treated like one - confirmed by reproducing a real
+ * "Empty response from API" false failure end-to-end (real Chromium,
+ * mocked-but-realistic 204 responses) against every 204-returning mutation
+ * this dashboard calls, before this fix. Only a non-204 response with no
+ * data left still throws, since that combination is never legitimate.
  */
-export function unwrap<T>(result: { data?: T; error?: unknown }): T {
-  if (result.data === undefined) {
-    // Should be unreachable - the middleware throws first - but keeps the
-    // return type honest if openapi-fetch's typing ever allows both undefined.
+export function unwrap<T>(result: { data?: T; error?: unknown; response?: Response }): T {
+  if (result.data === undefined && result.response?.status !== 204) {
     throw new ApiError({ status: 0, message: 'Empty response from API', raw: result.error });
   }
-  return result.data;
+  return result.data as T;
 }

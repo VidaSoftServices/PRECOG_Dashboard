@@ -1,6 +1,6 @@
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { Field, makeStyles, tokens } from '@fluentui/react-components';
+import { Field, makeStyles, tokens, type FieldControlProps } from '@fluentui/react-components';
 import { localZone } from '@/lib/dateTime';
 
 const useStyles = makeStyles({
@@ -47,6 +47,24 @@ interface DateTimeFieldProps {
  * the label so a value is never silently ambiguous between local time and
  * UTC - callers convert to ISO 8601 (src/lib/dateTime.ts: toApiIso) only at
  * the API boundary.
+ *
+ * Uses Field's documented render-prop child form (`FieldProps.children`'s
+ * own JSDoc: "The control itself can merge props from field with
+ * useFieldControlProps_unstable()... <Field>{(props) => <MyInput
+ * {...props} />}</Field>"), not a plain `aria-label` prop on `<DatePicker>`.
+ * A prior version passed `aria-label` directly - it type-checked (Fluent's
+ * JSX types don't constrain arbitrary props on a foreign class component)
+ * but had no runtime effect: react-datepicker's own `renderDateInput`
+ * (node_modules/react-datepicker/dist/index.js) clones a fixed allow-list of
+ * named props onto its real `<input>` - `id`, `name`, `aria-describedby`,
+ * `aria-invalid`, `aria-labelledby`, `aria-required`, and a few more - and
+ * `aria-label` is not among them, so it was silently dropped every time.
+ * Confirmed both statically (reading that allow-list) and at runtime (a
+ * real rendered `<input>` had no `aria-label`, no `id`, and no
+ * `aria-labelledby` - axe correctly flagged it "Form elements must have
+ * labels", critical). `id`/`ariaLabelledBy`/`ariaDescribedBy`/`ariaInvalid`
+ * *are* on that allow-list, so Field's render-prop values (which target
+ * exactly those attribute names) reach the real input correctly.
  */
 export function DateTimeField({ label, value, onChange, minDate, maxDate, disabled, validationMessage }: DateTimeFieldProps) {
   const styles = useStyles();
@@ -57,25 +75,25 @@ export function DateTimeField({ label, value, onChange, minDate, maxDate, disabl
       validationMessage={validationMessage}
       className={styles.wrap}
     >
-      <DatePicker
-        // react-datepicker renders a plain, non-Fluent <input> - Field's
-        // automatic label<->control id wiring only works for Fluent-aware
-        // children, so the label association needs to be spelled out
-        // explicitly here or axe's "label" rule flags it despite the
-        // visible Field label right above it.
-        aria-label={`${label} (${localZone()})`}
-        selected={value}
-        onChange={onChange}
-        showTimeSelect
-        timeFormat="HH:mm:ss"
-        timeIntervals={1}
-        dateFormat="yyyy-MM-dd HH:mm:ss"
-        minDate={minDate}
-        maxDate={maxDate}
-        disabled={disabled}
-        autoComplete="off"
-        popperPlacement="bottom-start"
-      />
+      {(fieldProps: FieldControlProps) => (
+        <DatePicker
+          id={fieldProps.id}
+          ariaLabelledBy={fieldProps['aria-labelledby']}
+          ariaDescribedBy={fieldProps['aria-describedby']}
+          ariaInvalid={fieldProps['aria-invalid'] === undefined ? undefined : String(fieldProps['aria-invalid'])}
+          selected={value}
+          onChange={onChange}
+          showTimeSelect
+          timeFormat="HH:mm:ss"
+          timeIntervals={1}
+          dateFormat="yyyy-MM-dd HH:mm:ss"
+          minDate={minDate}
+          maxDate={maxDate}
+          disabled={disabled}
+          autoComplete="off"
+          popperPlacement="bottom-start"
+        />
+      )}
     </Field>
   );
 }

@@ -28,7 +28,13 @@ import { DateTimeField } from '@/components/DateTimeField';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useAppToast } from '@/components/ToastProvider';
 import { useSensor } from '@/api/hooks/sensors';
-import { useAggregationPolicies, useUpdateAggregationPolicy } from '@/api/hooks/aggregationPolicies';
+import {
+  useAggregationPolicies,
+  useUpdateAggregationPolicy,
+  useCreateAggregationPolicy,
+  useDeactivateAggregationPolicy,
+  type CreateAggregationPolicyRequest,
+} from '@/api/hooks/aggregationPolicies';
 import { useSetpoints, useEffectiveSetpoint, useCreateSetpoint } from '@/api/hooks/setpoints';
 import { useAuth } from '@/auth/AuthContext';
 import { formatDateTimeWithZone, toApiIso } from '@/lib/dateTime';
@@ -54,10 +60,12 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
   const { isAdmin } = useAuth();
   const toast = useAppToast();
   const update = useUpdateAggregationPolicy(deviceId, sensorId, policy.id!);
+  const deactivate = useDeactivateAggregationPolicy(deviceId, sensorId);
   const [lookback, setLookback] = useState(String(policy.lookback ?? ''));
   const [scale, setScale] = useState(policy.scale ?? '');
   const [minIssueScore, setMinIssueScore] = useState(String(policy.minIssueScore ?? ''));
   const [retrainConfirmOpen, setRetrainConfirmOpen] = useState(false);
+  const [deactivateConfirmOpen, setDeactivateConfirmOpen] = useState(false);
   const isRaw = policy.timeScale === 'native' && policy.aggregationFunction === 'raw';
 
   const applyUpdate = () => {
@@ -98,13 +106,19 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
         </Field>
       </div>
       {isAdmin && (
-        <div>
+        <div style={{ display: 'flex', gap: tokens.spacingHorizontalM }}>
           <Button appearance="primary" onClick={save} disabled={update.isPending}>
             {update.isPending ? 'Saving…' : 'Save'}
           </Button>
+          {!isRaw && (
+            <Button appearance="secondary" onClick={() => setDeactivateConfirmOpen(true)} disabled={!policy.enabled || deactivate.isPending}>
+              {deactivate.isPending ? 'Deactivating…' : 'Deactivate'}
+            </Button>
+          )}
         </div>
       )}
       {update.isError && <ErrorState error={update.error} />}
+      {deactivate.isError && <ErrorState error={deactivate.error} />}
       {isRaw && (
         <MessageBar intent="info">
           <MessageBarBody>Editing Lookback, Scale, or Enabled on the raw policy schedules retraining for this Sensor.</MessageBarBody>
@@ -125,6 +139,28 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
         <Text>
           Changing Lookback or Scale on the raw aggregation policy schedules a full retraining for this Sensor. This
           can&apos;t be undone once submitted. Continue?
+        </Text>
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={deactivateConfirmOpen}
+        title="Deactivate this aggregation level?"
+        intent="destructive"
+        confirmLabel="Deactivate"
+        busy={deactivate.isPending}
+        onConfirm={() => {
+          deactivate.mutate(policy.id!, {
+            onSuccess: () => {
+              toast.success('Aggregation level deactivated');
+              setDeactivateConfirmOpen(false);
+            },
+          });
+        }}
+        onCancel={() => setDeactivateConfirmOpen(false)}
+      >
+        <Text>
+          This soft-disables the {policy.sourceDataKey} · {policy.timeScale} · {policy.aggregationFunction} level -
+          it stops new aggregation but its history is preserved. There is no undo through this dashboard once
+          deactivated.
         </Text>
       </ConfirmDialog>
     </Card>
@@ -268,10 +304,107 @@ function SetpointsCard({ deviceId, sensorId, bidirectional }: { deviceId: number
   );
 }
 
+function NewPolicyForm({ deviceId, sensorId }: { deviceId: number; sensorId: number }) {
+  const styles = useStyles();
+  const toast = useAppToast();
+  const create = useCreateAggregationPolicy(deviceId, sensorId);
+  const [showForm, setShowForm] = useState(false);
+  const [sourceDataKey, setSourceDataKey] = useState('');
+  const [timeScale, setTimeScale] = useState('');
+  const [aggregationFunction, setAggregationFunction] = useState('');
+  const [scale, setScale] = useState('');
+  const [lookback, setLookback] = useState('');
+  const [minIssueScore, setMinIssueScore] = useState('');
+  const [timeZone, setTimeZone] = useState('');
+
+  const reset = () => {
+    setSourceDataKey('');
+    setTimeScale('');
+    setAggregationFunction('');
+    setScale('');
+    setLookback('');
+    setMinIssueScore('');
+    setTimeZone('');
+  };
+
+  const canSubmit = sourceDataKey.trim() !== '' && timeScale.trim() !== '' && aggregationFunction.trim() !== '' && scale.trim() !== '' && Number(lookback) > 0;
+
+  const submit = async () => {
+    const body: CreateAggregationPolicyRequest = {
+      sourceDataKey,
+      timeScale,
+      aggregationFunction,
+      scale,
+      lookback: Number(lookback),
+      minIssueScore: minIssueScore ? Number(minIssueScore) : undefined,
+      timeZone: timeZone || undefined,
+    };
+    await create.mutateAsync(body);
+    toast.success('Aggregation level created');
+    reset();
+    setShowForm(false);
+  };
+
+  if (!showForm) {
+    return (
+      <Button icon={<AddCircle24Regular />} onClick={() => setShowForm(true)} style={{ marginBottom: tokens.spacingVerticalM }}>
+        Add aggregation level
+      </Button>
+    );
+  }
+
+  return (
+    <Card className={styles.card}>
+      <Body1Strong>New aggregation level</Body1Strong>
+      <div className={styles.row}>
+        <Field label="Source data key" required hint='e.g. "Actual", "Analysed"'>
+          <Input value={sourceDataKey} onChange={(_, d) => setSourceDataKey(d.value)} />
+        </Field>
+        <Field label="Time scale" required hint='One of the 16 aggregation time scales, e.g. "hours4", "days3"'>
+          <Input value={timeScale} onChange={(_, d) => setTimeScale(d.value)} />
+        </Field>
+        <Field label="Aggregation function" required hint='e.g. "avg", "max"'>
+          <Input value={aggregationFunction} onChange={(_, d) => setAggregationFunction(d.value)} />
+        </Field>
+      </div>
+      <div className={styles.row}>
+        <Field label="Lookback" required hint="Must be greater than zero">
+          <Input type="number" min="1" value={lookback} onChange={(_, d) => setLookback(d.value)} />
+        </Field>
+        <Field label="Scale" required hint='A time unit (e.g. "Days", "Hours") or "periods"'>
+          <Input value={scale} onChange={(_, d) => setScale(d.value)} />
+        </Field>
+        <Field label="Min issue score" hint="Defaults to 1">
+          <Input type="number" value={minIssueScore} onChange={(_, d) => setMinIssueScore(d.value)} />
+        </Field>
+        <Field label="Time zone" hint='IANA name, e.g. "Europe/Budapest". Defaults to UTC.'>
+          <Input value={timeZone} onChange={(_, d) => setTimeZone(d.value)} />
+        </Field>
+      </div>
+      {create.isError && <ErrorState error={create.error} />}
+      <div style={{ display: 'flex', gap: tokens.spacingHorizontalM }}>
+        <Button appearance="primary" onClick={submit} disabled={!canSubmit || create.isPending}>
+          {create.isPending ? 'Creating…' : 'Create'}
+        </Button>
+        <Button
+          appearance="secondary"
+          onClick={() => {
+            reset();
+            setShowForm(false);
+          }}
+        >
+          Cancel
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 export function SensorPoliciesPage() {
   const { deviceId, sensorId } = useParams<{ deviceId: string; sensorId: string }>();
   const dId = Number(deviceId);
   const sId = Number(sensorId);
+  const { isAdmin } = useAuth();
 
   const sensorQuery = useSensor(dId, sId);
   const policiesQuery = useAggregationPolicies(dId, sId);
@@ -288,6 +421,7 @@ export function SensorPoliciesPage() {
       />
 
       <Body1Strong style={{ display: 'block', marginBottom: tokens.spacingVerticalS }}>Aggregation policies</Body1Strong>
+      {isAdmin && <NewPolicyForm deviceId={dId} sensorId={sId} />}
       {policiesQuery.data && policiesQuery.data.length === 0 && <EmptyState title="No aggregation policies" />}
       {policiesQuery.data?.map((policy) => (
         <PolicyCard key={policy.id} deviceId={dId} sensorId={sId} policy={policy} />

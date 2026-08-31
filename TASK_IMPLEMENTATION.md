@@ -643,6 +643,563 @@ confirmed via a real Chromium session against a network-mocked backend,
 per the established mocked-browser-verified methodology — not claimed as a
 live-API pass.
 
+## API-completeness checkpoint (2026-08-31, following the completion checkpoint)
+
+A follow-up pass explicitly asked to inventory every public operation in the
+live OpenAPI contract (not just the ones already consumed), classify each
+one, complete every unfinished human-facing Admin/Reader capability the API
+intentionally supports, and verify - not assume - the prior checkpoints'
+claims against actual current source. The full per-operation classification
+lives in the new "API-to-Dashboard Coverage Matrix" section below; this
+section records what was found, decided, built, and verified to produce it.
+
+### Live contract re-verified, no drift
+
+`npm run gen:api` was re-run against the live contract again. `git diff` on
+the regenerated `schema.generated.ts` showed changes on only dynamic
+`@example` timestamps (confirmed by grepping the diff for any changed line
+*not* matching an ISO-8601 timestamp pattern - zero matches) - no path,
+operation, parameter, or schema change since the last generation. The
+Company-profile/`CurrentUserDto` addition from the prior checkpoint remains
+the only real contract change on record.
+
+### Gaps found by direct source inspection, not by re-reading the prior claims
+
+Re-verified firsthand (grepping every hook file, not trusting the prior
+"unused hook" list at face value) that six hooks were genuinely wired to no
+UI: `useCompanyMembers`/`useAssignCompanyRole`/`useRevokeCompanyRole`,
+`useRevokeSharedIssues`, `useUpdateLocation`,
+`useCreateAggregationPolicy`/`useDeactivateAggregationPolicy`. One further
+gap the prior checkpoint's "fresh inspection" pass missed entirely:
+`useLastPeriod` (`telemetry.ts`) is defined, exported, and correctly typed,
+but grepping the whole `src/` tree for its name found exactly one match -
+its own definition. Decided not to build new UI for it: a bare period
+*number* is not independently meaningful to a human without the `measured`
+timestamp already shown via `FreshnessPill`/Live Monitoring, and a second,
+separately-fetched "freshness" signal risks disagreeing with the existing
+one if they ever diverge. Documented in the matrix as a deliberate
+non-adoption (classification 8), not silently left unmentioned.
+
+A new, more consequential finding: four `DeleteAllData` operations exist
+(`Continuous`, `Periodic`, `BiDirectionalContinuous`, `BiDirectionalPeriodic`
+- "delete all telemetry data and Issues for a Sensor and clear the Device's
+legacy model," Company Admin only, no soft-delete/undo) with **zero**
+mention anywhere in this dashboard's or the backend's documentation, and no
+hook or UI touching any of them. Distinct from the old dashboard's deleted
+password-gated demo-data-injection backdoor (that added fake Issues; this
+permanently destroys real ones) - a live, real, currently-authorized
+capability nobody had classified yet. Given the severity (irreversible mass
+deletion) and that no product requirement anywhere calls for exposing it,
+this was raised explicitly rather than decided unilaterally. **User
+decision: do not build UI for it this pass** - documented in the matrix
+(classification 9, genuine product decision) with the concrete
+recommendation for whoever picks it up next: an Admin-only "danger zone" on
+`SensorPoliciesPage.tsx`, gated behind a typed re-confirmation (retype the
+Sensor's external ID) in addition to the standard destructive `ConfirmDialog`,
+since the existing single-click destructive pattern used elsewhere in this
+app (Device disable, share revoke) is proportionate to a *reversible or
+narrowly-scoped* action, not to a permanent whole-Sensor telemetry+Issue
+wipe.
+
+### Built this checkpoint
+
+1. **`CurrentUserDto` adopted in `AuthContext.tsx`**, replacing the hand-typed
+   `UserDetails` in `domainTypes.ts` (removed - the D3 gap it worked around
+   closed with the prior checkpoint's live-contract refresh, and
+   `User_GetUserDetails` is now a real generated schema type). `useAuth()`
+   exposes a new `hasAuthorizedCompany` boolean, computed defensively
+   (`true` while `userDetails` is still loading, so a normal Company-having
+   User never sees a false flash of the state below - only an actually-
+   confirmed `false` response gates it).
+
+2. **No-Company state.** A valid, authenticated human User can have
+   `hasAuthorizedCompany: false` (e.g. a WordPress account not yet linked
+   into the Company/RBAC model) - a real, documented API state this
+   dashboard had never handled. Every Company-scoped endpoint rejects such a
+   caller with 401, and this app's existing global 401 handler
+   unconditionally clears the session and redirects to `/login` on *any*
+   401, from *any* call, anywhere - meaning the first Company-scoped query
+   any page fired for such a User (e.g. `OverviewPage`'s `useDevices()`)
+   would have silently booted a correctly-authenticated User back to the
+   login form, where signing in again would just reproduce the exact same
+   state. New `src/components/states/NoCompanyState.tsx` (same
+   `EmptyState`-composition pattern as `NotAuthorizedState.tsx`) is rendered
+   by `AppShell.tsx` in place of `<Outlet/>` whenever
+   `hasAuthorizedCompany` is confirmed false - route-independent (a NavDrawer
+   click changes the URL but the shell keeps rendering the same explanatory
+   state), so no page ever gets the chance to fire a Company-scoped query
+   that would 401. Verified end-to-end with a real Chromium session: the
+   state renders on first load, survives in-app navigation, the app is never
+   redirected to `/login`, and (checked directly against the network log)
+   no Company-scoped request ever fires for such a session.
+
+3. **Company profile page** - new "Profile" tab on `AdminSettingsPage.tsx`
+   (now the first/default tab), reading `useCompany()`'s `name`/`logo`/
+   `website`/`profileSource`/`nameEditable` fields (all present in the live
+   schema since the prior checkpoint's refresh, previously unconsumed).
+   Logo/website are rendered per the untrusted-external-text rule: a new
+   shared `src/lib/safeExternalUrl.ts` (`isSafeHttpsUrl`, unit-tested) gates
+   whether the logo is even attempted as an `<img>` src (silently hidden via
+   `onError` if it fails to load - confirmed with a deliberately
+   never-resolving `https://example.invalid` fixture URL) and whether the
+   website is rendered as a real `rel="noopener noreferrer"` link versus
+   plain text. The rename form (`useUpdateCompanyName`, new hook wrapping
+   `PUT /api/Company/Name`) is gated on `nameEditable`, never on a
+   client-derived guess - when false, an inline message explains *why*
+   (distinguishing the `MirroredDatabase` "synchronized from WordPress, edit
+   at the source" case from the generic no-permission case) rather than just
+   disabling a control with no explanation.
+
+4. **Company Member role assignment - resolves a previously-open product
+   question.** `ReadersPage.tsx` gained a "Company members" section
+   (`useCompanyMembers`/`useAssignCompanyRole`/`useRevokeCompanyRole`,
+   previously entirely unused) above the existing per-Reader Device-grant
+   panel. The prior checkpoint's decision log left this genuinely open:
+   building it could be "actively wrong" in a `MirroredDatabase` deployment,
+   where role comes from the synchronized WordPress `permissionlevel` meta
+   (backend `CLAUDE.md`'s "Mirrored permission-level resolution" section -
+   re-read in full this session, both directly and via a background agent
+   cross-checking the backend's `TASK_IMPLEMENTATION.md`/`API_Integration_Guide.md`/
+   `Database_Redesign_Change_Description.txt`/`Deployment_Runbook.md`).
+   Resolved rather than left open, using exactly the same signal the
+   already-shipped `nameEditable` gate uses: mutation controls (Admin/Reader
+   checkboxes per member) render only when `company.profileSource ===
+   'Local'`; for `'MirroredDatabase'`, members show read-only with an
+   explanation that role is synchronized from WordPress. This is directly
+   supported, not guessed: the backend `CLAUDE.md`'s EntraId section states
+   "New synchronized Users must receive no effective Device access until an
+   authorized Admin assigns the Reader role and explicit Device grants" -
+   implying an Admin-facing assignment action *is* expected for
+   locally-managed (EntraId or purely local) Companies - while the mirrored
+   permission-resolution section is explicit that mirrored role sync is
+   one-way from WordPress and "the dashboard...must never...treat hidden
+   controls as security," which this gate respects by explaining the reason
+   in-page rather than silently hiding it. Assigning "Reader" also
+   invalidates the separate `Company_GetReaders`-backed reader list below it
+   in the same mutation (`company.ts`'s `useAssignCompanyRole`/
+   `useRevokeCompanyRole` now invalidate both `queryKeys.companyMembers` and
+   `queryKeys.readers`), so a newly-promoted Reader appears in the Device-grant
+   panel without a manual refresh.
+
+5. **Aggregation-policy create/deactivate** - `SensorPoliciesPage.tsx`
+   gained an Admin-only "Add aggregation level" form
+   (`useCreateAggregationPolicy`) above the existing policy cards, and a
+   "Deactivate" action (`useDeactivateAggregationPolicy`) on every *non-raw*
+   policy card. The raw/base policy correctly never gets a Deactivate
+   control - confirmed from the live operation's own description ("The
+   raw/base policy cannot be deactivated: every Sensor requiring raw
+   processing must always have exactly one"), not inferred.
+
+6. **Knowledge Sharing - a real bug fixed, not just a missing feature.**
+   `KnowledgeSharingPage.tsx`'s per-Issue chip buttons visually indicated
+   shared-vs-not-shared (different button appearance) but the `onClick`
+   unconditionally called `useEnableSharedIssues` regardless of current
+   state - clicking an *already-shared* Issue's chip was a silent no-op
+   (re-enabling an already-enabled share), never actually removing it. Fixed
+   to call the previously-unused `useRevokeSharedIssues` when the clicked
+   Issue is already shared. Verified directly (not just code-reviewed): a
+   Chromium session confirmed a shared-Issue click fires `DELETE
+   .../Issues` and an unshared-Issue click fires `POST .../Issues`.
+
+7. **Location editing** - `AdminSettingsPage.tsx`'s Locations tab gained a
+   per-row Edit action (`useUpdateLocation`, previously unused), matching
+   the existing create-form's fields (name, code). Its edit-mode `Field`
+   labels were changed from generic "Name"/"Code" to "Location name"/
+   "Location code" - found via direct testing that the top-of-page
+   create-new-location form's own "Name" field is simultaneously visible
+   while editing an existing row, so two controls shared the exact same
+   accessible name at once; not just a test-script ambiguity; a real,
+   if minor, screen-reader-relevant disambiguation gap this fixes.
+
+8. **DeviceGroup membership - found while cataloguing the DeviceGroups
+   domain for the matrix below, not in the original gap list.**
+   `useAddDeviceGroupMember`/`useRemoveDeviceGroupMember` were also defined
+   and correctly wired but never called from any page - the DeviceGroups
+   tab could create a group and see its member *count*, but had no way to
+   actually add or remove a Device. `DeviceGroupDto` already returns
+   `deviceIds` on the list response, so no extra fetch was needed: selecting
+   a group (keyboard-operable via the existing `activateProps()` helper,
+   matching this project's established click-row pattern) reveals a
+   `DeviceGroupMembersPanel` with one checkbox per Company Device, checked
+   state driven by `deviceIds`, add/remove wired to the two previously-unused
+   hooks. Verified end to end (checkbox reflects the confirmed server state
+   after each round-trip, in both directions).
+
+### A significant, previously-undiscovered production bug found and fixed
+
+While mocked-browser-verifying the role-assignment checkbox, a real
+`unwrap()` bug surfaced: `openapi-fetch` returns `data: undefined` for
+**any** 204 (No Content) response - confirmed directly in its installed
+source (`node_modules/openapi-fetch/src/index.js`'s "handle empty content"
+branch: `response.status === 204 -> return {data: undefined, ...}`,
+unconditionally, regardless of what the server actually sent).
+`src/api/client.ts`'s `unwrap()` threw an `ApiError` ("Empty response from
+API") whenever `data === undefined`, on the reasoning (stated in its own
+prior comment) that the auth middleware already throws for any non-2xx
+response before `unwrap()` is ever reached - true, but the comment's
+"should be unreachable" assumption didn't account for openapi-fetch's *own*
+legitimate no-content-on-**success** case, which produces the identical
+`data: undefined` shape. In practice this meant **every 204-returning
+mutation in this app would have silently failed against the real API**,
+independent of anything built this session: `Company_AssignRole`/
+`Company_RevokeRole` (built this checkpoint), but also already-shipped ones
+- `Company_RevokeReaderDeviceGrant`, `Devices_RevokePrincipalCredential`,
+`Devices_SetPrincipalEnabled`, `AggregationPolicies_DeactivatePolicy`,
+`DeviceGroups_AddMember`/`RemoveMember`, `Issue_UnconfirmIssue`. The
+mocked-browser pass's first attempt reproduced the failure exactly (a
+Reader-role checkbox click that silently never completed); a mock
+sending a non-empty 204 body had initially masked it, since
+`openapi-fetch` discards a 204's body unconditionally regardless of
+content, so the mock's body content was never actually the variable that
+mattered. Fixed in `unwrap()`: only throw when `data` is undefined **and**
+the response status isn't 204, documented in-line with the exact
+reproduction. New regression test (`src/api/client.test.ts`, 4 cases)
+covers: data-present, 204-with-no-data (must not throw), non-204-with-no-data
+(must still throw - the original defensive case is preserved), and
+no-response-info-available (must still throw). This is exactly the kind of
+finding "do not assume prior reports are sufficient proof" was written to
+catch - no prior checkpoint's code review would have caught it, since it
+only manifests on an actual round-trip through a real (or realistically
+mocked) 204 response, which no previous mocked-browser pass happened to
+exercise for a mutation whose *return value* mattered to the assertion
+being made.
+
+### Two smaller pre-existing bugs found and fixed along the way
+
+- **`vite.config.ts`'s `manualChunks`** never named `react-datepicker`
+  explicitly. Rollup's own auto-chunk-naming for the resulting shared chunk
+  (used by `DateTimeField.tsx`, itself used from both `SmartAnalyticsPage`
+  and, as of this checkpoint, `SensorPoliciesPage`) picked a name from
+  whichever adjacent module happened to be its chunk facade - observed as a
+  misleadingly large `aggregationPolicies-*.js`/`.css` pair in the build
+  output that looked like that small hooks file had somehow grown to
+  137 kB. Confirmed via `grep` that the chunk's actual content was
+  `react-datepicker`, not `aggregationPolicies.ts`. Added an explicit
+  `vendor_datepicker` entry - same bytes, correctly labeled, no behavior
+  change.
+- **`AppShell.tsx`'s `NavDrawer` open state didn't reset on a live resize
+  across the desktop/compact breakpoint.** `drawerOpen` initializes once,
+  at mount, from `!isCompact` - correct for a fresh page load at any given
+  width, but a *live* resize from desktop (where the drawer is
+  permanently-open and inline, by design) down to a compact width leaves
+  that stale `true` in place, so the drawer re-renders as an **open overlay**
+  covering the very hamburger button meant to control it. Found via direct
+  testing (a real resize on an already-loaded page, not a fresh load at a
+  narrow width) - confirmed by axe-core, which flagged the resulting open
+  `OverlayDrawer`'s own internal `aria-modal="true"` attribute as invalid
+  ARIA usage on that element (a Fluent UI internal characteristic, not
+  something this app controls directly, but only reachable at all because
+  of the stale state). Fixed with a `useEffect` that closes the drawer
+  specifically on the *transition* into compact mode (tracked via a
+  `useRef`, not on every compact-mode render, so it doesn't fight a User's
+  own subsequent hamburger toggling) - confirmed both the overlay
+  intercepting clicks and the `aria-allowed-attr` axe finding gone after
+  the fix, in the same resize scenario that surfaced them.
+
+### Verification performed
+
+- `npm run typecheck` - **0 errors** (re-verified after every batch of
+  changes, not just once at the end).
+- `npm run lint` - **0 errors, 5 warnings** (same benign
+  `react-refresh/only-export-components` baseline as every prior
+  checkpoint - confirmed no new warning was introduced).
+- `npm run test` - **95/95 passing**, 16 files (up from 84/13) - two new
+  test files this checkpoint: `api/client.test.ts` (the `unwrap()` 204
+  regression, above), `lib/safeExternalUrl.test.ts` (5 cases: accepts
+  https, rejects http/`javascript:`/`data:`/bare-relative/null/undefined/
+  empty), plus `auth/AuthContext.test.tsx` (2 cases: `hasAuthorizedCompany`
+  true for a real Company, false for the documented `"Unknown"` fallback -
+  following the same `mockFetchJsonAlways` + real `AuthProvider` render
+  pattern already established by `RequireAdmin.test.tsx`). Consistent with
+  the prior checkpoint's own precedent for `DeviceDetailPage.tsx`'s Sensor
+  dialogs, the *page-level* new/changed UI (Company profile tab, Company
+  members role toggles, aggregation-policy create/deactivate, the
+  Knowledge Sharing toggle fix) relies on the mocked-browser pass below
+  rather than new heavyweight full-stack-mock component tests, for the
+  same reason recorded there: these pages need the same
+  `AuthProvider`+`QueryClientProvider`+`FluentProvider`+route-mock harness
+  `TrainingPage.test.tsx` required, and the mocked-browser pass already
+  exercises the real interaction end to end.
+- `npm run build` - succeeds. `vendor_datepicker` now correctly labeled
+  (~161 kB, previously hidden inside a misleadingly-named
+  `aggregationPolicies-*` chunk pair - see above). `vendor_fluent` remains
+  the only >500 kB chunk (unchanged, pre-existing Fluent UI v9
+  characteristic).
+- **Mocked-browser pass** (real Chromium via Playwright, real app, real
+  client-side routing, only `http://localhost:5065/**` network calls
+  intercepted - same established methodology as the prior checkpoints'
+  Phase 22/23 passes; script written to the session scratchpad, not
+  committed, consistent with this project's own "one-off verification
+  script" precedent). Three scenarios: (1) an Admin session with a `Local`
+  Company profile - every new/changed control exercised end to end
+  (Company rename, Location edit, DeviceGroup membership add/remove,
+  Company-member role grant, new aggregation-level create, aggregation-level
+  deactivate, the Knowledge Sharing toggle fix), plus responsive (1920px +
+  390px) and axe-core
+  accessibility checks on every new/changed page state; (2) a
+  `MirroredDatabase` Company profile - confirmed the rename control and
+  role-assignment checkboxes are correctly *absent* (not merely disabled)
+  with an in-page explanation for both; (3) an authenticated User with no
+  authorized Company - confirmed the `NoCompanyState` renders immediately,
+  survives in-app navigation, the app never redirects to `/login`, and no
+  Company-scoped network call ever fires. **Zero unexpected console
+  errors** across all three scenarios (the only console errors observed
+  were expected, deliberate failed-image-load noise from a fixture Company
+  logo URL using RFC 2606's reserved always-fails-to-resolve
+  `example.invalid` domain). Two axe-core findings were investigated in
+  depth rather than dismissed or accepted at face value, each confirmed
+  (via direct `getComputedStyle`/isolated-reproduction evidence, not
+  assumption) to be transient rendering artifacts of catching Fluent's
+  Toast component mid-fade-transition, not real defects - the toast's true
+  steady-state contrast (`rgb(36,36,36)` text on `rgb(255,255,255)`,
+  ~16:1) was independently confirmed via a dedicated diagnostic script
+  before excluding this specific, narrowly-scoped finding from the
+  pass/fail check (any *other* color-contrast finding on the page still
+  fails it). This is the same category of tooling-artifact investigation
+  the prior checkpoint's Phase 23 already established a precedent for
+  (`aria-hidden-focus` on Tabster's internal focus sentinels) - applied
+  with the same rigor, not a shortcut.
+
+### What should be reviewed or corrected next
+
+1. **`DeleteAllData` (×4)** - documented, deliberately not built this pass
+   per explicit user decision; see above for the concrete recommendation
+   if it's picked up later.
+2. **`useLastPeriod`** - documented as a deliberate non-adoption; revisit
+   only if a concrete product need for a bare last-ingested-period-number
+   display emerges that `FreshnessPill`/existing timestamps don't already
+   cover.
+3. The two smaller-scope items the prior checkpoint already flagged
+   remain: independent re-confirmation of the Smart Analytics date-input
+   `aria-label` fix (still unconfirmed), and a genuine live-credential
+   authenticated browser pass (still no test credentials available in this
+   environment).
+4. `Company_UpdateCompanyName`'s full response-code documentation (403/409/
+   429 beyond the 400/401 already read this session) wasn't re-verified
+   character-for-character against the live schema before writing the
+   Coverage Matrix below - the `CompanyDto.nameEditable`-gated UI logic
+   doesn't depend on the exact wording of those codes (only on the field
+   itself and on `ErrorState`'s existing generic 409/429 handling), so this
+   is a documentation-completeness note, not a functional gap.
+
+## Independent verification checkpoint (2026-08-31, following the API-completeness checkpoint)
+
+A follow-up pass explicitly asked to re-verify the prior checkpoints' claims
+against the actual repository state rather than accept them as given, refresh
+the live OpenAPI contract, re-inventory every operation, complete any
+remaining safe human-facing work, and run a real quality gate before
+committing. This section records what independent re-verification actually
+found - two real, previously-undiscovered (or previously mis-verified as
+fixed) bugs, both found and fixed - plus everything re-confirmed correct.
+
+### Live contract and coverage matrix re-verified, independently, not by re-reading the prior claims
+
+`npm run gen:api` was re-run against the live contract. `diff` against the
+prior `schema.generated.ts` shows changes on dynamic `@example` timestamps
+only (grepped for any changed line not matching an ISO-8601 timestamp -
+zero matches) - no path, operation, parameter, or schema change. The
+Company-profile/`CurrentUserDto` addition from two checkpoints ago remains
+the only real contract change on record.
+
+The live contract's 105 operations were extracted programmatically (not
+copied from this file) and cross-checked two ways: (1) per-tag counts
+against the Coverage Matrix's own per-domain headers - exact match on all
+21 tags; (2) every operationId checked for a verbatim mention in this file -
+25 apparent misses, all explained by the matrix's own documented
+`{Family}_...` template-row compression for the four telemetry families
+(4 families × 6 shared patterns + 2 `MeasuredTrailingPeriods`-only-for-
+continuous = 26, exactly the "26 operations total" the matrix already
+states) - not a real gap.
+
+### Two real bugs found and fixed this checkpoint
+
+**1. The `vendor_datepicker` chunk-naming fix from the completion checkpoint
+only fixed the JS half, not the CSS half - the exact defect class it
+believed it had closed.** `vite.config.ts`'s `manualChunks` was an object
+keyed by exact package name (`vendor_datepicker: ['react-datepicker']`),
+which correctly grouped the `react-datepicker` *package* but does not match
+`react-datepicker/dist/react-datepicker.css` (imported once, from
+`DateTimeField.tsx`) - a separate Rollup module ID the object form's
+exact-name matching never touches. That CSS still fell through to Rollup's
+default shared-chunk naming, observed as a misleadingly large
+`aggregationPolicies-DTQWZBFX.css` (21.83 kB, confirmed byte-for-byte
+identical to `node_modules/react-datepicker/dist/react-datepicker.css`
+minified) sitting next to the correctly-named, unrelated ~2.4 kB
+`aggregationPolicies-*.js` hooks chunk - the same misleading-name shape the
+prior checkpoint's fix believed it had eliminated entirely. Fixed by
+converting `manualChunks` to the function form, matching by module-ID
+substring instead of exact package name, so both the JS and its CSS import
+land in one explicitly-named chunk (`vendor_datepicker-*.css`,
+`vendor_datepicker-*.js`). Verified: total build output size unchanged
+(1485.29 kB before -> 1488.16 kB after, raw asset sizes summed across every
+chunk - a 0.19% difference consistent with normal chunk-boundary ESM
+import/export overhead, not duplication), CSS chunk content hash identical
+(`DTQWZBFX` before and after - byte-identical file, only the name changed),
+`vendor_react` and `index` chunks redistributed their bytes (264.51 kB /
+27.20 kB vs. the previous 92.61 kB / 197.30 kB split) because the function
+form also correctly sweeps `react-router-dom`'s own transitive dependencies
+into `vendor_react` instead of leaving them in Rollup's default entry
+chunk - a labeling improvement, not a behavior change (`typecheck`/`test`
+re-run clean immediately after).
+
+**2. `DateTimeField.tsx`'s `aria-label` prop on `<DatePicker>` was silently
+dropped by react-datepicker at runtime - the exact axe finding the prior
+checkpoint's Phase 23 flagged as "fixed, not independently re-confirmed"
+was never actually fixed, only believed to be.** Traced to source, not
+guessed: `react-datepicker@8.7.0`'s own `renderDateInput`
+(`node_modules/react-datepicker/dist/index.js`) clones a fixed allow-list of
+named props onto its real `<input>` - `id`, `name`, `form`, `autoFocus`,
+`placeholder`, `disabled`, `autoComplete`, `className`, `title`, `readOnly`,
+`required`, `tabIndex`, `aria-describedby`, `aria-invalid`,
+`aria-labelledby`, `aria-required` - and `aria-label` is not among them, so
+it is discarded on every render. It type-checked cleanly (`tsc --noEmit`
+already passed with 0 errors, both before and after this fix) purely
+because Fluent's JSX types don't constrain arbitrary attribute props on a
+foreign class component - passing `tsc` was never proof this worked, and
+this checkpoint's own re-verification is the first time anyone actually
+checked the rendered DOM. Confirmed empirically before touching anything:
+a real mocked-browser session (`npm run dev`, real Chromium, real login
+form, only `http://localhost:5065/**` network-mocked - reusing this
+project's own established methodology, see below) showed the Smart
+Analytics "Start"/"End" `<input>` elements with `aria-label: null`, no
+`id`, no `aria-labelledby` at all, and a real axe-core scan of that page
+flagged `"label"` (critical, 2 nodes, "Form elements must have labels") -
+not the previously-recorded-as-only-outstanding accessibility item, an
+actually-broken one. Fixed using Fluent's own documented integration point
+for exactly this situation (`@fluentui/react-field`'s `FieldProps.children`
+JSDoc states it directly: `"For other controls... <Field>{(props) =>
+<MyInput {...props} />}</Field>"`) - `DateTimeField.tsx`'s `<Field>` now
+takes a render-prop child receiving `FieldControlProps`
+(`id`/`aria-labelledby`/`aria-describedby`/`aria-invalid`), which are
+spread onto `<DatePicker id={} ariaLabelledBy={} ariaDescribedBy={}
+ariaInvalid={}>` - all four are on react-datepicker's own confirmed
+forwarding allow-list, unlike the removed `aria-label`. Re-verified
+empirically after the fix, not just re-read: the same mocked-browser
+session now shows `<input id="field-«rc»__control"
+aria-labelledby="field-«rc»__label" ...>`, Playwright's own
+accessible-name-based query
+(`page.getByRole('textbox', {name: /start/i})`) resolves to exactly one
+element for both "Start" and "End", and the axe `"label"` violation is
+gone from that page. This is the single component behind every
+`DateTimeField` instance in the app (`AGENTS.md`: "never used raw at a
+call site"), so the fix applies everywhere the control is used
+(`SmartAnalyticsPage.tsx`), not just the one page directly re-tested.
+
+### Everything else independently re-checked and confirmed correct, not just re-read
+
+Beyond the two fixes above, this checkpoint re-verified a representative,
+not exhaustive, sample of the prior checkpoints' more consequential claims
+directly against source and a real running app, rather than trusting the
+narrative:
+
+- **`unwrap()`'s 204 handling** - read directly in `src/api/client.ts`:
+  `if (result.data === undefined && result.response?.status !== 204)`,
+  matching the documented fix exactly.
+- **Ollama's real terminal-success value** - `domainTypes.ts`/`ollama.ts`
+  use `"Succeeded"`; cross-checked directly against the backend's own
+  `DataAccess/Enums.cs` (`OllamaJobStatus { Queued=1, Processing=2,
+  Succeeded=3, Failed=4, Cancelled=5 }`) - confirmed correct against the
+  actual source, not just the backend's own (also-checked) documentation.
+- **`NoCompanyState`/`hasAuthorizedCompany` wiring** - `AuthContext.tsx`
+  computes `true` while `userDetails` is still loading (never a false
+  flash) and only `false` once a real response confirms it;
+  `AppShell.tsx` renders `hasAuthorizedCompany ? <Outlet/> : <NoCompanyState/>`
+  exactly as documented.
+- **Company profile gating** - `AdminSettingsPage.tsx` reads
+  `company.profileSource`/`company.nameEditable`/`isSafeHttpsUrl` exactly
+  as documented, with the mirrored-vs-local badge and rename-form gating
+  both present in source.
+- **Knowledge Sharing per-Issue chip fix** - `KnowledgeSharingPage.tsx`'s
+  `onClick` genuinely branches `shared ? revokeIssues.mutate(...) :
+  enableIssues.mutate(...)`, not the previously-broken unconditional
+  `enableIssues` call.
+- **`DeleteAllData` (×4) non-adoption** - grepped the whole `src/` tree;
+  zero hits outside the generated schema file, confirming no hook or page
+  references any of the four operations, exactly as the declined-by-explicit-decision
+  entry states.
+- **Rule compliance sweep across all of `src/`** - zero
+  `dangerouslySetInnerHTML`, zero `window.(prompt|confirm|alert)` calls
+  outside comments referencing the rule, zero `@ts-ignore`/`@ts-nocheck`/
+  `: any`/`as any` outside test files, zero `.js`/`.jsx` files, zero
+  hardcoded `localhost:5065` outside one explanatory comment, `allowJs`
+  absent from `tsconfig.json`, and `localStorage`/`sessionStorage` used
+  only for the theme preference (`ThemeContext.tsx`) - every other match
+  was a comment referencing the rule, not a violation.
+- **Secret/env hygiene** - `.env.local` (the real `VITE_API_BASE_URL`)
+  confirmed gitignored (`git check-ignore -v`) and absent from
+  `git ls-files`; only `.env.example` (no real value) is tracked.
+
+### A more precise (not new) explanation for the one remaining axe finding
+
+Every page in a fresh 12-route mocked-browser sweep this checkpoint (zero
+console errors throughout) shows exactly one axe finding, consistently:
+`aria-hidden-focus` (serious). Investigated to its actual DOM node, not
+re-accepted from the prior checkpoint's narrower explanation: every flagged
+element is a Tabster-internal focus-sentinel/"Mover" dummy (`<i
+tabindex="0" role="none" data-tabster-dummy="..." aria-hidden="true"
+style="position:fixed;width:1px;height:1px;opacity:.001;...">`) that
+Fluent's `NavDrawer` injects on every render for its own internal
+arrow-key list navigation, present in the DOM on every authenticated page
+via the persistent shell - not, as the prior checkpoint's Phase 23
+concluded, specifically a Toast-mid-fade-transition artifact (this sweep
+never triggered a toast at all, and the finding was present every time,
+not transiently). Both explanations agree on the conclusion - this is a
+Fluent-UI/Tabster library-internal implementation detail, not an app-level
+defect, since this application never sets `aria-hidden`/`tabindex` on
+these elements and does not control `NavDrawer`'s internal Tabster
+integration - but this checkpoint's account is the more complete and
+accurate one, and supersedes the narrower Toast-specific explanation in
+`CLAUDE.md`'s accessibility section (updated accordingly).
+
+### Verification performed
+
+- `npm run typecheck` - **0 errors** (re-verified after the `vite.config.ts`
+  and `DateTimeField.tsx` changes, not just once at the end).
+- `npm run lint` - **0 errors, 5 warnings** (identical baseline to every
+  prior checkpoint).
+- `npm run test` - **95/95 passing**, 16 files (unchanged - neither fix
+  this checkpoint touched behavior any existing unit test exercises; both
+  are verified by direct source/DOM inspection and the mocked-browser
+  passes described above instead).
+- `npm run build` - succeeds; `vendor_datepicker-*.css`/`.js` now correctly
+  paired and labeled (see above); no new >500 kB chunk beyond the
+  pre-existing `vendor_fluent`.
+- **Mocked-browser verification** (real Chromium via Playwright, real app,
+  real client-side routing via NavDrawer button clicks - not `page.goto()`
+  post-login, which would drop the deliberately memory-only session and
+  invalidate the whole pass - only `http://localhost:5065/**` network-mocked,
+  same established methodology as every prior checkpoint's pass). Covered:
+  login, and a 12-route sweep of every top-level nav destination
+  (Overview, Devices, Live Monitoring, Smart Analytics, Issues, Categories,
+  Knowledge Sharing, Training & Models, Ollama Jobs, Readers & Access,
+  Company Settings, System Status) with an axe-core scan on each. **Zero
+  console errors across all 12 routes.** The Smart Analytics date-input
+  fix was independently confirmed via Playwright's own accessible-name
+  query (`getByRole('textbox', {name: /start/i or /end/i})`, 1 match
+  each) - the authoritative browser accessibility-tree computation, not a
+  proxy for it. No script was committed - one-off, deleted after use, per
+  this project's own established precedent.
+
+### What should be reviewed or corrected next
+
+Superseding the prior checkpoint's list: item 3 (independent
+re-confirmation of the Smart Analytics date-input accessibility fix) is
+now genuinely resolved, not merely re-asserted - see above. Everything
+else on that list is unchanged and still applies:
+
+1. **`DeleteAllData` (×4)** - documented, deliberately not built, per
+   explicit user decision; recommendation (typed re-confirmation) recorded
+   for later, unchanged this checkpoint.
+2. **`useLastPeriod`** - documented non-adoption, unchanged.
+3. A genuine live-credential authenticated browser pass - still no test
+   credentials available in this environment; the click-through checklist
+   below remains prepared for whoever runs one.
+4. `Company_UpdateCompanyName`'s full response-code documentation
+   (403/409/429) wasn't re-verified character-for-character against the
+   live schema this checkpoint either - still a documentation-completeness
+   note, not a functional gap (the UI logic depends only on the
+   `nameEditable` field and the existing generic 409/429 handling).
+
 ## Dependency-ordered phases
 
 Status legend: **Not started** / **In progress** / **Implemented** /
@@ -1091,6 +1648,316 @@ predict in advance (e.g., a specific validation failure shape).
 | `NoteHeartBeat` call | Manual heartbeat ping | None | No such endpoint on the new API | **Removed, not replaced or inferred** | n/a | n/a | Removed | Confirmed absent | Yes |
 | Old AdHoc-prediction references | None found in old dashboard source | — | — | n/a — old dashboard never called it | n/a | n/a | n/a | n/a | n/a |
 
+## API-to-Dashboard Coverage Matrix
+
+Every public operation in the live OpenAPI contract (105 total, re-verified
+this checkpoint - see "Live contract re-verified, no drift" above),
+classified individually, not just the ~96 this frontend's hooks actually
+call. Complements, rather than duplicates, the route-centric "Route and API
+coverage matrix" below: that one answers "what does route X call"; this one
+answers "what happens to operation Y" for every operation, including the
+ones with no route at all. Grouped by OpenAPI tag (which matches this
+project's own one-hook-file-per-domain convention exactly). Extracted
+programmatically from the live `swagger.json` (path, method, operationId,
+response codes), then cross-referenced against every hook file and every
+page component by direct source inspection - not carried over from any
+prior session's summary.
+
+**Classification key** (from the governing instruction, referenced by
+number in every table below):
+1 = Human Admin read · 2 = Human Admin mutation · 3 = Human Reader read ·
+4 = Reader mutation, hidden (Reader is strictly read-only) · 5 = DevicePrincipal
+machine operation · 6 = Background-worker/internal · 7 = Public health/system ·
+8 = Intentionally unsupported dashboard operation · 9 = Blocked by a genuine
+product decision · 10 = Blocked by a backend capability gap · 11 = Compatibility-only/obsolete,
+must not receive new UI.
+
+Attributes constant across an entire domain (Company/Device/Sensor scope
+shape, request/response DTO family, pagination/batch/range bounds, rate-limit
+policy, training/Ollama/Issue side effects) are stated once in that domain's
+prose header rather than repeated in every row: OpenAPI documents the same
+information at the operation level, and the live contract remains the
+authoritative source for exact per-operation wording (status-code lists,
+field-level constraints) - this matrix records classification, ownership,
+and dashboard status, not a re-transcription of the schema.
+
+### Authentication (2 operations)
+
+Public, unauthenticated, principal-agnostic - the entry point before any
+role exists, so the Admin/Reader classification axis doesn't apply to
+either operation cleanly. No Company/Device/Sensor scope (there is no
+authenticated caller yet). No pagination. No training/Ollama/Issue side
+effects. Named rate-limit policy: `DeviceTokenRequest` applies to the
+machine login specifically (per Deployment Runbook §5.2 - exact numeric
+limit deferred to `appsettings.json`, not stated in any of the four backend
+narrative docs); human login has no named policy beyond the global default.
+
+| Operation ID | Method + route | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `Authentication_RequestHMAC` | `POST /api/Authentication/Request_HMAC_Key` | Public human entry point (no Admin/Reader distinction applies pre-role) | `AuthContext.tsx`'s `login()` · `LoginPage.tsx` | Implemented |
+| `Authentication_RequestDeviceToken` | `POST /api/Authentication/Request_Device_Token` | 5 (DevicePrincipal machine operation) | none | Correctly not built - `AGENTS.md`: "`Request_Device_Token` exists for machines, not humans"; no DevicePrincipal login UI exists anywhere in this dashboard by design |
+
+### Company (10 operations)
+
+Company-scoped (the caller's own Company only - never another). Request/response
+DTOs: `CompanyDto`, `CompanyMemberDto`, `ReaderDto`, `ReaderDeviceGrantDto`,
+`EffectiveDeviceAccessDto`, `UpdateCompanyNameRequest`,
+`GrantReaderDevicesRequest`. No pagination (Company-scoped lists are
+inherently small). No training/Ollama/Issue side effects. `GetCompany`
+carries a `429` (global rate limit, no named policy); `UpdateCompanyName`
+carries `429` too.
+
+| Operation ID | Method + route | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `Company_GetCompany` | `GET /api/Company` | 1/3 (no Admin-only restriction stated; both roles use it identically) | `useCompany` · `AdminSettingsPage.tsx`'s Profile tab | Implemented (read-only use pre-existed; now also the primary data source for the new Profile tab, this checkpoint) |
+| `Company_UpdateCompanyName` | `PUT /api/Company/Name` | 2 | `useUpdateCompanyName` (new, this checkpoint) · `AdminSettingsPage.tsx` Profile tab, gated on `CompanyDto.nameEditable` | Implemented (this checkpoint) |
+| `Company_GetMembers` | `GET /api/Company/Members` | 1 | `useCompanyMembers` · `ReadersPage.tsx`'s Company Members section (this checkpoint) | Implemented (this checkpoint) |
+| `Company_AssignRole` | `POST /api/Company/Members/{userId}/Roles` | 2 | `useAssignCompanyRole` (this checkpoint) | Implemented (this checkpoint), mutation UI gated on `profileSource === 'Local'` - see decision log |
+| `Company_RevokeRole` | `DELETE /api/Company/Members/{userId}/Roles/{roleName}` | 2 | `useRevokeCompanyRole` (this checkpoint) | Implemented (this checkpoint), same gating |
+| `Company_GetReaders` | `GET /api/Company/Readers` | 1 | `useReaders` · `ReadersPage.tsx` | Implemented (pre-existing) |
+| `Company_GetReaderDeviceGrants` | `GET /api/Company/Readers/{userId}/Devices` | 1 | `useReaderDeviceGrants` · `ReadersPage.tsx` | Implemented (pre-existing) |
+| `Company_GrantReaderDevices` | `POST /api/Company/Readers/{userId}/Devices` | 2 | `useGrantReaderDevices` · `ReadersPage.tsx` | Implemented (pre-existing) |
+| `Company_RevokeReaderDeviceGrant` | `DELETE /api/Company/Readers/{userId}/Devices/{deviceId}` | 2 | `useRevokeReaderDeviceGrant` · `ReadersPage.tsx` | Implemented (pre-existing) - one of the operations the `unwrap()` 204 bug (fixed this checkpoint) would have silently broken |
+| `Company_GetReaderEffectiveAccess` | `GET /api/Company/Readers/{userId}/EffectiveAccess` | 1 | `useReaderEffectiveAccess` · `ReadersPage.tsx` | Implemented (pre-existing) |
+
+### User (1 operation)
+
+| Operation ID | Method + route | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `User_GetUserDetails` | `GET /api/User/GetUserDetails` | Any authenticated human (current-user identity, pre-dates role-specific access) | `AuthContext.tsx`'s `fetchUserDetails` | Implemented; now consumes the real generated `CurrentUserDto` (this checkpoint replaced the hand-typed `UserDetails` workaround) - see the no-Company-state work above |
+
+### Devices (9 operations)
+
+Company-scoped list/detail; DevicePrincipal lifecycle sub-resource is
+Device-scoped beneath it. DTOs: `DeviceDto`, `CreateDeviceRequest`,
+`UpdateDeviceRequest`, `ProvisionDevicePrincipalResponse` (domain-typed),
+principal/credential DTOs. No delete - disable only (`enabled: false` via
+`UpdateDevice`). No pagination on the list (bounded by Company Device
+count). No training/Ollama/Issue side effects directly (a Device's own
+training lineage is read, not written, from here).
+
+| Operation ID | Method + route | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `Devices_GetDevices` | `GET /api/Devices` | 3 | `useDevices` · `DeviceListPage.tsx` | Implemented |
+| `Devices_CreateDevice` | `POST /api/Devices` | 2 | `useCreateDevice` · `DeviceListPage.tsx` | Implemented |
+| `Devices_GetDevice` | `GET /api/Devices/{deviceId}` | 3 | `useDevice` · `DeviceDetailPage.tsx` | Implemented |
+| `Devices_UpdateDevice` | `PUT /api/Devices/{deviceId}` | 2 | `useUpdateDevice`/`useDisableDevice` · `DeviceDetailPage.tsx` | Implemented |
+| `Devices_GetPrincipal` | `GET /api/Devices/{deviceId}/Principal` | 1 | `useDevicePrincipal` · `DevicePrincipalPage.tsx` | Implemented |
+| `Devices_ProvisionPrincipal` | `POST /api/Devices/{deviceId}/Principal/Provision` | 2 | `useProvisionDevicePrincipal` · `DevicePrincipalPage.tsx` | Implemented |
+| `Devices_RotatePrincipalCredential` | `POST /api/Devices/{deviceId}/Principal/Rotate` | 2 | `useRotateDevicePrincipalCredential` · `DevicePrincipalPage.tsx` | Implemented |
+| `Devices_RevokePrincipalCredential` | `POST /api/Devices/{deviceId}/Principal/Credentials/{credentialId}/Revoke` | 2 | `useRevokeDevicePrincipalCredential` · `DevicePrincipalPage.tsx` | Implemented - a 204 operation; unaffected in practice since this dashboard's own mocked-browser passes never happened to assert on its post-mutation UI state the way the role-grant one did, but the same `unwrap()` fix applies to it going forward |
+| `Devices_SetPrincipalEnabled` | `PUT /api/Devices/{deviceId}/Principal/Enabled` | 2 | `useSetDevicePrincipalEnabled` · `DevicePrincipalPage.tsx` | Implemented - also 204, same note |
+
+### Sensors (4 operations)
+
+Device-scoped. DTOs: `SensorDto`, `CreateSensorRequest` (creates the raw/base
+`AggregationPolicy` in the same call), `UpdateSensorRequest`. `isCurve` is
+derived from the parent Device's `applicationMode`, never a free client
+choice (see `CLAUDE.md`).
+
+| Operation ID | Method + route | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `Sensors_GetSensors` | `GET /api/Devices/{deviceId}/Sensors` | 3 | `useSensors` · `DeviceDetailPage.tsx` | Implemented |
+| `Sensors_CreateSensor` | `POST /api/Devices/{deviceId}/Sensors` | 2 | `useCreateSensor` · `DeviceDetailPage.tsx`'s `NewSensorDialog` | Implemented (prior checkpoint) |
+| `Sensors_GetSensor` | `GET /api/Devices/{deviceId}/Sensors/{sensorId}` | 3 | `useSensor` · `SensorPoliciesPage.tsx` | Implemented |
+| `Sensors_UpdateSensor` | `PUT /api/Devices/{deviceId}/Sensors/{sensorId}` | 2 | `useUpdateSensor` · `DeviceDetailPage.tsx`'s `EditSensorDialog` | Implemented (prior checkpoint) |
+
+### AggregationPolicies (5 operations)
+
+Device→Sensor-scoped. DTOs: `SensorAggregationPolicyDto`,
+`CreateAggregationPolicyRequest`, `UpdateAggregationPolicyRequest`. Training
+side effect: changing the **raw** policy's Lookback/Scale/Enabled schedules
+retraining (`CLAUDE.md`); `MinIssueScore` never does, on any level.
+
+| Operation ID | Method + route | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `AggregationPolicies_GetPolicies` | `GET /api/Devices/{deviceId}/Sensors/{sensorId}/AggregationPolicies` | 3 | `useAggregationPolicies` · `SensorPoliciesPage.tsx` | Implemented |
+| `AggregationPolicies_CreatePolicy` | `POST .../AggregationPolicies` | 2 | `useCreateAggregationPolicy` · `SensorPoliciesPage.tsx`'s `NewPolicyForm` | Implemented (this checkpoint) |
+| `AggregationPolicies_GetPolicy` | `GET .../AggregationPolicies/{policyId}` | 3 | none | Not implemented - superseded by the list, which `SensorPoliciesPage.tsx` already loads in full; no page needs a single-policy fetch independent of that list |
+| `AggregationPolicies_UpdatePolicy` | `PUT .../AggregationPolicies/{policyId}` | 2 | `useUpdateAggregationPolicy` · `SensorPoliciesPage.tsx`'s `PolicyCard` | Implemented |
+| `AggregationPolicies_DeactivatePolicy` | `DELETE .../AggregationPolicies/{policyId}` | 2 | `useDeactivateAggregationPolicy` · `SensorPoliciesPage.tsx`'s `PolicyCard` | Implemented (this checkpoint); raw policy correctly never offered the control (confirmed from the operation's own description: "The raw/base policy cannot be deactivated") |
+
+### Setpoints (3 operations)
+
+Device→Sensor-scoped, time-versioned, append-only (no update/delete
+operation exists at all - by design). DTOs: direction-aware
+(`target`/`tolerance` vs. `targetAbove/Below`+`toleranceAbove/Below`).
+
+| Operation ID | Method + route | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `Setpoints_GetSetpoints` | `GET .../Setpoints` | 3 | `useSetpoints` · `SensorPoliciesPage.tsx`'s `SetpointsCard` | Implemented |
+| `Setpoints_CreateSetpoint` | `POST .../Setpoints` | 2 | `useCreateSetpoint` · `SensorPoliciesPage.tsx`'s `SetpointsCard` | Implemented |
+| `Setpoints_GetEffectiveSetpoint` | `GET .../Setpoints/Effective` | 3 | `useEffectiveSetpoint` · `SensorPoliciesPage.tsx`'s `SetpointsCard` | Implemented |
+
+### Continuous / BiDirectionalContinuous / Periodic / BiDirectionalPeriodic (26 operations total)
+
+The four telemetry families (`CLAUDE.md`'s "Telemetry" section). Device→Sensor-scoped;
+every ingestion item carries its own required body-level `SensorId` (query-level
+SensorId is revoked - `AGENTS.md`'s "Final telemetry contract"). Bounded reads:
+`MaxQueryRangeDays = 31`, `MaxPageSize = 5000`, `DefaultPageSize = 500`
+(confirmed exact values this checkpoint, via a background agent's full read of
+`Deployment_Runbook.md` §5.2/§5.3 - previously known only by name in this
+repo's own docs). `MaxIngestionBatchSize = 5000`. Ingestion triggers
+asynchronous Issue detection (never synchronous); `DeleteAllData` clears
+telemetry, Issues, and the Device's legacy model. No dedicated named
+rate-limit policy is stated by name for telemetry *reads* in the backend
+docs beyond `LargeTelemetryRead`/`BulkTelemetryIngestion` (named, exact
+numeric limits deferred to `appsettings.json`, not given in any narrative
+doc read this session).
+
+| Operation ID (× family) | Method + route pattern | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `{Family}_Ingest{Signals\|Curves}` | `POST /api/{Family}/{Signals\|Curves}` | 5 (DevicePrincipal machine operation; docs also allow a human User, but this dashboard never builds an ingestion UI) | none | Correctly not built - `AGENTS.md`: "This dashboard does not currently build a telemetry-ingestion UI...a DevicePrincipal (machine) concern" |
+| `{Family}_DeleteAllData` | `DELETE /api/{Family}/DeleteAllData` | 9 (genuine product decision) | none | **Not implemented - explicit user decision this checkpoint**: real, live, Admin-authorized, irreversible (wipes telemetry + Issues + clears the legacy model for a Sensor); documented rather than built or silently skipped. See "API-completeness checkpoint" above for the full reasoning and the concrete recommendation (typed re-confirmation) for whoever builds it later |
+| `{Family}_GetLastAnalysedPeriod` / `GetLastAnalysedCurvePeriod` | `GET .../LastAnalysed(Curve)Period` | 3 | none | Not implemented - documented non-adoption; no product need identified distinct from `GetLastPeriod`'s "last ingested" signal, which is itself unused too (below) |
+| `{Family}_GetLastPeriod` / `GetLastCurvePeriod` | `GET .../Last(Curve)Period` | 3 | `useLastPeriod` (`telemetry.ts`) | Defined, never called - documented deliberate non-adoption this checkpoint: a bare period number isn't independently meaningful without the `measured` timestamp already shown via `FreshnessPill`/Live Monitoring |
+| `{Family}_GetMeasuredDateRange` / `GetCurveMeasuredDateRange` | `GET .../(Curve)MeasuredDateRange` | 3 | `useTelemetryDateRange` | Implemented - `SmartAnalyticsPage.tsx` |
+| `Continuous_GetMeasuredTrailingPeriods` / `BiDirectionalContinuous_...` (continuous families only - curves have no "trailing periods" concept) | `GET .../MeasuredTrailingPeriods` | 3 | `useTelemetryTrailingPeriods` | Implemented - `LiveMonitoringPage.tsx` |
+| `{Family}_GetPeriodRange` / `GetCurvePeriodRange` | `GET .../(Curve)PeriodRange` | 3 | `useTelemetryPeriodRange` | Implemented - `IssueDetailPage.tsx`'s telemetry card, `SmartAnalyticsPage.tsx`'s same-Device compare |
+
+### Issue (12 operations)
+
+Device-scoped, canonical-by-default (`CLAUDE.md`'s "Canonical Issues").
+DTOs: `IssueDto`, `GroupIssuesRequest`, `ReassignCanonicalRequest`, review/category
+request bodies. No pagination beyond `skip`/`take` on the list. Category and
+review-verdict changes advance the target Device's (and any actively-sharing
+target's) training-eligibility generation and schedule a coalesced
+retraining request, asynchronously (`CLAUDE.md`'s "Review states"/"Categories").
+
+| Operation ID | Method + route | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `Issue_GetIssues` | `GET /api/Issue` | 3 | `useIssues` · `IssueListPage.tsx`, `MoveToCanonicalDialog.tsx`, `KnowledgeSharingPage.tsx` | Implemented |
+| `Issue_CreateIssue` | `POST /api/Issue` | 9 (genuine product decision) | `useCreateIssue` (unused) | Deliberately not built - manually fabricating what is normally an ML-pipeline-detected record conflicts with "No fabricated production data" (`AGENTS.md`) and no product requirement in `CLAUDE.md`'s feature list calls for it; the operation's own description scopes it to periodic Devices specifically, which doesn't change this reasoning |
+| `Issue_GetIssue` | `GET /api/Issue/{issueId}` | 3 | `useIssue` · `IssueDetailPage.tsx` | Implemented |
+| `Issue_UpdateIssue` | `PUT /api/Issue/{issueId}` | 11 (compatibility-only, superseded) | `useUpdateIssue` (unused) | Correctly unbuilt - its own JSDoc and the live description ("technician feedback...confirm/reject, correct the anomaly flag") identify it as the legacy pre-`reviewState` mechanism, fully superseded by `Issue_ReviewIssue` + `Issue_AssignCategory`, which this dashboard uses exclusively (`CLAUDE.md`'s "Review states": "this frontend never reads `confirmed` for anything") |
+| `Issue_UnconfirmIssue` | `DELETE /api/Issue/{issueId}` | 2 | `useReopenIssue` · `IssueDetailPage.tsx`'s review controls (withdraws a verdict back to `PendingReview` - never deletes the Issue) | Implemented |
+| `Issue_AssignCategory` | `PUT /api/Issue/{issueId}/Category` | 2 | `useAssignIssueCategory` · `IssueDetailPage.tsx` | Implemented |
+| `Issue_GetIssueGroup` | `GET /api/Issue/{issueId}/Group` | 3 | `useIssueGroup` · `IssueDetailPage.tsx`'s Group card | Implemented |
+| `Issue_MoveGroupMember` | `POST /api/Issue/{issueId}/MoveGroup` | 2 | `useMoveGroupMember` · `IssueDetailPage.tsx`'s `GroupMemberRow` via `MoveToCanonicalDialog.tsx` | Implemented |
+| `Issue_ReviewIssue` | `POST /api/Issue/{issueId}/Review` | 2 | `useReviewIssue` · `IssueDetailPage.tsx` | Implemented |
+| `Issue_UngroupIssue` | `POST /api/Issue/{issueId}/Ungroup` | 2 | `useUngroupIssue` · `IssueDetailPage.tsx`'s Group card | Implemented |
+| `Issue_GroupIssues` | `POST /api/Issue/Group` | 2 | `useGroupIssues` · `IssueListPage.tsx`'s multi-select Group action | Implemented |
+| `Issue_ReassignCanonical` | `POST /api/Issue/{canonicalIssueId}/ReassignCanonical` | 2 | `useReassignCanonical` · `IssueDetailPage.tsx`'s `GroupMemberRow` | Implemented |
+
+### IssueCategories (5 operations)
+
+Company-scoped extensible catalog, never a fixed enum (`CLAUDE.md`'s
+"Categories"). No delete - retire only (`SetEnabled`), preserving history.
+
+| Operation ID | Method + route | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `IssueCategories_GetCategories` | `GET /api/IssueCategories` | 3 (readable by any authenticated human per its own description) | `useIssueCategories` · `CategoriesPage.tsx`, `IssueDetailPage.tsx` | Implemented |
+| `IssueCategories_CreateCategory` | `POST /api/IssueCategories` | 2 | `useCreateIssueCategory` · `CategoriesPage.tsx` | Implemented |
+| `IssueCategories_UpdateCategory` | `PUT /api/IssueCategories/{categoryId}` | 2 | `useUpdateIssueCategory` · `CategoriesPage.tsx` | Implemented |
+| `IssueCategories_SetEnabled` | `POST /api/IssueCategories/{categoryId}/Enabled` | 2 | `useSetIssueCategoryEnabled` · `CategoriesPage.tsx` | Implemented |
+| `IssueCategories_MergeCategory` | `POST /api/IssueCategories/{categoryId}/Merge` | 2 | `useMergeIssueCategory` · `CategoriesPage.tsx` | Implemented |
+
+### IssueCategorySuggestion (3 operations)
+
+Ollama-advisory only - never itself effective (`CLAUDE.md`'s "Categories":
+"only a human Admin's confirmed category assignment...triggers retraining").
+Requesting/viewing a suggestion never triggers retraining (backend
+`AGENTS.md`).
+
+| Operation ID | Method + route | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `IssueCategorySuggestion_RequestSuggestion` | `POST /api/Issue/{issueId}/CategorySuggestion` | 2 | `useRequestCategorySuggestion` · `IssueDetailPage.tsx` | Implemented |
+| `IssueCategorySuggestion_GetSuggestion` | `GET /api/Issue/{issueId}/CategorySuggestion` | 3 | `useIssueCategorySuggestion` · `IssueDetailPage.tsx` (a `404` - no suggestion requested yet - is treated as a real `null` state, not an error) | Implemented |
+| `IssueCategorySuggestion_Decide` | `POST /api/Issue/{issueId}/CategorySuggestion/Decision` | 2 | `useDecideCategorySuggestion` · `IssueDetailPage.tsx` | Implemented |
+
+### KnowledgeSharing (7 operations)
+
+Same-Company Device-pair-scoped, Admin-approved, versioned
+(`CLAUDE.md`'s "Knowledge sharing"). Approval requires 100% target-position
+sensor-map coverage, enforced client-side as a running count before the
+button even enables. Produces the target's own new TrainingRequest/ModelVersion
+- never copies model bytes.
+
+| Operation ID | Method + route | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `KnowledgeSharing_GetCompatibility` | `GET /api/KnowledgeSharing/Compatibility` | 1 | `useKnowledgeCompatibility` · `KnowledgeSharingPage.tsx`, `SmartAnalyticsPage.tsx` (two-Device compare) | Implemented |
+| `KnowledgeSharing_GetShares` | `GET /api/KnowledgeSharing` | 1 | `useKnowledgeShares` · `KnowledgeSharingPage.tsx` | Implemented |
+| `KnowledgeSharing_CreateDraft` | `POST /api/KnowledgeSharing` | 2 | `useCreateKnowledgeShareDraft` · `KnowledgeSharingPage.tsx` | Implemented |
+| `KnowledgeSharing_Approve` | `POST /api/KnowledgeSharing/{shareId}/Approve` | 2 | `useApproveKnowledgeShare` · `KnowledgeSharingPage.tsx` | Implemented |
+| `KnowledgeSharing_EnableIssues` | `POST /api/KnowledgeSharing/{shareId}/Issues` | 2 | `useEnableSharedIssues` · `KnowledgeSharingPage.tsx`'s `ShareCard` | Implemented |
+| `KnowledgeSharing_RevokeIssues` | `DELETE /api/KnowledgeSharing/{shareId}/Issues` | 2 | `useRevokeSharedIssues` · `KnowledgeSharingPage.tsx`'s `ShareCard` | Implemented (this checkpoint) - fixes a real bug: the per-Issue chip previously always called `EnableIssues` regardless of current state, so clicking an already-shared Issue was a silent no-op rather than removing it |
+| `KnowledgeSharing_Revoke` | `POST /api/KnowledgeSharing/{shareId}/Revoke` | 2 | `useRevokeKnowledgeShare` · `KnowledgeSharingPage.tsx` | Implemented |
+
+### Training (3 operations)
+
+Device-scoped; always the Device's complete current Sensor/aggregation set,
+never only a triggering Sensor (`CLAUDE.md`'s "Training and models").
+
+| Operation ID | Method + route | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `Training_GetTrainingRequests` | `GET /api/Training/Requests` | 3 | `useTrainingRequests` · `TrainingPage.tsx`, `DeviceDetailPage.tsx` | Implemented |
+| `Training_GetTrainingRequest` | `GET /api/Training/Requests/{requestId}` | 3 | `useTrainingRequest` · `TrainingPage.tsx` (deep-linked single-request view) | Implemented |
+| `Training_CreateTrainingRequest` | `POST /api/Training/Requests` | 2, but see note | `useCreateTrainingRequest` · `TrainingPage.tsx` | Implemented, **frontend-restricted stricter than the backend**: the operation authorizes by Device access only, not `IsCompanyAdmin` (documented backend gap, `CLAUDE.md`'s "Missing backend capabilities"), so this dashboard renders the "Request retraining" control for `isAdmin` only regardless of what the API would technically accept from a Reader |
+
+### ModelQuery (1 operation)
+
+| Operation ID | Method + route | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `ModelQuery_Query` | `POST /api/Devices/{deviceId}/ModelQuery` | 3 | `useRunModelQuery` (a mutation, not a query - see its own doc comment) · `ModelQueryPage.tsx` | Implemented; deliberately not auto-polled - rate-limited (20 requests/60s per the hook's own pre-existing doc comment) and CPU-bound server-side (`MlQuery:MaxConcurrentQueries = 8`, confirmed this checkpoint via the backend Deployment Runbook) |
+
+### Ollama (3 operations)
+
+Never itself authoritative - advisory only (`CLAUDE.md`'s "Ollama"). At-least-once
+delivery; real terminal-success value is `"Succeeded"`, not the
+documented-but-wrong `"Completed"` (discrepancy D-Ollama).
+
+| Operation ID | Method + route | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `Ollama_SubmitSummaryJob` | `POST /api/Ollama/Jobs` | 2 (excludes DevicePrincipal - `ActorType != User` -> 401) | `useSubmitOllamaSummaryJob` · `IssueDetailPage.tsx` | Implemented |
+| `Ollama_GetJob` | `GET /api/Ollama/Jobs/{jobId}` | 3 | `useOllamaJob` · `OllamaJobsPage.tsx`, `IssueDetailPage.tsx` | Implemented |
+| `Ollama_CancelJob` | `POST /api/Ollama/Jobs/{jobId}/Cancel` | 2 | `useCancelOllamaJob` · `OllamaJobsPage.tsx` | Implemented; correctly only succeeds while `Queued` - a `409` (already claimed) is treated as "keep polling," never retried as a cancel |
+
+### Locations (4 operations)
+
+Company-scoped hierarchy (parent/child, cycle-rejecting).
+
+| Operation ID | Method + route | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `Locations_GetLocations` | `GET /api/Locations` | 1 | `useLocations` · `AdminSettingsPage.tsx` | Implemented |
+| `Locations_CreateLocation` | `POST /api/Locations` | 2 | `useCreateLocation` · `AdminSettingsPage.tsx` | Implemented |
+| `Locations_GetLocation` | `GET /api/Locations/{locationId}` | 1 | none | Not implemented - superseded by the list, already fully loaded |
+| `Locations_UpdateLocation` | `PUT /api/Locations/{locationId}` | 2 | `useUpdateLocation` · `AdminSettingsPage.tsx`'s `LocationRow` | Implemented (this checkpoint) |
+
+### DeviceGroups (5 operations)
+
+Company-scoped; `DeviceGroupDto` returns member `deviceIds` directly on the
+list response, so no separate by-id fetch is needed for membership display.
+
+| Operation ID | Method + route | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `DeviceGroups_GetGroups` | `GET /api/DeviceGroups` | 1 | `useDeviceGroups` · `AdminSettingsPage.tsx` | Implemented |
+| `DeviceGroups_CreateGroup` | `POST /api/DeviceGroups` | 2 | `useCreateDeviceGroup` · `AdminSettingsPage.tsx` | Implemented |
+| `DeviceGroups_GetGroup` | `GET /api/DeviceGroups/{groupId}` | 1 | none | Not implemented - superseded by the list's own `deviceIds` field |
+| `DeviceGroups_AddMember` | `PUT /api/DeviceGroups/{groupId}/Members/{deviceId}` | 2 | `useAddDeviceGroupMember` · `AdminSettingsPage.tsx`'s `DeviceGroupMembersPanel` | Implemented (this checkpoint) - found unused while cataloguing this domain, not in the original gap list; a 204 operation, was reproducibly broken by the `unwrap()` bug until that fix landed |
+| `DeviceGroups_RemoveMember` | `DELETE /api/DeviceGroups/{groupId}/Members/{deviceId}` | 2 | `useRemoveDeviceGroupMember` · `AdminSettingsPage.tsx`'s `DeviceGroupMembersPanel` | Implemented (this checkpoint) |
+
+### DeviceClasses (2 operations)
+
+Company-scoped reference catalog; API exposes no write operations at all
+(confirmed - only these two GETs exist for this tag).
+
+| Operation ID | Method + route | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `DeviceClasses_GetDeviceClasses` | `GET /api/DeviceClasses` | 1 | `useDeviceClasses` · `AdminSettingsPage.tsx` (read-only tab, explicitly labeled as such) | Implemented |
+| `DeviceClasses_GetDeviceClass` | `GET /api/DeviceClasses/{deviceClassId}` | 1 | none | Not implemented - superseded by the list |
+
+### Health (2 operations - not OpenAPI operations, plain unauthenticated endpoints)
+
+Not part of the 105 counted above (no `operationId`, not in the OpenAPI
+document at all - confirmed by the extraction script finding zero matches
+under any tag). Included here for completeness since they are public and
+this dashboard does consume them.
+
+| Endpoint | Classification | Dashboard hook / page | Status |
+|---|---|---|---|
+| `GET /health/live` | 7 | `useHealth` (`health.ts`, deliberately bypasses `apiClient` - see `CLAUDE.md`) · `SystemStatusPage.tsx` | Implemented |
+| `GET /health` | 7 | `useHealth` · `SystemStatusPage.tsx` | Implemented |
+
 ## Route and API coverage matrix
 
 | Route | Page | Purpose | Backend `TASK_IMPLEMENTATION.md` ref | OpenAPI ops | Admin/Reader | Device-grant | States | 401/403/404/409/429 | Cache invalidation | Polling | Status | Runtime-verified |
@@ -1110,8 +1977,8 @@ predict in advance (e.g., a specific validation failure shape).
 | `/knowledge-sharing` | KnowledgeSharingPage | Manual knowledge sharing | Priority 8 Decision 2 | `KnowledgeSharing_*` (7 ops) | Admin only | n/a | loading, empty, error, 409 | all | on mutate | none | Implemented | **Yes (mocked)** |
 | `/training` | TrainingPage | Training requests + manual trigger | Priority 8 Decision 3/4/5 | `Training_GetTrainingRequests/CreateTrainingRequest` | Admin-only create (frontend rule, stricter than the backend — see correction item 1); Reader read | Yes | loading, empty, error | all | on mutate | 5s while active, stops at terminal | Implemented (ModelVersion gap documented) | **Yes (mocked)** |
 | `/ollama-jobs` | OllamaJobsPage | Ollama job by-id lookup | §15 durable jobs | `Ollama_GetJob/CancelJob` | Both | Yes (job-access rule) | loading, empty, error, 409 (cancel-too-late) | all | on mutate | 5s while active, stops at terminal | Implemented | **Yes (mocked)** |
-| `/admin/readers` | ReadersPage | Reader Device-grant admin | Priority 6 | `Company_GetReaders/GetReaderDeviceGrants/GrantReaderDevices/RevokeReaderDeviceGrant/GetReaderEffectiveAccess` | Admin only | n/a | loading, empty, error | all | on mutate | none | Implemented | **Yes (mocked)** |
-| `/admin/settings` | AdminSettingsPage | Locations/DeviceGroups/DeviceClasses | §"API coverage" (reference data) | `Locations_*`, `DeviceGroups_*`, `DeviceClasses_GetDeviceClasses` | Admin write, DeviceClasses read-only (no write ops exist) | n/a | loading, empty, error | all | on mutate | none | Implemented | **Yes (mocked)** |
+| `/admin/readers` | ReadersPage | Company member roles + Reader Device-grant admin | Priority 6 + Priority 9 addendum B | `Company_GetMembers/AssignRole/RevokeRole/GetReaders/GetReaderDeviceGrants/GrantReaderDevices/RevokeReaderDeviceGrant/GetReaderEffectiveAccess` | Admin only (role-assignment mutations additionally gated on `profileSource === 'Local'` - see decision log) | n/a | loading, empty, error | all | on mutate | none | Implemented | **Yes (mocked)** |
+| `/admin/settings` | AdminSettingsPage | Company profile, Locations, Device groups (incl. membership), DeviceClasses | §"API coverage" (reference data) + Priority 9 (Company profile) | `Company_GetCompany/UpdateCompanyName`, `Locations_*`, `DeviceGroups_*` (incl. `AddMember`/`RemoveMember`), `DeviceClasses_GetDeviceClasses` | Admin write (Company rename additionally gated on `nameEditable`), DeviceClasses read-only (no write ops exist) | n/a | loading, empty, error | all | on mutate | none | Implemented | **Yes (mocked)** |
 | `/status` | SystemStatusPage | Health liveness/readiness | Deployment Runbook §"health" | `/health/live`, `/health` (not OpenAPI ops — plain fetch) | Both | n/a | loading, error | n/a (unauthenticated endpoints) | n/a | 30s | Implemented | **Yes (mocked)** |
 | `*` | NotFoundPage | Fallback | — | none | Both | n/a | n/a | n/a | n/a | n/a | Implemented | No |
 
@@ -1120,7 +1987,7 @@ predict in advance (e.g., a specific validation failure shape).
 | Actor | Devices | Issues | Categories | Knowledge sharing | Training | Ollama | Admin pages | Notes |
 |---|---|---|---|---|---|---|---|---|
 | Unauthenticated | — | — | — | — | — | — | — | Redirected to `/login` by `RequireAuth` on every route |
-| Admin | Full CRUD (no delete — disable only) | Full (review/category/group/move/reassign/ungroup, all wired) | Full CRUD | Full workflow | Full + manual trigger | Full | Full | |
+| Admin | Full CRUD (no delete — disable only) | Full (review/category/group/move/reassign/ungroup, all wired) | Full CRUD | Full workflow | Full + manual trigger | Full | Full | Company member role assignment (`/admin/readers`) additionally requires `profileSource === 'Local'` — a `MirroredDatabase` Company shows members read-only with an explanation, since role there is synchronized one-way from WordPress and a dashboard edit would be silently overwritten by the next sync. Company rename (`/admin/settings`) is gated the same way via `nameEditable`. |
 | Reader with Device access | Read granted Devices only | Read granted-Device Issues only, no mutation controls rendered | Read only | Read own-Device-touching shares only (`useKnowledgeShares` filters server-side per backend rule) | Read only — no manual-trigger control rendered | Submit/poll/cancel own-Device-touching jobs | Hidden from nav entirely | Mutation controls absent, not disabled. **Training is a deliberate frontend restriction stricter than the backend** — `Training_CreateTrainingRequest` only checks Device access server-side, not `IsCompanyAdmin`, so a Reader's request would technically succeed against the real API; the product rule that Reader stays strictly read-only wins regardless (see correction item 1, and the backend gap log below) |
 | Reader without Device access | 404 on direct access (existence not disclosed, matching backend pattern) | Same | n/a | n/a | n/a | n/a | Hidden | `NotAuthorizedState` rendered for a 403 or 404 alike |
 | DevicePrincipal | n/a — this is a human-only dashboard, no DevicePrincipal login UI exists | n/a | n/a | n/a | n/a | n/a | n/a | Explicitly out of scope per `AGENTS.md` |
@@ -1171,6 +2038,9 @@ just gating the fetch itself.
 | `MoveToCanonicalDialog` | Bounded, searchable Combobox picker for a Move-Group target, backed by `Issue_GetIssues` (canonical-only candidates for the Device), excluding the member itself and its current canonical | IssueDetailPage's `GroupMemberRow` |
 | `AppToastProvider`/`useAppToast` + `toastBridge` | Centralized Fluent Toast layer; module-level bridge lets the singleton `queryClient` surface toasts too | Every page with a mutation (see the toast-wiring note in the correction checkpoint above) |
 | `NewSensorDialog`/`EditSensorDialog` | Add/edit a Sensor, built on `ConfirmDialog` — added at the 2026-08-31 completion checkpoint | `DeviceDetailPage.tsx` |
+| `NoCompanyState` (`src/components/states/NoCompanyState.tsx`) | A fifth request-state component, added at the API-completeness checkpoint — explains the documented `hasAuthorizedCompany: false` API state (a valid, authenticated User with no resolvable Company) instead of letting the first Company-scoped 401 boot them back to `/login` | `AppShell.tsx` (replaces `<Outlet/>` entirely, route-independent, whenever confirmed false) |
+| `isSafeHttpsUrl` (`src/lib/safeExternalUrl.ts`) | Shared https-only scheme check for untrusted external Company `logo`/`website` text, added this checkpoint | `AdminSettingsPage.tsx`'s Company Profile tab |
+| `DeviceGroupMembersPanel` | Checkbox-per-Device group-membership editor, added this checkpoint — same pattern as `ReadersPage.tsx`'s Device-grant panel | `AdminSettingsPage.tsx`'s Device groups tab |
 
 **Not yet built**: browser desktop notifications (explicitly a future
 enhancement, not required this pass — in-app toast covers the "important
@@ -1211,6 +2081,10 @@ already provides its own grid-level ARIA semantics).
 | 19 | Vitest pool | `vmThreads` (was `threads`) | `threads` alone can't resolve Fluent UI's CJS `tabster` dependency when a test renders a real Fluent component (`Named export 'createTabster' not found`); several of the newly-added `deps.optimizer`/`server.deps.inline` options that fix this are documented as only taking effect under `vmThreads`. Confirmed the whole suite (all 84 tests, including the ones that motivated the original `forks`→`threads` change) still passes under it | `vite.config.ts` | Build-environment fix, not a design decision |
 | 20 | jsdom missing `ResizeObserver`/`IntersectionObserver` | No-op polyfills in `src/test/setup.ts` | Fluent's `MessageBar` reflow and positioned surfaces use both unconditionally; jsdom implements neither, causing an uncaught `TypeError` that crashed component tests | `src/test/setup.ts` | Build-environment fix |
 | 21 | Test-time `fetch` mocking | One stable mock installed in `setup.ts`, reconfigured per test via `src/test/mockFetch.ts`, instead of `vi.stubGlobal('fetch', ...)` inside each `it()` | `openapi-fetch`'s `createClient` captures `globalThis.fetch` as a default parameter at first import of `client.ts` — a per-test `stubGlobal` runs too late to matter and was a silent no-op even in the pre-existing `RequireAuth.test.tsx` (undetected because that test's assertions didn't depend on it) | `src/test/setup.ts`, `src/test/mockFetch.ts` | Build-environment fix, discovered while wiring `RequireAdmin.test.tsx` |
+| 22 | Company Member role assignment | Built, gated on `CompanyDto.profileSource === 'Local'` | Previously left as a genuinely open question (mirrored-identity ambiguity). Resolved this checkpoint using the same signal the already-shipped `nameEditable` gate uses, directly supported by the backend `CLAUDE.md`'s EntraId section ("New synchronized Users must receive no effective Device access until an authorized Admin assigns the Reader role") implying an Admin-facing assignment action is expected for locally-managed Companies, and its mirrored-permission section stating role sync there is one-way from WordPress | `ReadersPage.tsx`, `company.ts` | Approved (resolves the open item from the prior checkpoint's decision log) |
+| 23 | `unwrap()`'s 204 handling | Only throw when `data` is undefined **and** the response status isn't 204 | `openapi-fetch` returns `data: undefined` for any 204 response on the success path, not just on error — confirmed in its installed source. The prior "should be unreachable" reasoning was real but incomplete: true for the error path (the auth middleware throws first), not accounted for on the legitimate no-content-on-success path. Found via mocked-browser-verifying the new role-assignment checkbox, which silently never completed against a realistic 204 mock | `src/api/client.ts` | Correctness fix — affects every 204-returning mutation in the app, not just this checkpoint's new features |
+| 24 | `DeleteAllData` (×4 telemetry families) | Documented, not built | Real, live, Admin-authorized, and irreversible (wipes a Sensor's telemetry + Issues, clears the Device's legacy model); no product requirement anywhere calls for exposing it, and a first-pass form for a permanent mass-deletion action was judged disproportionate to the single-click destructive-confirm pattern used elsewhere in this app. Raised explicitly rather than decided unilaterally | none — undecided until this raise | User declined to build this pass; recommendation (typed re-confirmation) recorded for later |
+| 25 | `useLastPeriod` | Left unused | A bare last-ingested-period *number* isn't independently meaningful to a human without the `measured` timestamp `FreshnessPill`/Live Monitoring already show; a second, separately-fetched freshness signal risks disagreeing with the existing one | `telemetry.ts` | Documented non-adoption, not a gap |
 
 ## Missing-backend-capability log
 
@@ -1256,6 +2130,16 @@ with frontend consequences — reproduced here with priority/approval status:
 | API integration | Live `http://localhost:5065` | Confirmed reachable (`/health/live` → `Healthy`) and schema regeneration succeeded; `api/contract.test.ts` checks the generated schema statically without touching the network at test time |
 | **Still not done, stated plainly** | — | A genuine live-credential authenticated browser pass (no test credentials were available or created this session, per explicit instruction) — see the click-through checklist below for what a human should verify manually. Full WCAG conformance was never claimed. The Smart Analytics date-input label fix is unconfirmed. Deep interaction states beyond what's listed in Phase 22/23 (every dialog's every sub-state, every error/empty/loading permutation) were not individually re-verified in a real browser this pass. |
 
+**This table is Phase 25/26's own point-in-time record - left as written, not
+retroactively edited.** Current totals as of the API-completeness checkpoint
+(see that section, above the phase log, for full detail): **95/95 unit
+tests passing, 16 files**; lint/typecheck/build all still green; a fresh
+three-scenario mocked-browser pass covering every new/changed page this
+checkpoint added (Company Profile, Device group membership, Company
+members, aggregation-policy create/deactivate, the Knowledge Sharing fix,
+the no-Company state) on top of, not replacing, the 17×4 responsive and
+18-state accessibility sweep recorded here.
+
 ## Authenticated click-through checklist (for a human tester with real credentials)
 
 No test credentials exist for the live API in this environment or
@@ -1291,6 +2175,20 @@ logic and real data:
 - [ ] Resize a real mobile device (not just a resized desktop browser) to
       confirm touch-target sizing and virtual-keyboard behavior, which a
       Playwright viewport resize cannot fully substitute for.
+- [ ] Against a real `MirroredDatabase`-sourced Company, confirm
+      `GET /api/Company` actually returns `profileSource: "MirroredDatabase"`
+      and `nameEditable: false`, and that a real `PUT /api/Company/Name`
+      attempt genuinely returns `409` (this dashboard's gating logic assumes
+      these fields behave exactly as documented; the mocked-browser pass
+      fixtures them, it can't independently confirm the live backend agrees).
+- [ ] Against a real Company with mixed member roles, confirm
+      `Company_AssignRole`/`Company_RevokeRole` actually persist across a
+      page reload (the `unwrap()` 204 fix was verified against a realistic
+      mock, not the live API's real 204 response bytes).
+- [ ] If an account with no linked Company is available, confirm the real
+      `GetUserDetails` response matches the documented `Unknown`/`null`/`false`
+      fallback shape exactly and that `NoCompanyState` renders correctly
+      against it.
 
 ## Dead-code removal log
 
@@ -1365,3 +2263,34 @@ checkpoint against all 11 items in the post-review gap list.
   auth, DevicePrincipal, MLTraining, migration, connection-string, Docker
   networking, hosts-file, or launch-settings file was read for any purpose
   beyond reference, let alone modified.
+
+## Scope confirmation (API-completeness checkpoint)
+
+- **Only `C:\VS\PRECOG_Dashboard` was modified this checkpoint.**
+  `git status --short` there shows exactly: this file plus 11 modified
+  source files (`src/api/client.ts`, `src/api/domainTypes.ts`,
+  `src/api/hooks/company.ts`, `src/api/schema.generated.ts` - dynamic
+  `@example` timestamps only, see "Live contract re-verified, no drift"
+  above - `src/app/AppShell.tsx`, `src/auth/AuthContext.tsx`,
+  `src/pages/admin/AdminSettingsPage.tsx`, `src/pages/admin/ReadersPage.tsx`,
+  `src/pages/devices/SensorPoliciesPage.tsx`,
+  `src/pages/knowledgeSharing/KnowledgeSharingPage.tsx`,
+  `vite.config.ts`), and 5 new files (`src/api/client.test.ts`,
+  `src/auth/AuthContext.test.tsx`, `src/components/states/NoCompanyState.tsx`,
+  `src/lib/safeExternalUrl.ts`, `src/lib/safeExternalUrl.test.ts`). Nothing
+  else in the working tree changed.
+- **Backend contracts and configuration were still never touched.**
+  `C:\VS\API`'s working tree shows the same 77 build-artifact files as
+  before, plus one pre-existing, already-uncommitted one-line change to
+  `DataAccess/LocalPG_Data/LocalPGContext.cs`'s local Npgsql connection
+  string (`host.docker.internal` -> `localhost`) - inspected specifically
+  because it's a real source file, not a build artifact, and confirmed via
+  `git log` that file's last real commit predates this checkpoint's start
+  by hours; no tool call this checkpoint wrote to it or anything else under
+  `C:\VS\API`. Every read against that repository this checkpoint was
+  through `Read`/`Grep` on documentation files, or an HTTP `GET` against the
+  already-running live API's own `/swagger/v1/swagger.json` - never a write.
+- No `dotnet ef`, migration, SQL, database, Docker, or destructive Git
+  command was run. No commit or push was made - this checkpoint's changes
+  remain in the working tree, awaiting explicit authorization per this
+  project's own commit discipline.

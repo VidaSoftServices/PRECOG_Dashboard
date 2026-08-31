@@ -1,7 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { apiClient, unwrap } from '@/api/client';
-import type { HmacKeyResponse, UserDetails } from '@/api/domainTypes';
+import type { HmacKeyResponse } from '@/api/domainTypes';
+import type { components } from '@/api/schema.generated';
 import * as authStore from './authStore';
+
+export type CurrentUser = components['schemas']['CurrentUserDto'];
 
 /**
  * Human tokens are ~900s in the API's Release configuration (see the
@@ -17,7 +20,9 @@ const ASSUMED_TOKEN_LIFETIME_SECONDS = 900;
 interface AuthContextValue {
   isAuthenticated: boolean;
   isAdmin: boolean;
-  userDetails: UserDetails | null;
+  /** False only once userDetails has actually loaded and confirmed no authorized Company - never true-by-default during the initial fetch, so a Company-having User never sees a false flash of the no-Company state. */
+  hasAuthorizedCompany: boolean;
+  userDetails: CurrentUser | null;
   loginPending: boolean;
   loginError: string | null;
   login: (userName: string, password: string) => Promise<void>;
@@ -28,14 +33,13 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const session = useSyncExternalStore(authStore.subscribe, authStore.getSnapshot);
-  const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
+  const [userDetails, setUserDetails] = useState<CurrentUser | null>(null);
   const [loginPending, setLoginPending] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
   const fetchUserDetails = useCallback(async () => {
     const result = await apiClient.GET('/api/User/GetUserDetails');
-    // D3: response has no schema in swagger.json - confirmed shape from source.
-    setUserDetails(unwrap(result) as unknown as UserDetails);
+    setUserDetails(unwrap(result));
   }, []);
 
   useEffect(() => {
@@ -81,6 +85,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       isAuthenticated: session !== null,
       isAdmin: userDetails?.isCompanyAdmin ?? false,
+      // true (not false) while userDetails is still loading, so a normal
+      // Company-having User never sees a flash of the no-Company state -
+      // only an actually-confirmed false response ever gates it off.
+      hasAuthorizedCompany: userDetails === null ? true : (userDetails.hasAuthorizedCompany ?? true),
       userDetails,
       loginPending,
       loginError,

@@ -27,6 +27,7 @@ import {
   useApproveKnowledgeShare,
   useRevokeKnowledgeShare,
   useEnableSharedIssues,
+  useRevokeSharedIssues,
   type KnowledgeShareDto,
 } from '@/api/hooks/knowledgeSharing';
 import { useNumberSearchParam } from '@/lib/useNumberSearchParam';
@@ -44,6 +45,7 @@ function ShareCard({ share }: { share: KnowledgeShareDto }) {
   const revoke = useRevokeKnowledgeShare();
   const issuesQuery = useIssues(share.sourceDeviceId, { includeMembers: false, take: 200 });
   const enableIssues = useEnableSharedIssues(share.id!);
+  const revokeIssues = useRevokeSharedIssues(share.id!);
   const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
 
   const eligibleIssues = (issuesQuery.data ?? []).filter(
@@ -103,23 +105,34 @@ function ShareCard({ share }: { share: KnowledgeShareDto }) {
         <>
           <Divider />
           <Text size={200}>Shared Issues: {sharedIds.size}</Text>
+          <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+            Click a reviewed Issue to include it in this share; click an already-included one to remove it.
+          </Text>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: tokens.spacingHorizontalXS }}>
-            {eligibleIssues.map((issue) => (
-              <Button
-                key={issue.id}
-                size="small"
-                appearance={sharedIds.has(issue.id!) ? 'primary' : 'secondary'}
-                disabled={enableIssues.isPending}
-                onClick={() =>
-                  enableIssues.mutate([issue.id!], {
-                    onSuccess: () => toast.success(`Issue #${issue.issueKey} included in share`),
-                  })
-                }
-              >
-                #{issue.issueKey}
-              </Button>
-            ))}
+            {eligibleIssues.map((issue) => {
+              const shared = sharedIds.has(issue.id!);
+              return (
+                <Button
+                  key={issue.id}
+                  size="small"
+                  appearance={shared ? 'primary' : 'secondary'}
+                  disabled={enableIssues.isPending || revokeIssues.isPending}
+                  onClick={() =>
+                    shared
+                      ? revokeIssues.mutate([issue.id!], {
+                          onSuccess: () => toast.success(`Issue #${issue.issueKey} removed from share`),
+                        })
+                      : enableIssues.mutate([issue.id!], {
+                          onSuccess: () => toast.success(`Issue #${issue.issueKey} included in share`),
+                        })
+                  }
+                >
+                  #{issue.issueKey}
+                </Button>
+              );
+            })}
           </div>
+          {(enableIssues.isError || revokeIssues.isError) && <ErrorState error={enableIssues.error ?? revokeIssues.error} />}
           <Button appearance="secondary" onClick={() => setRevokeConfirmOpen(true)} disabled={revoke.isPending}>
             {revoke.isPending ? 'Revoking…' : 'Revoke share'}
           </Button>

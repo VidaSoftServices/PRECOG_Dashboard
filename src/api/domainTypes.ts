@@ -19,16 +19,10 @@ export interface DeviceTokenResponse {
   principalType: 'DevicePrincipal';
 }
 
-// --- D3: User_GetUserDetails 200 response has no schema in swagger.json ---
-export interface UserDetails {
-  userId: number;
-  companyId: number | null;
-  isCompanyAdmin: boolean;
-  language: string | null;
-  displayName: string | null;
-  email: string | null;
-  mobile: string | null;
-}
+// D3 (User_GetUserDetails had no schema in swagger.json) is resolved as of the
+// 2026-08-31 live-contract refresh: the operation now returns a real generated
+// components['schemas']['CurrentUserDto'] (see AuthContext.tsx, which imports
+// it directly from schema.generated.ts instead of a hand-typed shape here).
 
 /**
  * D4: OllamaJobDto.status is typed as plain `string` in the generated schema,

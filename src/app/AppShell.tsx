@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   NavDrawer,
@@ -35,6 +35,7 @@ import { navEntries } from './navConfig';
 import { useAuth } from '@/auth/AuthContext';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { useBreakpoint } from '@/lib/useMediaQuery';
+import { NoCompanyState } from '@/components/states/NoCompanyState';
 import precogLogo from '@/images/Precog-Dashboard.svg';
 
 const useStyles = makeStyles({
@@ -66,6 +67,15 @@ const useStyles = makeStyles({
   },
   logo: {
     height: '28px',
+  },
+  companyLogo: {
+    height: '20px',
+    maxWidth: '120px',
+    objectFit: 'contain',
+  },
+  companyName: {
+    display: 'block',
+    color: tokens.colorNeutralForeground3,
   },
   content: {
     flex: 1,
@@ -129,7 +139,19 @@ export function AppShell() {
   const breakpoint = useBreakpoint();
   const isCompact = breakpoint !== 'desktop';
   const [drawerOpen, setDrawerOpen] = useState(!isCompact ? true : false);
-  const { isAdmin, userDetails, logout } = useAuth();
+  const wasCompact = useRef(isCompact);
+  useEffect(() => {
+    // drawerOpen's initial value only reflects the breakpoint at first
+    // mount - it never re-evaluates on a later live resize. Crossing from
+    // desktop (permanently-open inline drawer) into compact/overlay mode
+    // otherwise carries that stale "open" over into an overlay that covers
+    // the very hamburger button meant to control it (found via direct
+    // testing: a live resize across the breakpoint, not a fresh page load
+    // already at a narrow width, is the only way to reach this state).
+    if (isCompact && !wasCompact.current) setDrawerOpen(false);
+    wasCompact.current = isCompact;
+  }, [isCompact]);
+  const { isAdmin, hasAuthorizedCompany, userDetails, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const crumbs = useCrumbs();
@@ -147,7 +169,14 @@ export function AppShell() {
         <NavDrawerHeader>
           <div className={styles.brand}>
             <img src={precogLogo} alt="" className={styles.logo} />
-            <Text weight="semibold">PRECOG</Text>
+            <div>
+              <Text weight="semibold">PRECOG</Text>
+              {hasAuthorizedCompany && userDetails?.companyName && (
+                <Text size={200} className={styles.companyName}>
+                  {userDetails.companyName}
+                </Text>
+              )}
+            </div>
           </div>
         </NavDrawerHeader>
         <NavDrawerBody>
@@ -220,9 +249,7 @@ export function AppShell() {
           </div>
         )}
 
-        <main className={styles.content}>
-          <Outlet />
-        </main>
+        <main className={styles.content}>{hasAuthorizedCompany ? <Outlet /> : <NoCompanyState />}</main>
       </div>
     </div>
   );

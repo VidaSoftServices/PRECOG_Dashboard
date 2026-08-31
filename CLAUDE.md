@@ -22,8 +22,10 @@ Readers of one Company at a time. It supports:
 - ModelVersion and compatibility status where the API actually exposes it.
 - Model query and its ranked similar historical Issues.
 - Ollama job monitoring (submit, poll, cancel).
-- Company administration: Reader Device-access grants, DevicePrincipal
-  lifecycle, Locations/DeviceGroups/DeviceClasses reference data.
+- Company administration: Company profile (name/logo/website), Company
+  member role assignment, Reader Device-access grants, DevicePrincipal
+  lifecycle, Locations/DeviceGroups/DeviceClasses reference data (including
+  DeviceGroup membership).
 
 **The old dashboard is a product-reference prototype only.** It's useful for
 the workflows, visual ideas, live-monitoring instinct, and comparison
@@ -172,11 +174,14 @@ Two gaps in what it can express are handled outside it, never by editing it:
    generated file itself, and it doesn't touch request/response body types.
 2. **Some response shapes are undocumented in the live OpenAPI document
    itself** (prose-only descriptions, no schema) — the two Authentication
-   endpoints, `User_GetUserDetails`, and the four telemetry-ingestion `202`
-   bodies. `domainTypes.ts` hand-types the ones this frontend actually
-   consumes, each with a comment citing the gap, confirmed against backend
-   source by the modernization audit's deep-dive pass (see that document's
-   discrepancies D1/D3/D5–D7).
+   endpoints and the four telemetry-ingestion `202` bodies. `domainTypes.ts`
+   hand-types the ones this frontend actually consumes, each with a comment
+   citing the gap, confirmed against backend source by the modernization
+   audit's deep-dive pass (see that document's discrepancies D1/D5–D7).
+   `User_GetUserDetails` (discrepancy D3) is no longer in this category — a
+   live-contract refresh made it a fully documented, generated
+   `CurrentUserDto`; `AuthContext.tsx` imports that type directly and the
+   hand-typed `UserDetails` workaround was removed once it did.
 
 ### Centralized `openapi-fetch` wrapper (`src/api/client.ts`)
 
@@ -211,6 +216,18 @@ One `apiClient` instance, one `authMiddleware`:
   failures; normalized into the same `ApiError` shape with `status: 0`.
 - **Cancellation** — every hook forwards TanStack Query's `signal` into the
   underlying call.
+- **204 No Content** — `unwrap()` (the thin `{data,error}` -> real-value/throw
+  wrapper every hook calls) treats a `204` response as a legitimate,
+  data-less success, never an error. `openapi-fetch` itself returns
+  `data: undefined` for *any* 204 regardless of what the server actually
+  sent, which is indistinguishable at the type level from the "something
+  went wrong and there's no data" case `unwrap()` also has to catch — a real
+  bug (found and fixed via mocked-browser verification, not a hypothetical)
+  that would have silently broken every 204-returning mutation in this app
+  (Company role assign/revoke, Device-grant revoke, DevicePrincipal
+  revoke/enable, aggregation-policy deactivate, DeviceGroup membership, and
+  more) had it shipped. See `TASK_IMPLEMENTATION.md`'s decision log #23 for
+  the full incident.
 
 ### TanStack Query conventions
 
@@ -256,14 +273,19 @@ as every other error, not a separate form-error system.
 `PageHeader`, `StatusPill` (four variants: `FreshnessPill`,
 `ReviewStatePill`, `JobStatusPill`, `EnabledPill` — every one pairs a color
 with a distinct icon and a text label, never color alone), `DateTimeField`,
-the four request-state components (`LoadingState`/`EmptyState`/
-`ErrorState`/`NotAuthorizedState`), `ConfirmDialog` (the one reusable
+the five request-state components (`LoadingState`/`EmptyState`/
+`ErrorState`/`NotAuthorizedState`/`NoCompanyState` — the last added for the
+`hasAuthorizedCompany: false` case, see "Company profile and mirrored
+identity" below), `ConfirmDialog` (the one reusable
 confirm/consequential-action dialog — normal or destructive intent, busy
 and confirm-disabled states — every page that needs a confirmation uses
 this instead of `window.confirm`), `MoveToCanonicalDialog` (built on top of
 `ConfirmDialog`, adds the bounded searchable candidate picker described
-above), and `AppToastProvider`/`useAppToast` (the centralized Fluent Toast
-layer — see "Notifications" below).
+above), `AppToastProvider`/`useAppToast` (the centralized Fluent Toast
+layer — see "Notifications" below), and `isSafeHttpsUrl`
+(`src/lib/safeExternalUrl.ts` — the one shared https-only scheme check for
+untrusted external text, currently the Company `logo`/`website` fields; see
+"Company profile and mirrored identity" below).
 
 ### Notifications
 
@@ -366,28 +388,93 @@ every individual mutation control). DevicePrincipal is a machine identity,
 architecturally unrelated to human roles — see "Authentication and
 security."
 
-**"Managing Reader Users" means Device-access grants, not role
-provisioning.** `ReadersPage.tsx` is this dashboard's complete answer to
-"how does an Admin manage Reader Users" — per-Device grant/revoke, plus a
-read-only view of each Reader's group/location-derived effective access.
-Confirmed against the old dashboard's Git history that this has no
-predecessor to recover: neither its `Header.jsx` nor any other surviving
-component ever managed who held the Reader role, only the new API exposes
-that concept at all. A separate capability — assigning or revoking the
-Admin/Reader role itself on a Company member (`useCompanyMembers`/
-`useAssignCompanyRole`/`useRevokeCompanyRole` in `src/api/hooks/company.ts`,
-correctly typed and wired, but never called from any page) — remains
-deliberately unbuilt. Two explanations are equally plausible and neither
-this dashboard's own decision log nor the backend's documentation settles
-which is true: this may be a genuine missing page, or in a
-`MirroredDatabase`-identity deployment (a Company synchronized from
-WordPress — see `TASK_IMPLEMENTATION.md`'s source-assessment section for
-the full mechanism, not reproduced here since this frontend doesn't
-consume Company-profile data yet) who holds Admin/Reader may be intended to
-flow from the WordPress-side source of truth rather than be edited
-directly in PRECOG, which would make an in-dashboard control actively
-wrong for that deployment mode even though the API accepts it
-unconditionally. Flagged as an open product question, not guessed at.
+**"Managing Reader Users" covers both role assignment and Device-access
+grants — the two are separate capabilities, both now built.**
+`ReadersPage.tsx` answers both: a "Company members" section (Admin/Reader
+role assignment, `useCompanyMembers`/`useAssignCompanyRole`/
+`useRevokeCompanyRole`) above the original per-Device grant/revoke panel
+(plus a read-only view of each Reader's group/location-derived effective
+access). The role-assignment section was left deliberately unbuilt through
+an earlier checkpoint — two explanations were equally plausible and neither
+this dashboard's own decision log nor the backend's documentation settled
+which was true on its own: a genuine missing page, or (in a
+`MirroredDatabase`-identity deployment — see "Company profile and mirrored
+identity" below) role intended to flow one-way from the WordPress source of
+truth, which would make an in-dashboard control actively wrong for that
+deployment mode even though the API accepts it unconditionally. Resolved,
+not left open: the mutation controls (per-member Admin/Reader checkboxes)
+render only when `CompanyDto.profileSource === 'Local'` — exactly the same
+signal `nameEditable` already uses for the same reason — and a
+`MirroredDatabase` Company instead shows members read-only with an inline
+explanation that role comes from the WordPress sync. This is directly
+supported by the backend's own documentation, not guessed: its EntraId
+section states "New synchronized Users must receive no effective Device
+access until an authorized Admin assigns the Reader role and explicit
+Device grants," implying the assignment action is genuinely expected for a
+locally-managed Company, while its mirrored-permission section is explicit
+that WordPress `permissionlevel` sync is the sole source of truth there.
+Confirmed against the old dashboard's Git history (again, no predecessor to
+recover either way — neither its `Header.jsx` nor any surviving component
+ever managed who held the Reader role at all).
+
+### Company profile and mirrored identity
+
+`CompanyDto` (`GET /api/Company`) carries `name`/`logo`/`website` plus two
+fields that gate this dashboard's own UI directly, never re-derived from a
+guess: `profileSource` (`"Local" | "MirroredDatabase"`) and `nameEditable`
+(true only when the caller is a Company Admin **and** the profile is
+`Local`). A Company is `MirroredDatabase` when its row carries a non-null
+`ExternalKey` (the invariant decimal form of the source WordPress
+`wp_fc_companies.id`) — populated only by the WordPress-sync provider, per
+row, not necessarily uniform across a whole deployment (a `MirroredDatabase`-mode
+deployment can still contain a locally-created Company with no
+`ExternalKey`, e.g. one never matched to a source row). Never inferred from
+deployment configuration this frontend has no access to anyway — always
+read directly from the response's own `profileSource`/`nameEditable`
+fields.
+
+`AdminSettingsPage.tsx`'s Profile tab (`CompanyProfileTab`) is this
+dashboard's Company-profile surface: `logo`/`website` are rendered as
+untrusted external text exactly like the backend's own documentation
+requires (`isSafeHttpsUrl` gates whether the logo is even attempted as an
+`<img>` src, `onError` hides it silently on failure, `website` becomes a
+real `rel="noopener noreferrer"` link only when it's a safe https URL,
+otherwise plain text) — the API never fetches, proxies, or validates
+either value, so this frontend can't trust them beyond the same scheme
+check. The rename form (`useUpdateCompanyName`, `PUT /api/Company/Name`)
+is gated on `nameEditable`; when false, an inline message explains why,
+distinguishing the `MirroredDatabase` "synchronized from WordPress, edit at
+the source" case from a generic no-permission case, rather than just
+disabling a control with no explanation.
+
+`CurrentUserDto` (`GET /api/User/GetUserDetails`, `AuthContext.tsx`) mirrors
+the same Company display fields (`companyName`/`companyLogo`/
+`companyWebsite`) plus `hasAuthorizedCompany`. A valid, authenticated human
+User can have `hasAuthorizedCompany: false` — e.g. a WordPress account not
+yet linked into the Company/RBAC model — a real, documented API state, not
+an edge case this frontend invented a response for. Every Company-scoped
+endpoint rejects such a caller with `401`, and this app's single global 401
+handler (`notifyUnauthorized`) unconditionally clears the session and
+redirects to `/login` on *any* 401 — meaning without an explicit guard, the
+first Company-scoped query any page fired for such a User would silently
+boot a correctly-authenticated User back to the login form, where signing
+in again just reproduces the same state. `AppShell.tsx` instead renders
+`NoCompanyState` in place of `<Outlet/>` — route-independent, so an
+in-app nav click changes the URL but the shell keeps showing the same
+explanatory state — whenever `hasAuthorizedCompany` is confirmed `false`
+(never while `userDetails` is still loading, so a normal Company-having
+User never sees a false flash of it). No page ever gets the chance to fire
+a Company-scoped query that would 401 in this state.
+
+Human permission level (`Admin`/`Reader`) is resolved entirely server-side
+— in `MirroredDatabase` mode, from the mirrored WordPress
+`wp_fc_subscriber_meta.permissionlevel` value, joined through
+`wp_users`/`wp_fc_subscribers`. This frontend never queries any of that
+directly, never infers role from a username, and never treats a hidden
+control as a security boundary (the backend's own documentation states this
+requirement explicitly, addressed to dashboard consumers by name) — the
+only trusted source is `CurrentUserDto.isCompanyAdmin`, exactly as for
+every other authorization decision in this app.
 
 ### Device and Sensor configuration
 
@@ -574,9 +661,13 @@ source→target Device pair. `KnowledgeSharingPage.tsx`'s flow mirrors the
 backend exactly: `GET Compatibility` (inspect before creating) → `POST /`
 (Draft) → `POST {id}/Approve` (requires 100% target-position coverage,
 enforced client-side as a running count before the button even enables,
-mirroring the server's own hard requirement) → `POST {id}/Issues` (select
-which canonical, reviewed source Issues actually transfer — never
-`PendingReview`). `DeviceClassDto`/`DeviceClassMapping` are shown as
+mirroring the server's own hard requirement) → `POST {id}/Issues`/
+`DELETE {id}/Issues` (select which canonical, reviewed source Issues
+actually transfer — never `PendingReview` — and remove one already
+included; the per-Issue chip toggles between the two based on current
+state, a real bug fixed after direct testing found it previously always
+called the add path regardless, making removal a silent no-op).
+`DeviceClassDto`/`DeviceClassMapping` are shown as
 informational context only (never as compatibility proof — "Sensor names
 and IDs alone are insufficient," backend `CLAUDE.md`); every compatibility
 claim in the UI traces to a live `StreamCompatibilityDto.compatible`/
@@ -737,15 +828,32 @@ and the Admin-only transition link.
   semantic heading level are decoupled by design in Fluent v9), 11
   toolbar-level `Select` device/sensor pickers had a visible but
   unassociated label (fixed with explicit `aria-label`s), and one
-  `Switch` and the Smart Analytics date-range inputs were unlabeled (the
-  `Switch` fix is confirmed, the date-input fix is not independently
-  re-verified — see `TASK_IMPLEMENTATION.md`). Two further findings
-  (`landmark-one-main`/`page-has-heading-one` intermittently, and
-  `aria-hidden-focus` on Tabster's own internal focus-sentinel elements)
-  were investigated and determined to be tooling artifacts, not real app
-  defects — see `TASK_IMPLEMENTATION.md`'s Phase 23 for the full
-  investigation. **This is a scoped automated pass, not a claim of WCAG
-  conformance at any level** — manual keyboard/screen-reader testing and
+  `Switch` and the Smart Analytics date-range inputs were unlabeled. Both
+  are now fixed and independently re-verified (the "Independent
+  verification checkpoint" in `TASK_IMPLEMENTATION.md`): the date-input fix
+  originally shipped as an `aria-label` prop on `<DatePicker>` that
+  type-checked but had no runtime effect — traced to source
+  (`react-datepicker`'s own `renderDateInput` clones a fixed prop allow-list
+  onto its real `<input>`, and `aria-label` isn't on it, so it was silently
+  dropped every render — `id`/`aria-labelledby`/`aria-describedby`/
+  `aria-invalid` are). `DateTimeField.tsx` now uses Fluent `Field`'s own
+  documented render-prop child form to supply exactly those four instead,
+  confirmed via a real rendered `<input id aria-labelledby>` and
+  Playwright's own accessible-name query resolving both fields. One further
+  finding (`landmark-one-main`/`page-has-heading-one`, intermittent) was
+  investigated and determined to be a tooling artifact, not a real app
+  defect. `aria-hidden-focus` (Tabster's own internal focus-sentinel/"Mover"
+  dummy elements, `data-tabster-dummy="..."`) is real and reproducible on
+  every authenticated page — traced to `NavDrawer`'s own internal Tabster
+  integration, which injects them on every render regardless of Toast
+  state; an earlier narrower explanation attributing it to catching Toast
+  mid-fade-transition was incomplete, corrected this checkpoint. Both
+  findings remain library-internal implementation details this application
+  neither sets nor controls, not application-level defects — see
+  `TASK_IMPLEMENTATION.md`'s Phase 23 and "Independent verification
+  checkpoint" for the full investigation. **This is a scoped automated
+  pass, not a claim of WCAG conformance at any level** — manual
+  keyboard/screen-reader testing and
   color-contrast checks on custom-drawn chart elements were not performed.
 
 ## Missing backend capabilities
