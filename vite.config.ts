@@ -12,7 +12,7 @@ export default defineConfig({
     },
   },
   server: {
-    port: 8432, // change this to your desired port
+    port: 8030, // change this to your desired port
   },
   test: {
     environment: 'jsdom',

@@ -9,7 +9,7 @@ permanent repository rules, and `TASK_IMPLEMENTATION.md` for current status.
 ```bash
 npm install
 cp .env.example .env.local   # set VITE_API_BASE_URL to your running VidaSoft.API instance
-npm run dev                  # http://localhost:8432
+npm run dev                  # http://localhost:8030
 ```
 
 Requires a running `VidaSoft.API` instance (see that repository's own
@@ -17,16 +17,16 @@ setup) at the URL configured in `.env.local`.
 
 ## Scripts
 
-| Command | Purpose |
-|---|---|
-| `npm run dev` | Start the Vite dev server |
-| `npm run build` | Type-check (`tsc --noEmit`) then production build |
-| `npm run preview` | Preview a production build locally |
-| `npm run typecheck` | `tsc --noEmit` only |
-| `npm run lint` | ESLint (flat config, typescript-eslint) |
-| `npm test` | Run the Vitest suite once |
-| `npm run test:watch` | Vitest in watch mode |
-| `npm run gen:api` | Regenerate `src/api/schema.generated.ts` from the live OpenAPI contract at `VITE_API_BASE_URL` — never hand-edit that file |
+| Command              | Purpose                                                                                                                    |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`        | Start the Vite dev server                                                                                                  |
+| `npm run build`      | Type-check (`tsc --noEmit`) then production build                                                                          |
+| `npm run preview`    | Preview a production build locally                                                                                         |
+| `npm run typecheck`  | `tsc --noEmit` only                                                                                                        |
+| `npm run lint`       | ESLint (flat config, typescript-eslint)                                                                                    |
+| `npm test`           | Run the Vitest suite once                                                                                                  |
+| `npm run test:watch` | Vitest in watch mode                                                                                                       |
+| `npm run gen:api`    | Regenerate `src/api/schema.generated.ts` from the live OpenAPI contract at `VITE_API_BASE_URL` — never hand-edit that file |
 
 ## Notes
 
