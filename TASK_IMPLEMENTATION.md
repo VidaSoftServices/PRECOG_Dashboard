@@ -9,13 +9,13 @@ update `AGENTS.md` only when a permanent repository rule changes.
 
 | Source | Read completely | When | Controls | Conflicts found | Resolution |
 |---|---|---|---|---|---|
-| `http://localhost:5065/swagger/v1/swagger.json` (live) | Yes | This session, twice (once before the current decision approval, refreshed again after per explicit instruction — identical 9,670-line output both times, same 104 operations) | Exact routes, methods, params, request/response DTOs, operation IDs, security | — | `src/api/schema.generated.ts` regenerated from it both times via `npm run gen:api` |
-| `C:\VS\API\VidaSoft.API\AGENTS.md` | Yes | This session | Backend agent rules, critical invariants, precedence order | — | Reflected in this repo's own `AGENTS.md` precedence section |
-| `C:\VS\API\VidaSoft.API\CLAUDE.md` | Yes | This session | Backend product/domain reasoning, per-aggregation-level config, telemetry invariants, OpenAPI-as-product-contract standard | — | Reflected throughout this repo's `CLAUDE.md` |
-| `C:\VS\API\VidaSoft.API\TASK_IMPLEMENTATION.md` | Yes (all 1,527 lines, all priorities/phases) | This session | Business reasoning and lifecycle behind every API operation — used for *why*, never as frontend code instructions per explicit rule | — | Cross-checked against live contract; used to write `CLAUDE.md`'s domain-concept sections |
-| `C:\VS\API\DataAccess\Solution_Description\API_Integration_Guide.md` | Yes | This session (an earlier background research agent had also read it during the original assessment; read personally this session per the explicit "read completely yourself" instruction) | Narrative workflow companion to the OpenAPI doc | **Yes — two discrepancies** (below) | Live contract + verified source wins; discrepancies recorded, not silently resolved |
-| `C:\VS\API\DataAccess\Solution_Description\Database_Redesign_Change_Description.txt` | Yes | This session | Approved database/domain design, "superseded statements" list | — | Confirms this frontend's Device/Sensor/AggregationPolicy model matches the approved design exactly |
-| `C:\VS\API\DataAccess\Solution_Description\Deployment_Runbook.md` | Yes | This session | Operational reference (config keys, health-check behavior, DevicePrincipal lifecycle summary, correlation-ID guidance) | — | Confirmed `SystemStatusPage.tsx`'s "no further Admin detail exists" claim is accurate (health endpoints return a fixed string by design, verified in the runbook's own container smoke test) |
+| `http://localhost:5065/swagger/v1/swagger.json` (live) | Yes | This session, **three times** (twice earlier — identical both times, 104 operations; refreshed again 2026-08-31 for the source-assessment checkpoint below — **not identical this time**, see "Live OpenAPI contract change" below) | Exact routes, methods, params, request/response DTOs, operation IDs, security | **Yes — one real contract addition** (below) | `src/api/schema.generated.ts` regenerated from it all three times via `npm run gen:api`; typecheck re-verified clean against the newest generation |
+| `C:\VS\API\VidaSoft.API\AGENTS.md` | Yes | This session, twice (re-read 2026-08-31 in full, via a background agent, specifically checking for drift since the first read) | Backend agent rules, critical invariants, precedence order | — | Reflected in this repo's own `AGENTS.md` precedence section; no changes found on re-read |
+| `C:\VS\API\VidaSoft.API\CLAUDE.md` | Yes | This session, twice (re-read 2026-08-31) | Backend product/domain reasoning, per-aggregation-level config, telemetry invariants, OpenAPI-as-product-contract standard, **and now a full "Company profile authority"/mirrored-master-data section not present or not noticed on the first read** | — | Reflected throughout this repo's `CLAUDE.md`; the Company-profile material is new to this repo's docs as of this checkpoint |
+| `C:\VS\API\VidaSoft.API\TASK_IMPLEMENTATION.md` | Yes (re-read 2026-08-31; grew since the first read — now includes a "Priority 9 addendum: Entra-managed Company profile and unresolved-Company response" section that reads as the newest content in the file) | This session, twice | Business reasoning and lifecycle behind every API operation — used for *why*, never as frontend code instructions per explicit rule | — | Cross-checked against live contract; used to write `CLAUDE.md`'s domain-concept sections; the Priority 9 addendum is reflected in the source-assessment section below |
+| `C:\VS\API\DataAccess\Solution_Description\API_Integration_Guide.md` | Yes | This session, twice (re-read 2026-08-31; now includes a §2.5/§2.6 Company/CurrentUser section) | Narrative workflow companion to the OpenAPI doc | **Yes — two discrepancies, both re-confirmed still present on re-read** (below) | Live contract + verified source wins; discrepancies recorded, not silently resolved; re-checked 2026-08-31 and neither has been fixed at the documentation layer |
+| `C:\VS\API\DataAccess\Solution_Description\Database_Redesign_Change_Description.txt` | Yes | This session, twice | Approved database/domain design, "superseded statements" list, `Company.ExternalKey`/mirrored-identity mechanism (§3) | — | Confirms this frontend's Device/Sensor/AggregationPolicy model matches the approved design exactly |
+| `C:\VS\API\DataAccess\Solution_Description\Deployment_Runbook.md` | Yes | This session, twice | Operational reference (config keys, health-check behavior, DevicePrincipal lifecycle summary, correlation-ID guidance, `Identity:UserSource`/`Identity:EntraId` mode switch, OllamaJob claim/lease internals) | — | Confirmed `SystemStatusPage.tsx`'s "no further Admin detail exists" claim is accurate (health endpoints return a fixed string by design, verified in the runbook's own container smoke test) |
 
 **Note on the paths given for this review**: the instruction named
 `C:\VS\API\AGENTS.md` and `C:\VS\API\CLAUDE.md` at the repository root.
@@ -32,6 +32,526 @@ minor discrepancy too.
 |---|---|---|---|---|
 | D-Ollama | `API_Integration_Guide.md` §10 + live OpenAPI operation description | Ollama job terminal-success status is `"Completed"` | Actual wire value, confirmed against `Enums.OllamaJobStatus` and `OllamaController.cs` source: `"Succeeded"` | `src/api/domainTypes.ts`'s `OllamaJobStatus` type and every consuming hook use `"Succeeded"`. Documented in `CLAUDE.md`. |
 | D-ProblemDetails | `API_Integration_Guide.md` §11 | "Standard error responses use `ProblemDetails`" | No `ProblemDetails`/`IExceptionHandler` middleware exists in the running `Program.cs`; real error bodies are plain strings or ad-hoc objects, confirmed by direct source inspection | `src/api/errors.ts` normalizes all three real shapes, never assumes the documented one. Documented in `CLAUDE.md`. |
+
+Both re-confirmed still present, unfixed, on the 2026-08-31 re-read (see
+below) — neither is a stale finding.
+
+## Complete source assessment (2026-08-31 checkpoint)
+
+A full, evidence-based re-inspection of the current repository state: every
+active file under `src/`, the freshly-regenerated API schema, the freshly
+re-read backend documents, the build output, the test suite, and the Git
+history. Written to stand on its own for a reviewer who wants to understand
+this dashboard without re-deriving it — it does not assume the reader has
+followed the phase-by-phase log below, though it corrects/supersedes a few
+specific claims in that log where fresh inspection found them stale or
+overstated (each correction is flagged explicitly where it happens, not
+silently).
+
+**What triggered this checkpoint**: the app is authenticated and loading
+successfully with a real User for the first time this session. This is a
+natural buildable checkpoint to pause new feature work and independently
+verify what's actually here, rather than continuing to extend it on the
+strength of the builder's own running narrative.
+
+### Git state
+
+Working tree is effectively clean. The full TypeScript rewrite (everything
+described in this file's phase log) is committed as `08f078c "new dashboard
+v0"` (`TiborBalintVida`, 2026-08-31 01:53:57+02:00). The only uncommitted
+change at this checkpoint is `src/api/schema.generated.ts`, from the live
+OpenAPI refresh performed as the first step of this assessment (see below)
+— not yet committed, deliberately, since regenerating it is this session's
+own verification step, not something to silently fold into a prior commit.
+
+### Live OpenAPI contract change (found this checkpoint)
+
+`npm run gen:api` was re-run against the live contract rather than trusting
+the schema already on disk, per explicit instruction. **The contract is not
+identical to the last generation** — `diff` against the prior
+`schema.generated.ts` shows exactly one substantive addition (confirmed via
+a background agent's full re-read of the backend's own six source-of-truth
+documents — the change is already documented backend-side, not something
+this frontend discovered ahead of the backend's own docs):
+
+- **New operation**: `PUT /api/Company/Name` (`Company_UpdateCompanyName`)
+  — lets a Company Admin rename their own Company. `200` on success, `400`
+  for a blank name or one over 200 characters, `401` for no authorized
+  Company, `403` for a non-Admin caller, **`409`** when the Company's
+  `profileSource` is `MirroredDatabase` (WordPress-synchronized — see
+  below) rather than `Local`, or when another Company already uses the
+  requested name, `429` for the global rate limit.
+- **`GET /api/Company`'s response gained four fields**: `logo` and
+  `website` (both nullable, untrusted external text, max 512 characters,
+  never fetched/proxied/rendered as HTML by the API — same handling rule
+  as every other untrusted external string this frontend already respects),
+  `profileSource` (new enum: `"Local" | "MirroredDatabase"`), and
+  `nameEditable` (boolean — true only when the caller is a Company Admin
+  **and** the profile is `Local`; this is the field a frontend should gate
+  the rename control on, rather than re-deriving the same logic from
+  `profileSource` + `isCompanyAdmin` separately).
+- **`User_GetUserDetails` is now fully documented** — previously prose-only
+  in the live OpenAPI doc (discrepancy D3 from the original assessment,
+  which is why `src/api/domainTypes.ts`'s `UserDetails` interface exists as
+  a hand-typed workaround). The response is now a real, generated
+  `components['schemas']['CurrentUserDto']`, a superset of the current
+  hand-typed `UserDetails`: it adds `companyName`, `companyLogo`,
+  `companyWebsite` (all nullable), and **`hasAuthorizedCompany`** (boolean)
+  alongside the fields `domainTypes.ts` already knows about (`userId`,
+  `companyId`, `isCompanyAdmin`, `language`, `displayName`, `email`,
+  `mobile`).
+
+**Business rule behind `profileSource`** (confirmed against
+`Database_Redesign_Change_Description.txt` §3 and the backend's own
+CLAUDE.md, via the background agent): a Company is `MirroredDatabase` when
+its row carries a non-null `ExternalKey` (the invariant decimal form of
+`wp_fc_companies.id`), which only the WordPress-sync provider ever
+populates. A Company created directly in PRECOG, or the specific Company
+targeted by `Identity:EntraId:CompanyId` in Entra-sync mode, has no
+`ExternalKey` and is therefore `Local` — and local/mirrored Companies can
+coexist in one deployment (this is a per-row property, not purely a
+deployment-wide switch, though `Deployment_Runbook.md` §5.2 phrases it in
+a way that reads more like a single global answer for the common
+single-mode-per-deployment case — worth a live sanity check if a mixed
+deployment is ever actually expected). **`hasAuthorizedCompany`**'s rule
+(confirmed identically across four backend documents): false exactly when
+the human identity has no resolvable authorized Company (e.g. a WordPress
+account not yet linked into the Company/RBAC model); in that state
+`companyId` is `null`, `companyName` is the literal string `"Unknown"`
+(display-only — never persisted, never treated as a real Company, never
+used to authorize anything), and every Company-scoped endpoint continues
+to reject the caller regardless of this fallback projection succeeding.
+
+**Consequence for this frontend — not yet consumed, correctly so for this
+checkpoint**: `PUT /api/Company/Name` has no UI anywhere in this dashboard
+(there is no Company-profile-editing page at all — `useCompany()` in
+`src/api/hooks/company.ts` is read-only and used only for
+`AdminSettingsPage.tsx`'s context, never rendered as an editable profile).
+`domainTypes.ts`'s hand-typed `UserDetails` is now stricter than the real,
+generated `CurrentUserDto` — it still works correctly (TypeScript's
+`unknown`-cast pattern in `AuthContext.tsx` doesn't break when the real
+JSON has *more* fields than the hand-typed interface expects), but it's
+missing exactly the fields (`companyName`, `companyLogo`, `companyWebsite`,
+`hasAuthorizedCompany`) needed to show a real Company name/logo anywhere,
+or to distinguish "no Company" from "loading" in the account menu. Building
+either a Company-rename UI or switching `AuthContext.tsx` to the now-real
+`CurrentUserDto` type is new feature work, correctly out of scope for this
+assessment checkpoint — recorded here as the most concrete, evidence-based
+"what should be reviewed or corrected next" item this pass found, not
+acted on.
+
+### Backend documentation and discrepancy re-check (2026-08-31)
+
+A background agent re-read all six backend source-of-truth documents in
+full (3,805 lines total) specifically to check for drift since the
+original read. Findings:
+
+- The Company-profile/rename/`CurrentUserDto` material above is
+  **already fully documented backend-side** — CLAUDE.md's "Company profile
+  authority and unresolved-Company display" section, TASK_IMPLEMENTATION.md's
+  "Priority 9 addendum: Entra-managed Company profile and unresolved-Company
+  response," `API_Integration_Guide.md` §2.5/§2.6, `Database_Redesign_Change_Description.txt`
+  §3, and `Deployment_Runbook.md` §4.1/§5.2 all describe it consistently.
+  This means the backend's own documents had already moved ahead of what
+  this frontend's docs captured, independent of the live-contract refresh.
+- **Both previously-recorded discrepancies are still present, unfixed, at
+  the documentation layer**: `API_Integration_Guide.md` §10 still states
+  Ollama's terminal-success status is `"Completed"` (the string
+  `"Succeeded"` does not appear anywhere across all six documents); §11
+  still claims uniform `ProblemDetails` error responses with no document
+  stating that middleware now actually exists. This frontend's handling of
+  both (real `"Succeeded"` value, three-shape error normalizer) remains
+  correct and does not need to change.
+- **All nine previously-logged missing-backend-capability gaps still
+  exist**, confirmed line-by-line against the freshly re-read documents —
+  none has been added since the original assessment. See the
+  missing-backend-capability log further below; unchanged, not reproduced
+  twice in this file.
+- No other new capability, endpoint, field, or business-rule change was
+  found anywhere in the six documents outside the Company-profile material
+  above.
+
+### Fresh code-quality inspection
+
+Beyond re-confirming prior findings, this checkpoint specifically looked
+for anything a "not another superficial summary" pass should catch that
+hadn't been flagged before:
+
+- **Zero** `TODO`/`FIXME`/`XXX:` comments, `console.log`/`console.debug`/
+  `console.warn` calls, `debugger` statements, or `: any`/`as any` type
+  escapes anywhere in `src/` (verified by direct grep across every `.ts`/
+  `.tsx` file, not sampled).
+- **One** `eslint-disable` comment exists in the entire codebase:
+  `SmartAnalyticsPage.tsx:97`, suppressing `react-hooks/rules-of-hooks`
+  inside a `.map()` over a **fixed-length literal array**
+  (`const slots = [0, 1, 2, 3] as const`) that calls `useTelemetryDateRange`
+  once per slot, always exactly 4 times, in the same order, on every
+  render, regardless of how many Sensors are actually selected (unused
+  slots pass `sensorId: undefined`, which the hook's own `enabled` guard —
+  confirmed in `telemetry.ts` — turns into a no-op query rather than a
+  real fetch). This is inspected and **confirmed correct**: the real Rules
+  of Hooks requirement (stable call count/order) is satisfied; only
+  ESLint's static heuristic (which can't verify a mapped array's length is
+  fixed) can't see that. Not the same category of bug as the genuine
+  `LiveMonitoringPage.tsx` violation found and fixed earlier this session
+  (a conditional call after an early return) — that one had no suppression
+  and was a real defect; this one has a suppression and is not.
+- **A genuine, previously-unflagged completeness gap: no UI exists to
+  create or edit a Sensor.** `src/api/hooks/sensors.ts` defines
+  `useCreateSensor`/`useUpdateSensor` (typed, wired to
+  `POST`/`PUT /api/Devices/{deviceId}/Sensors[/{sensorId}]`, correct
+  invalidation), but grepping the entire `src/` tree for any call site,
+  any "Add Sensor" control, or any Sensor-editing form found **none** —
+  `DeviceDetailPage.tsx`'s Sensors card is read-only (name, direction,
+  quantity kind, unit, enabled state, a link to that Sensor's policies) with
+  no create action, even though its own empty state literally says "Add a
+  Sensor to start collecting telemetry from this Device" with no control to
+  do so. This is a real product gap, not a documented scope decision — no
+  entry in the decision log below addresses it, and Phase 10's "Implemented"
+  status (Sensors + AggregationPolicies + Setpoints "all live on
+  SensorPoliciesPage.tsx") **overstates completeness**: aggregation
+  policies and setpoints are genuinely editable there, but the Sensor
+  entity itself (name, direction, quantity kind, unit, enabled) has no
+  create or edit path anywhere in this dashboard. Corrected in the phase
+  log below.
+- **A second, related gap of the same shape**: `useCreateAggregationPolicy`
+  and `useDeactivateAggregationPolicy` (in `aggregationPolicies.ts`) are
+  also defined and correctly wired but never called from any page —
+  `SensorPoliciesPage.tsx` only *edits* existing aggregation levels
+  (`useUpdateAggregationPolicy`, which **is** used), never adds a new
+  aggregation level to a Sensor or deactivates one. Whether "add a new
+  aggregation level" is a real, expected workflow (versus aggregation
+  levels being provisioned some other way, e.g. at Sensor-creation time
+  once that exists) isn't documented anywhere this session found — flagged
+  as an open question, not asserted as a definite gap the way the Sensor
+  one above is.
+- **A separate, larger unused capability: Company Member role assignment.**
+  `src/api/hooks/company.ts` defines `useCompanyMembers`,
+  `useAssignCompanyRole`, and `useRevokeCompanyRole` (`GET`/`POST`/`DELETE`
+  against `/api/Company/Members[/{userId}/Roles[/{roleName}]]`) — a
+  complete, correctly-typed, correctly-invalidated mutation surface for
+  assigning or revoking the Admin/Reader role itself on a Company member.
+  **No route, page, or dialog in this dashboard calls any of the three.**
+  This is distinct from `ReadersPage.tsx`, which manages **Device-level
+  grants** for Readers who already hold the Reader role — it does not
+  create a Reader or promote someone to Admin. Two explanations are
+  plausible and this session could not distinguish between them from the
+  code or docs alone: (a) role assignment is a genuine missing page this
+  dashboard should have (the "Company administration" bullet in this
+  file's own CLAUDE.md product-purpose list only explicitly promises
+  "Reader Device-access grants," not role assignment, which may mean this
+  was always intentionally out of scope), or (b) in a `MirroredDatabase`-
+  identity deployment, who holds Admin/Reader may be intended to flow from
+  the WordPress-side source of truth rather than be edited directly in
+  PRECOG, making an in-dashboard control actively wrong for that
+  deployment mode even though the API accepts it unconditionally. Neither
+  the frontend's own decision log nor the backend's six documents state
+  which is true. Recorded as an open question for the next round of
+  product decisions, not resolved here.
+- **`useRevokeSharedIssues`** (`knowledgeSharing.ts`) — the DELETE
+  counterpart to `useEnableSharedIssues` (which **is** used, to add a
+  specific Issue to an approved share) — is defined but never called.
+  `KnowledgeSharingPage.tsx` lets an Admin add Issues to a share one at a
+  time but not remove one already included, short of revoking the whole
+  share. Minor, likely a legitimate small gap rather than a deliberate
+  decision (no documentation anywhere addresses it either way).
+- **`useUpdateLocation`** (`referenceData.ts`) — Locations can be created
+  (`useCreateLocation`, used in `AdminSettingsPage.tsx`) but not renamed or
+  otherwise edited afterward. Minor.
+- **`useCreateIssue`** and **`useUpdateIssue`** (`issues.ts`) are unused,
+  but both are already correctly documented as deliberately so: Issues are
+  qualified by the ML pipeline, never manually created by a human through
+  this dashboard (consistent with the "no ingestion UI" rule in `AGENTS.md`
+  extended to the thing ingestion produces), and `useUpdateIssue`'s own
+  JSDoc comment already states it's the legacy `Confirmed`/`IsAnomaly`-style
+  edit, superseded by `useReviewIssue`, kept only for API completeness. Not
+  a gap — confirmed correctly unused.
+
+### Complete active source inventory
+
+Grouped as requested. "Tested" means a dedicated unit/component test
+exists (see the test matrix further below for the full list — not
+repeated per-row here). "Runtime status" cites the same three-tier scheme
+used throughout this file: **code-reviewed** (typechecked/linted/built,
+never rendered), **mocked-browser-verified** (opened in a real Chromium
+browser this session against a network-mocked backend — see the
+methodology section above), or **not yet verified**. No file listed below
+is generated except `schema.generated.ts` itself; no file is dead code —
+every file is reachable from `main.tsx` through `App.tsx` → `router.tsx`'s
+lazy route table, or (for hooks/tests) imported by something that is,
+**except** the specific unused-hook findings called out above, which live
+inside otherwise-reachable files (the *file* is reachable and imported;
+specific *exported functions* within it are the unused unit, which is why
+they don't show up as orphaned modules in a bundler warning).
+
+**Entry points**
+
+| File | Responsibility | Exports | Notes |
+|---|---|---|---|
+| `src/main.tsx` | App bootstrap — mounts `<App/>` into `#root` inside `StrictMode` | (none — side-effecting entry) | `StrictMode` is on, meaning dev-mode double-invocation of renders/effects is active; relevant context for anyone debugging an effect that appears to run twice locally |
+| `src/App.tsx` | Composes every top-level provider in the exact nesting order that matters (theme → toast → query → auth → router) | `default App` | See "Architecture trace" below for why this order matters |
+
+**Application shell, routing, navigation**
+
+| File | Responsibility | Exports | Notes |
+|---|---|---|---|
+| `src/app/router.tsx` | The one route table — every route below `/login` uses React Router 7's `lazy()` field, confirmed code-split in the build output | `router` | 18 routes total (17 authenticated + `/login`), matches `navConfig.ts` + 5 unlisted detail/nested routes not in the nav drawer |
+| `src/app/AppShell.tsx` | NavDrawer + Toolbar + Breadcrumb + theme/account menus + `<main>` content outlet | `AppShell` | Fixed this checkpoint's predecessor session: breadcrumb `<li>`-inside-`<li>` nesting bug (see correction checkpoint above) |
+| `src/app/navConfig.ts` | Single source of truth for both the NavDrawer's items and (implicitly) route visibility | `NavEntry`, `navEntries` | 11 top-level nav entries; `adminOnly` flag drives both nav visibility and pairs with `RequireAdmin` at the route level |
+
+**Theme**
+
+| File | Responsibility | Exports | Notes |
+|---|---|---|---|
+| `src/theme/theme.ts` | Derives light/dark Fluent brand ramps from the PRECOG blues | `precogLightTheme`, `precogDarkTheme`, `ThemePreference` | Pure data, no logic to test |
+| `src/theme/ThemeContext.tsx` | `light\|dark\|system` preference, `localStorage`-persisted, live `matchMedia` listener for `system` | `AppThemeProvider`, `useAppTheme` | localStorage read/write wrapped in try/catch (can throw in locked-down environments) |
+
+**Authentication**
+
+| File | Responsibility | Exports | Notes |
+|---|---|---|---|
+| `src/auth/authStore.ts` | Framework-agnostic in-memory session store (token, principal type, expiry) — deliberately never persisted | `PrincipalType`, `Session`, `getSession`, `setSession`, `clearSession`, `getToken`, `isExpired`, `subscribe`, `getSnapshot`, `notifyUnauthorized`, `onUnauthorized` | **Tested** (`authStore.test.ts`) |
+| `src/auth/AuthContext.tsx` | Wraps `authStore` in `useSyncExternalStore`, drives login/logout, fetches `GetUserDetails` on session change | `AuthProvider`, `useAuth` | Currently types `GetUserDetails`'s response via hand-typed `UserDetails`, not the now-real generated `CurrentUserDto` — see the OpenAPI-change finding above |
+
+**Authorization**
+
+| File | Responsibility | Exports | Notes |
+|---|---|---|---|
+| `src/auth/RequireAuth.tsx` | Route guard — no session → redirect to `/login`, preserving the attempted route | `RequireAuth` | **Tested** (`RequireAuth.test.tsx`) |
+| `src/auth/RequireAdmin.tsx` | Route guard — not Admin → in-page `NotAuthorizedState`, no redirect | `RequireAdmin` | **Tested** (`RequireAdmin.test.tsx`, added this session) |
+
+**API client**
+
+| File | Responsibility | Exports | Notes |
+|---|---|---|---|
+| `src/api/client.ts` | The one `openapi-fetch` instance + auth/error/cancellation middleware | `ApiError`, `apiClient`, `unwrap` | Every hook in the codebase goes through this — confirmed zero raw `fetch` calls outside it and `health.ts` (which deliberately bypasses it — see below) |
+| `src/api/errors.ts` | Normalizes the three real error-body shapes (string / ad-hoc object / genuine `ValidationProblemDetails`) | `NormalizedApiError`, `normalizeApiError` | **Tested** (`errors.test.ts`, 6 cases) |
+| `src/api/domainTypes.ts` | Hand-typed shapes for the endpoints the live OpenAPI doc doesn't fully describe | `HmacKeyResponse`, `DeviceTokenResponse`, `UserDetails`, `OllamaJobStatus`, `TrainingRequestStatus`, `IssueReviewState`, `KnowledgeShareStatus`, `CategorySuggestionStatus`, `ApplicationMode`, `SensorDirection`, `TelemetryIngestAcceptedBody` | `UserDetails` is now a narrower subset of the real, generated `CurrentUserDto` — see the OpenAPI-change finding above; the rest remain accurate |
+| `src/api/authHeaderPatch.ts` | Type-only mapped type stripping the generated schema's spurious required `HMAC_Key` call-site parameter | `AuthPatchedPaths` | Never touches the generated file itself |
+| `src/api/queryClient.ts` | The module-level `QueryClient` singleton, retry/backoff policy, global network/429 toast handler | `shouldRetry`, `retryDelay`, `notifyGlobalFailure`, `queryClient` | **Tested** (`queryClient.test.ts`, added this session) |
+| `src/api/queryKeys.ts` | The one query-key factory | `queryKeys` | Prevents invalidation drift by construction — no hook hand-writes an array key |
+
+**Generated API schema**
+
+| File | Responsibility | Notes |
+|---|---|---|
+| `src/api/schema.generated.ts` | `openapi-typescript` output from the live contract | Regenerated this checkpoint (see "Live OpenAPI contract change" above) — never hand-edited, confirmed by its own header comment and by this session's own discipline throughout |
+
+**API hooks** (13 files, one per domain, ~65 exported hooks total)
+
+| File | Domain | Notable unused exports (see fresh-inspection findings above) |
+|---|---|---|
+| `src/api/hooks/devices.ts` | Device CRUD (no hard delete — disable only) | — |
+| `src/api/hooks/sensors.ts` | Sensor read/create/update | `useCreateSensor`, `useUpdateSensor` (unused — see gap above) |
+| `src/api/hooks/aggregationPolicies.ts` | Per-Sensor aggregation-level CRUD | `useCreateAggregationPolicy`, `useDeactivateAggregationPolicy` (unused) |
+| `src/api/hooks/setpoints.ts` | Direction-aware setpoint history + effective-at-now | — |
+| `src/api/hooks/devicePrincipal.ts` | DevicePrincipal lifecycle (provision/rotate/revoke/enable) | — |
+| `src/api/hooks/issues.ts` | Issue CRUD, review, canonical grouping (group/ungroup/move/reassign) | `useCreateIssue`, `useUpdateIssue` (deliberately unused — legacy/out-of-scope, see above) |
+| `src/api/hooks/issueCategories.ts` | Category catalog CRUD + enable/merge | — |
+| `src/api/hooks/issueCategorySuggestion.ts` | Ollama category suggestion request/accept/reject | — |
+| `src/api/hooks/knowledgeSharing.ts` | Draft/approve/revoke shares, per-Issue enable/revoke | `useRevokeSharedIssues` (unused — see gap above) |
+| `src/api/hooks/company.ts` | Company profile (read-only), Members/roles, Readers, Device grants | `useCompanyMembers`, `useAssignCompanyRole`, `useRevokeCompanyRole` (unused — see gap above) |
+| `src/api/hooks/referenceData.ts` | Locations, DeviceGroups, DeviceClasses (read-only) | `useUpdateLocation` (unused) |
+| `src/api/hooks/telemetry.ts` | All four telemetry families' trailing/period/date-range/last-period reads, family routing | `familyFor`/`isCurveFamily`/`isBidirectionalFamily` **tested** (`telemetry.test.ts`) |
+| `src/api/hooks/training.ts` | Training requests, polling-interval predicates | `trainingRequestsRefetchInterval`/`trainingRequestRefetchInterval` **tested** (`training.test.ts`, added this session) |
+| `src/api/hooks/ollama.ts` | Ollama job submit/get/cancel, polling-interval predicate | `ollamaRefetchInterval` **tested** (`ollama.test.ts`, added this session) |
+| `src/api/hooks/modelQuery.ts` | Model query (deliberately not auto-polled) | — |
+| `src/api/hooks/health.ts` | `/health/live`, `/health` | The one deliberate exception to "always go through `apiClient`" — these are plain unauthenticated ASP.NET health-check endpoints, not documented OpenAPI operations, called with raw `fetch` for exactly that reason |
+
+**Shared components**
+
+| File | Responsibility | Tested |
+|---|---|---|
+| `src/components/PageHeader.tsx` | Title (`as="h1"` by default, `level="h2"` for a page's secondary header) + description + actions row | No dedicated test; exercised via every page render |
+| `src/components/StatusPill.tsx` | `FreshnessPill`/`ReviewStatePill`/`JobStatusPill`/`EnabledPill` — always icon + color + text | No |
+| `src/components/DateTimeField.tsx` | Fluent-`Field`-wrapped `react-datepicker`, explicit `aria-label` (added this checkpoint's predecessor session — unconfirmed fix, see Phase 23) | No |
+| `src/components/ConfirmDialog.tsx` | The one reusable confirm/consequential-action dialog | **Yes** (`ConfirmDialog.test.tsx`, 6 cases) |
+| `src/components/MoveToCanonicalDialog.tsx` | Bounded searchable Combobox for a Move-Group target, built on `ConfirmDialog` | **Yes** (`MoveToCanonicalDialog.test.tsx` — `filterCandidates` logic + one render smoke test; full Combobox interaction not testable in jsdom, see below) |
+| `src/components/ToastProvider.tsx` | `AppToastProvider`/`useAppToast` — the one Fluent Toast layer | No dedicated test; exercised indirectly via `queryClient.test.ts`'s `toastBridge` mock |
+| `src/components/toastBridge.ts` | Module-level registration bridge so the singleton `queryClient` can call into React-context toasts | Exercised by `queryClient.test.ts` |
+
+**Request-state components**
+
+| File | Responsibility | Tested |
+|---|---|---|
+| `src/components/states/LoadingState.tsx` | Spinner + label | No |
+| `src/components/states/EmptyState.tsx` | Icon + title + description + optional action | No |
+| `src/components/states/ErrorState.tsx` | Normalized error message + optional retry | No |
+| `src/components/states/NotAuthorizedState.tsx` | 403/404-for-Reader in-page state | No (exercised via `RequireAdmin.test.tsx`) |
+
+**Charts**
+
+| File | Responsibility | Tested |
+|---|---|---|
+| `src/components/charts/TelemetryChart.tsx` | The one chart behind Live Monitoring, Smart Analytics, and Issue-detail telemetry — `single`/`compare` modes, text summary, `prefers-reduced-motion` | No |
+| `src/components/charts/palette.ts` | Series colors/dash patterns, anomaly-point colors | No (pure data) |
+
+**Utility hooks**
+
+| File | Responsibility | Tested |
+|---|---|---|
+| `src/lib/dateTime.ts` | ISO conversion, formatting, freshness bucketing | **Yes** (`dateTime.test.ts`) |
+| `src/lib/pollIntervals.ts` | The one place every polling cadence is defined | No dedicated test (values exercised indirectly via `ollama.test.ts`/`training.test.ts`) |
+| `src/lib/useActivateProps.ts` | Makes a non-native clickable element keyboard-operable | No |
+| `src/lib/useMediaQuery.ts` | `useMediaQuery`/`useBreakpoint` | No |
+| `src/lib/useNumberSearchParam.ts` | Typed single-numeric-URL-param state | No |
+| `src/lib/usePageVisible.ts` | Page Visibility API wrapper | No |
+
+**Domain pages** (19 files — see the Route and API coverage matrix above for the full per-route detail; not repeated here)
+
+All 19 are reachable from `router.tsx`, all show `Implemented` status in
+the route matrix, and 17 of the 19 (every one except `NotFoundPage` and the
+`*` fallback logic) were mocked-browser-verified this session (see Phase
+22/23 above). No page file is orphaned, duplicated, or dead.
+
+**Tests** (10 files, 84 total assertions — see the Test and verification
+matrix above for the full breakdown)
+
+`api/errors.test.ts`, `auth/authStore.test.ts`, `lib/dateTime.test.ts`,
+`api/hooks/telemetry.test.ts`, `auth/RequireAuth.test.tsx`,
+`auth/RequireAdmin.test.tsx`, `api/hooks/ollama.test.ts`,
+`api/hooks/training.test.ts`, `api/queryClient.test.ts`,
+`components/ConfirmDialog.test.tsx`, `components/MoveToCanonicalDialog.test.tsx`,
+`pages/training/TrainingPage.test.tsx`, `api/contract.test.ts`. Plus
+`src/test/setup.ts` (global test environment — fetch mock installation,
+`ResizeObserver`/`IntersectionObserver` polyfills) and `src/test/mockFetch.ts`
+(the reconfigurable fetch-mock helper), which are test infrastructure, not
+test files themselves.
+
+**Public assets**
+
+| File | Purpose |
+|---|---|
+| `public/PG.png` | Favicon, referenced directly from `index.html` |
+| `src/images/Precog-Dashboard.svg` | App logo, used by `AppShell.tsx` and `LoginPage.tsx` |
+
+Confirmed the only two static assets in the entire repository — everything
+else visual comes from `@fluentui/react-icons` or Chart.js-drawn canvases.
+
+### Architecture trace — real request/render lifecycle from browser startup
+
+1. `index.html` loads `/src/main.tsx` as an ES module (Vite dev) or the
+   built, hashed equivalent (`vite build`'s `index-*.js`, per the
+   `manualChunks` split in `vite.config.ts`).
+2. `main.tsx` calls `createRoot(#root).render(<StrictMode><App/></StrictMode>)`.
+3. `App.tsx` nests providers in an order that is load-bearing, not
+   arbitrary: `AppThemeProvider` (outermost — every child, including error/
+   loading UI, needs a resolved Fluent theme) → `AppToastProvider` (needs
+   `FluentProvider` from the theme layer above it for `Toaster` to render
+   correctly; registers itself into `toastBridge` on mount so the
+   `queryClient` below can reach it) → `QueryClientProvider` (the
+   module-level `queryClient` singleton — already exists before render,
+   just wired to React here) → `AuthProvider` (reads `authStore` via
+   `useSyncExternalStore`, independent of routing) → `RouterProvider`
+   (innermost — the router's own route elements need every provider above
+   them already in context).
+4. `router.tsx`'s `RequireAuth` element wraps everything below `/login`. No
+   session → `<Navigate to="/login" state={{from: location}}/>`.
+   Session present → renders `AppShell` (NavDrawer/Toolbar/Breadcrumb/theme
+   menu/account menu, computed from `authStore`+`AuthContext` state) with
+   the matched lazy-loaded route's `<Outlet/>` inside `<main>`.
+5. `RequireAdmin` further wraps the Admin-only route subset
+   (`/devices/:id/principal`, `/categories`, `/knowledge-sharing`,
+   `/admin/readers`, `/admin/settings`) — `isAdmin` false → in-page
+   `NotAuthorizedState`, no redirect (deliberately different from
+   `RequireAuth`, matching the backend's own `Forbid()` behavior for
+   Admin-only actions).
+6. The matched page component mounts, calls its `src/api/hooks/*` hooks,
+   each of which calls `apiClient.{GET,POST,PUT,DELETE}` (or, for
+   `useHealth`, raw `fetch` against the two unauthenticated endpoints).
+7. `apiClient`'s `authMiddleware.onRequest` reads the current token from
+   `authStore.getToken()` and sets the `HMAC_Key` header on every request —
+   no call site ever sets it itself.
+8. On a non-2xx response, `onResponse` clones the response, calls
+   `normalizeApiError`, and throws a typed `ApiError`; a 401 additionally
+   calls `authStore.notifyUnauthorized()`, which clears the session and
+   fires every `onUnauthorized` listener — `AuthContext.tsx` is the one
+   currently registered, clearing `userDetails`, which flows back through
+   `useSyncExternalStore` to `RequireAuth`, which redirects to `/login`.
+   This is the *only* mechanism that ends a session mid-use; there is no
+   client-side timer independently expiring it.
+9. React Query's `QueryCache`/`MutationCache` global `onError` (in
+   `queryClient.ts`) separately calls `notifyGlobalFailure`, which reads
+   the shared toast API from `toastBridge` and shows a toast **only** for
+   network failures (`status: 0`) and 429s — every other status is left
+   for the call site's own `ErrorState`/inline handling, by design, to
+   avoid showing the same failure twice.
+10. A mutation's `onSuccess` typically does two things: `queryClient.invalidateQueries`
+    (or `setQueryData` for an instant list-row update) via the centralized
+    `queryKeys` factory, and `useAppToast().success(...)` for user-visible
+    confirmation — both patterns are consistent across all ~30 mutation
+    hooks in the codebase, confirmed by this checkpoint's hook-by-hook read.
+
+### API operations consumed vs. available
+
+104 operations exist in the live contract (105 as of this checkpoint's
+`Company_UpdateCompanyName` addition). This frontend's hooks call
+approximately 90 of them across the 13 hook files inventoried above — the
+`api/contract.test.ts` added this session enforces, as an automated test,
+that every literal path string any hook calls still exists in the
+generated schema (extracted by scanning the hook source files themselves,
+not hand-maintained, so it can't silently drift). The operations this
+frontend deliberately does not call: the four telemetry-ingestion
+endpoints (machine/DevicePrincipal concern, explicitly out of scope per
+`AGENTS.md`), `Company_UpdateCompanyName` (new, unconsumed — see above),
+and the Company-Members/role-assignment and Sensor/AggregationPolicy-create
+operations covered in the fresh-inspection findings above.
+
+### Backend business rules represented in this frontend
+
+Already documented exhaustively in `CLAUDE.md`'s domain-concept sections
+(Tenant and roles, Device/Sensor configuration, Telemetry, Canonical
+Issues, Review states, Categories, Training and models, Knowledge sharing,
+Ollama) — re-verified accurate against the fresh backend-doc re-read this
+checkpoint, with exactly one addition needed: the Company-profile/mirrored-
+identity rules described in the OpenAPI-change section above were not
+previously represented anywhere in this repo's docs (there was nothing to
+represent — the frontend never consumed Company profile fields until this
+checkpoint's schema refresh surfaced them). Not added to `CLAUDE.md`'s
+domain sections yet, since no frontend code consumes them — recorded here
+instead, consistent with "document the gap, don't fabricate the frontend
+behavior."
+
+### Runtime-verified vs. code-reviewed status — no change this checkpoint
+
+Unchanged from the Phase 22/23/25 verification already recorded above: 17
+of 19 routes mocked-browser-verified (responsive + accessibility), 84/84
+tests passing, 0 lint/typecheck errors, production build succeeds. This
+checkpoint did not re-run the Playwright pass (no code changed that would
+affect its results) — it re-verified `typecheck`/`lint`/`test` only, all
+still green against the freshly regenerated schema (see "Live OpenAPI
+contract change" above).
+
+### What should be reviewed or corrected next
+
+In priority order, all evidence-based (not aspirational) findings from
+this checkpoint:
+
+1. **Decide whether Sensor create/edit is in scope.** If yes, it's a real,
+   sized, well-understood gap — the hooks already exist and are correctly
+   typed; only a page/dialog is missing. If no, correct `DeviceDetailPage.tsx`'s
+   empty-state copy ("Add a Sensor to start collecting telemetry") which
+   currently promises an action that doesn't exist anywhere in the app.
+2. **Decide whether Company Member role assignment belongs in this
+   dashboard**, given the mirrored-identity ambiguity described above — a
+   product decision, not a technical one.
+3. **Decide whether to adopt the real `CurrentUserDto` type** (now that
+   `User_GetUserDetails` is fully documented) in place of the hand-typed
+   `UserDetails` in `domainTypes.ts`, and whether to surface
+   `companyName`/`companyLogo`/`hasAuthorizedCompany` anywhere in the UI
+   (the account menu is the obvious candidate). Zero risk to defer — the
+   current hand-typed subset still works correctly.
+4. Independently re-verify the Smart Analytics date-input `aria-label` fix
+   (still unconfirmed from Phase 23).
+5. Resolve the two smaller unused-hook findings (`useRevokeSharedIssues`,
+   `useUpdateLocation`) if either turns out to be a real product need
+   rather than a deliberate omission — currently undocumented either way.
+6. A genuine live-credential authenticated browser pass remains undone (no
+   test credentials exist for the live API this session, per explicit
+   instruction) — the authenticated click-through checklist above is
+   prepared for whoever runs it, now genuinely including a fresh
+   real-authenticated-User smoke test given the app is now confirmed
+   loading successfully with a real account.
 
 ## Dependency-ordered phases
 
@@ -99,10 +619,19 @@ and no obsolete competing implementation remains active.
   Secret dialog. Security requirement (never persisted) code-reviewed
   against `AGENTS.md`'s rule.
 
-- [x] **Phase 10: Sensors, aggregation policies, and setpoints** — **Implemented**
-  Sensors + AggregationPolicies + Setpoints all live on
-  `SensorPoliciesPage.tsx`. Setpoints section added this checkpoint:
-  direction-aware form (symmetric `target`/`tolerance` for
+- [~] **Phase 10: Sensors, aggregation policies, and setpoints** — **Partially implemented (corrected at the 2026-08-31 source-assessment checkpoint — see that section above)**
+  AggregationPolicies (edit only, not create/deactivate) + Setpoints (full
+  history + create) live on `SensorPoliciesPage.tsx`. **Sensor creation and
+  editing has no UI anywhere in this dashboard**, despite `useCreateSensor`/
+  `useUpdateSensor` existing, correctly typed and wired, in
+  `src/api/hooks/sensors.ts` — `DeviceDetailPage.tsx`'s Sensors card is
+  read-only and its own empty-state copy promises an action ("Add a Sensor
+  to start collecting telemetry") that doesn't exist. This was marked
+  "Implemented" in an earlier pass without that gap having been noticed;
+  corrected here rather than silently left wrong. See the source-assessment
+  section's "What should be reviewed or corrected next" for the decision
+  this needs. Setpoints section added in an earlier checkpoint this
+  session: direction-aware form (symmetric `target`/`tolerance` for
   lowerisbetter/higherisbetter, `targetAbove/Below` +
   `toleranceAbove/Below` for bidirectional), append-only history table,
   and the effective-setpoint-at-now `MessageBar`. `npm run typecheck`/
@@ -677,7 +1206,7 @@ logic and real data:
 - [x] Authentication and role-aware routing work (code-verified + component-tested; login screen and 17 authenticated routes mocked-browser-verified)
 - [x] Admin and Reader workflows implemented, Reader strictly read-only for manual training (frontend rule, stricter than the backend — see correction item 1)
 - [x] DevicePrincipal administration implemented
-- [x] Device, Sensor, policy, and telemetry workflows implemented (Setpoints UI added this checkpoint)
+- [~] Device, policy, and telemetry workflows implemented; **Sensor create/edit has no UI** — corrected finding, see the 2026-08-31 source-assessment section's Phase 10 note
 - [x] Live Monitoring implemented
 - [x] Smart Analytics implemented
 - [x] Same-Device Sensor comparison implemented
