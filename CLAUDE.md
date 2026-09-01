@@ -710,28 +710,138 @@ rendered as text (`resultText`), never raw HTML.
 
 The supported mechanism is **bounded polling of `MeasuredTrailingPeriods`**
 — there is no push/SSE/WebSocket capability anywhere in the API, confirmed
-during the original assessment, and none is invented here.
-`LiveMonitoringPage.tsx`:
+during the original assessment, and none is invented here. No batched
+multiple-Sensor endpoint exists either (confirmed by a dedicated read-only
+audit of every `ContinuousController`/`BiDirectionalContinuousController`
+route) — every read is necessarily one Sensor at a time.
 
-- Polls each Sensor card independently at `POLL_INTERVALS_MS.liveCompactChart`
-  (15s) while `live` is toggled on **and** `usePageVisible()` is true —
-  pausing when the tab is hidden, per the approved decision.
-- Cancels/dedupes automatically via TanStack Query.
-- Shows a manual refresh action, a live/paused toggle, and (per-Sensor) the
-  latest value, its freshness pill, and a compact recent-trend chart.
+**The rate-limit ceiling this page must live inside, confirmed from
+read-only backend source, not assumed**: `MeasuredTrailingPeriods` on both
+controllers carries `[EnableRateLimiting("LargeTelemetryRead")]`, a fixed-window
+limiter partitioned **per client IP** (`appsettings.json`'s `RateLimiting`
+block) — **30 requests per 60 seconds, `QueueLimit: 0`** (an over-limit
+request is rejected immediately, not queued). Per-IP partitioning means
+every browser tab and every dashboard page sharing that network shares one
+30/60s budget — this page cannot assume it owns the whole budget. On
+rejection the API's `OnRejected` handler sets a genuine `Retry-After`
+header (confirmed in `Program.cs`) — this frontend must read and honor it,
+never treat a 429 as an ordinary retryable network error.
+
+**A separate, unrelated "1024" value must never be confused with this
+limit or with connection-pool capacity.** It's PostgreSQL's
+`max_locks_per_transaction`, set via `ALTER SYSTEM SET
+max_locks_per_transaction = 1024;` (`DataAccess/DBScripts/DB_Partitions.txt`)
+— a per-transaction lock-table sizing knob for this database's heavy use of
+declarative partitioning, with no relationship whatsoever to how many HTTP
+requests per minute the API accepts or how many Postgres connections it
+holds open. The Npgsql connection pool (`MaxPoolSize: 40`,
+`appsettings.json`'s `Database` block) is itself architecturally
+independent of `LargeTelemetryRead` — confirmed via an explicit comment in
+`Program.cs` stating the two are unrelated by design. **Greater database or
+connection-pool capacity is never a justification for this frontend to
+fire an uncontrolled volume of HTTP requests** — the rate limiter, not the
+database, is the ceiling this page is built against.
+
+`LiveMonitoringPage.tsx` + `useLiveMonitoringSchedule.ts` (the orchestrator):
+
+- **One single logical refresh cycle, never a per-Sensor `setInterval`.**
+  `POLL_INTERVALS_MS.liveMonitoringCycle` (`src/lib/pollIntervals.ts`) is
+  the **only** place the 3-second cadence is defined — a self-rescheduling
+  `setTimeout` loop (not `setInterval`, so a slow tick can never stack a
+  second one on top of itself) advances a round-robin rotation through the
+  Device's non-curve Sensors, fetching **exactly one Sensor per tick**, in
+  order, wrapping around. Peak concurrent Live-Monitoring-originated
+  request count is **1, by construction** — not a "2-4 concurrent" bounded
+  pool, which the math below shows would already blow the budget on its
+  own.
+  - **The math, not a guess**: 25 Sensors × 1 request/tick × 20
+    ticks/minute (3s cadence) = **20 requests/minute sustained**, 67% of the
+    confirmed 30/60s ceiling — a genuine 33% margin left for every other
+    page and every other browser tab on the same client IP. A naive "2-4
+    concurrent" scheme would be 40-80 req/min on its own, already over the
+    limit before anything else on that IP is counted.
+  - A consequence, stated honestly in the UI, not hidden: with 25 Sensors
+    on one 3s cadence, any single card's own "last refreshed" is roughly
+    `sensorCount × 3s` apart (~75s for 25 Sensors), not literally every 3s
+    — `LiveMonitoringPage.tsx`'s status line states this explicitly, and a
+    Sensor whose turn hasn't come up yet shows an honest "Waiting for first
+    refresh…" state rather than a spinner that never resolves or a stale
+    value silently relabeled as live.
+  - **Multiple browser tabs share one budget, not one each** — the rate
+    limiter partitions per client IP, not per tab or per session. One tab on
+    a 25-Sensor Device already uses 20/30 req/min (67%); a **second**
+    concurrent tab on the same network (a second Device, or the same one)
+    adds another ~20 req/min, for ~40/min combined — over the ceiling, and
+    the shared cooldown this page implements is itself per-tab (each tab
+    runs its own orchestrator instance), so one tab's 429 does not pause
+    the other's schedule. This is a real, known limit of the current
+    design, not something this pass silently papered over — a genuine fix
+    (e.g. a `BroadcastChannel`-coordinated single shared schedule across
+    tabs) is future work, not built this pass.
+- **429 handling is centralized, not per-Sensor.** A 429 sets a single,
+  shared `cooldownUntil` on the orchestrator; the schedule stops entirely
+  (no further ticks, no per-Sensor retry timers) until the server's
+  `Retry-After` elapses, then resumes with exactly one controlled tick — a
+  repeated 429 with no `Retry-After` falls back to a bounded exponential
+  backoff (`computeFallbackBackoffMs`, capped at 60s). Existing good data
+  stays visible throughout — a cooldown never blanks the page.
+  `RateLimitBanner` (one page-level `MessageBar`, `role="status"`) is the
+  single place this is shown; `notifyGlobalFailure` (`queryClient.ts`)
+  still surfaces at most one global toast per failure via the query cache's
+  own `onError`, which is complementary, not duplicative — the banner
+  persists for the cooldown's duration, the toast is transient — and
+  neither fires once per Sensor.
+- **The orchestrator is the sole authority over retry and freshness for
+  this one polling path** — `fetchAndCacheTelemetryTrailingPeriods`
+  (`telemetry.ts`) explicitly passes `retry: false` and `staleTime: 0` to
+  its `queryClient.fetchQuery(...)` call specifically because
+  `queryClient.ts`'s sensible **global** defaults (retry a 429 once
+  internally; 15s `staleTime`) are wrong here and were each a confirmed
+  live bug before being overridden: the global retry silently issued a
+  *second* real request for the same Sensor moments after its first 429,
+  defeating the shared cooldown; the global staleTime silently served
+  cached data with zero network traffic whenever the rotation restarted
+  (pause/resume, route away/back) within 15s of that Sensor's last real
+  fetch, making the page appear "stuck." Both were only visible in a real
+  mocked-browser run, never in a fake-timer unit test that mocks this
+  function away — see `TASK_IMPLEMENTATION.md`'s decision log for the full
+  incident. Every other `useQuery` in the app is unaffected and keeps the
+  global defaults.
+- Stops entirely — no ticks, no leaked timer — whenever: `live` is toggled
+  off, `usePageVisible()` is false (tab hidden — `refetchIntervalInBackground`'s
+  library-level default plus this page's own explicit visibility gate,
+  deliberately not redundant: the gate also drives the visible "Paused -
+  tab not visible" text and the manual toggle), no Device is selected, or
+  the route unmounts (`AbortController.abort()` in the effect's cleanup).
+  Resuming/returning fires exactly one immediate tick, not a burst of every
+  pending Sensor at once.
+- Each `SensorLiveCard` is a **passive** `useTelemetryTrailingPeriods`
+  subscription only (`enabled: false`, no `refetchInterval`, no retry of
+  its own) — it never fetches on its own; it just reads whatever the
+  orchestrator last wrote into the shared TanStack Query cache under the
+  exact same key. This is what lets 25 cards render live-updating values
+  from one shared rotation without each one deciding independently when to
+  fetch.
 - Distinguishes no-data (`EmptyState`), stale-data (`FreshnessPill`'s
   `stale` bucket, computed from `heartBeat`/`measured` age — never from
   "the frontend is currently connected," which proves nothing about the
-  Device itself), and request-failure (`ErrorState` with retry) as three
-  visually distinct states.
+  Device itself), rate-limited (`RateLimitBanner`), and request-failure
+  (`ErrorState` with retry) as visually distinct states.
 - Shows an explanatory empty state, not a fake reading, for Periodic
-  (curve) Sensors — trailing-periods has no meaning for a curve run.
+  (curve) Sensors — trailing-periods has no meaning for a curve run; curve
+  Sensors are excluded from the rotation entirely rather than wasting a
+  turn on them every sweep.
 
 **Documented future enhancements, not blockers** (see
 `TASK_IMPLEMENTATION.md`'s missing-capability log): a batched
-multiple-Sensor latest-value endpoint, a push/SSE/WebSocket stream, and
-server-side telemetry downsampling. None of the three exists today; none
-was invented.
+multiple-Sensor latest-value endpoint (would let every Sensor refresh
+every 3s instead of one at a time — the single biggest remaining
+improvement, blocked only on a backend capability that doesn't exist
+today), a push/SSE/WebSocket stream, server-side telemetry downsampling,
+and cross-tab schedule coordination (each browser tab currently runs its
+own independent orchestrator instance against a rate limit shared across
+all of them — see the multi-tab note above). None of the four exists
+today; none was invented.
 
 ## Smart Analytics
 

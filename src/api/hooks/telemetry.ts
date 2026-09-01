@@ -1,8 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { apiClient, unwrap } from '@/api/client';
 import { queryKeys } from '@/api/queryKeys';
 import type { components } from '@/api/schema.generated';
-import { POLL_INTERVALS_MS } from '@/lib/pollIntervals';
+import { toApiIso } from '@/lib/dateTime';
 
 export type TelemetryFamily = 'continuous' | 'periodic' | 'bidirectionalContinuous' | 'bidirectionalPeriodic';
 
@@ -68,10 +68,45 @@ interface TrailingArgs {
   family: TelemetryFamily;
   deviceId: number | undefined;
   sensorId: number | undefined;
-  endDate: string;
   periods: number;
-  /** Refetches on the Live Monitoring cadence (decision #9) when true; off for Smart Analytics' one-shot historical reads. */
-  live?: boolean;
+}
+
+/**
+ * The actual GET call, extracted from the hook below so Live Monitoring's
+ * own orchestrator (`useLiveMonitoringSchedule.ts`) can trigger exactly the
+ * same fetch imperatively via `queryClient.fetchQuery` - never a second,
+ * divergent copy of this request-building logic, and never a raw `fetch`
+ * (AGENTS.md: all API access goes through `apiClient`).
+ *
+ * `endDate` is deliberately not a caller-supplied argument - "trailing
+ * periods" always means ending *now*, computed fresh at the moment this
+ * actually runs, and is intentionally NOT part of the cache key (see
+ * `queryKeys.ts`'s `telemetryTrailing` comment): a real bug this rewrite
+ * fixed had it in both the request and the key, so every render produced a
+ * logically "new" query the cache had never seen before, each one eligible
+ * to auto-fetch on its own.
+ */
+async function fetchTelemetryTrailingPeriods(
+  { family, deviceId, sensorId, periods }: TrailingArgs,
+  signal?: AbortSignal,
+): Promise<TelemetryPoint[]> {
+  const endDate = toApiIso(new Date());
+  if (isBidirectionalFamily(family)) {
+    const data = unwrap(
+      await apiClient.GET('/api/BiDirectionalContinuous/MeasuredTrailingPeriods', {
+        params: { query: { deviceId, sensorId, endDate, periods } },
+        signal,
+      }),
+    );
+    return normalizeFlat(sensorId!, data);
+  }
+  const data = unwrap(
+    await apiClient.GET('/api/Continuous/MeasuredTrailingPeriods', {
+      params: { query: { deviceId, sensorId, endDate, periods } },
+      signal,
+    }),
+  );
+  return normalizeFlat(sensorId!, data);
 }
 
 /**
@@ -83,31 +118,76 @@ interface TrailingArgs {
  * concept (curve runs aren't a regular clock tick), so Live Monitoring for a
  * Periodic Device instead shows its most recent curve run (see
  * useTelemetryPeriodRange with the family's Last(Analysed)CurvePeriod).
+ *
+ * Deliberately PASSIVE - never triggers its own fetch
+ * (`enabled`/`refetchInterval`/`refetchOnWindowFocus`/`refetchOnReconnect`/
+ * `retry` are all off/false unconditionally). Every real Live Monitoring
+ * telemetry request is dispatched by exactly one place,
+ * `useLiveMonitoringSchedule.ts`'s orchestrator, via `queryClient.fetchQuery`
+ * for one Sensor at a time - this hook only *subscribes* to whatever that
+ * orchestrator last wrote into the cache for this Sensor's query key, so
+ * `SensorLiveCard` keeps its familiar `data`/`isLoading`/`isFetching`/`error`
+ * shape without 25 independent components each deciding for themselves when
+ * to hit the network. See CLAUDE.md's "Live Monitoring" section for the full
+ * rate-limit math this design is built around.
  */
-export function useTelemetryTrailingPeriods({ family, deviceId, sensorId, endDate, periods, live }: TrailingArgs) {
-  const bidirectional = isBidirectionalFamily(family);
+export function useTelemetryTrailingPeriods({ family, deviceId, sensorId, periods }: TrailingArgs) {
   return useQuery({
-    queryKey: queryKeys.telemetryTrailing(family, deviceId ?? -1, sensorId ?? -1, endDate, periods),
-    queryFn: async ({ signal }): Promise<TelemetryPoint[]> => {
-      if (bidirectional) {
-        const data = unwrap(
-          await apiClient.GET('/api/BiDirectionalContinuous/MeasuredTrailingPeriods', {
-            params: { query: { deviceId, sensorId, endDate, periods } },
-            signal,
-          }),
-        );
-        return normalizeFlat(sensorId!, data);
-      }
-      const data = unwrap(
-        await apiClient.GET('/api/Continuous/MeasuredTrailingPeriods', {
-          params: { query: { deviceId, sensorId, endDate, periods } },
-          signal,
-        }),
-      );
-      return normalizeFlat(sensorId!, data);
-    },
-    enabled: deviceId !== undefined && sensorId !== undefined && !isCurveFamily(family),
-    refetchInterval: live ? POLL_INTERVALS_MS.liveCompactChart : false,
+    queryKey: queryKeys.telemetryTrailing(family, deviceId ?? -1, sensorId ?? -1, periods),
+    queryFn: ({ signal }) => fetchTelemetryTrailingPeriods({ family, deviceId, sensorId, periods }, signal),
+    enabled: false,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: false,
+  });
+}
+
+/**
+ * Imperative counterpart used only by `useLiveMonitoringSchedule.ts`'s
+ * orchestrator: fetches (and, on success, caches under the exact same key
+ * `useTelemetryTrailingPeriods` reads) one Sensor's trailing periods right
+ * now. Throws the normalized `ApiError` on failure - including a 429, which
+ * the orchestrator inspects directly for `Retry-After`-driven cooldown.
+ *
+ * `retry: false` here is load-bearing, not a stylistic default override -
+ * `queryClient.fetchQuery` otherwise inherits `queryClient.ts`'s global
+ * `shouldRetry`/`retryDelay` defaults (retry-once-after-Retry-After on a
+ * 429), which would silently retry *inside* this call, on its own timer,
+ * before the orchestrator's own catch block ever runs. That is a second,
+ * uncoordinated per-Sensor retry racing the orchestrator's single shared
+ * cooldown - confirmed empirically (a mocked-browser rate-limit run showed
+ * a duplicate real request for the *same* Sensor a moment after its first
+ * 429, which the rotation logic itself never does - it always advances to
+ * the next Sensor).
+ *
+ * `staleTime: 0` is equally load-bearing. `fetchQuery` otherwise inherits
+ * the global `staleTime: 15_000` (`queryClient.ts`) and, per TanStack
+ * Query's own documented `fetchQuery` behavior, silently returns the
+ * existing cached value *without calling queryFn at all* whenever that
+ * cache is still fresh - no network request, and `dataUpdatedAt` stays at
+ * the original fetch time. The orchestrator's rotation restarts at index 0
+ * every time its effect (re)mounts (pause/resume, route away/back, Device
+ * switch), so without this override, resuming or returning to the page
+ * within 15s of Sensor 1's last real fetch produced a "successful" tick
+ * that never actually touched the network - confirmed empirically (a
+ * mocked-browser pass showed 0 requests on resume and rotation appearing
+ * "stuck" after navigating away and back). The orchestrator is the sole
+ * authority over when a fetch happens for this polling path (CLAUDE.md's
+ * "Live Monitoring" section - the 3-second cadence is meaningless if a
+ * "tick" can silently no-op); every other `useQuery` in the app keeps the
+ * sensible global staleTime.
+ */
+export function fetchAndCacheTelemetryTrailingPeriods(
+  queryClient: QueryClient,
+  args: TrailingArgs,
+  signal?: AbortSignal,
+) {
+  return queryClient.fetchQuery({
+    queryKey: queryKeys.telemetryTrailing(args.family, args.deviceId ?? -1, args.sensorId ?? -1, args.periods),
+    queryFn: () => fetchTelemetryTrailingPeriods(args, signal),
+    retry: false,
+    staleTime: 0,
   });
 }
 

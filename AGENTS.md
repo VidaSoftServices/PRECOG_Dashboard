@@ -120,6 +120,24 @@ provide.
   conflict (409), rate-limited (429, with the `Retry-After` countdown), and
   network-error. Not every workflow needs every state — a read-only list has
   no "conflict" state — but skipping a state that *does* apply is a defect.
+- Any polling page must stay measurably under the API's actual rate limit
+  for the endpoint it polls, with a genuine safety margin left for other
+  pages and other browser tabs sharing the same client IP — never derive a
+  polling budget from database/connection-pool capacity, which is
+  architecturally independent of the API's HTTP rate limiter and is never a
+  justification for firing more requests (see CLAUDE.md's "Live Monitoring"
+  section for the confirmed numbers and the incident this rule comes from).
+  A page-level polling orchestrator, not N independent per-item intervals,
+  is the default shape once "one item" would mean "N simultaneous
+  requests." When such an orchestrator drives its own imperative
+  `queryClient.fetchQuery(...)` call specifically to control retry/backoff
+  or fetch timing itself, it must explicitly override the query client's
+  global `retry`/`staleTime` defaults at that call site (with a comment
+  saying why) rather than silently inheriting them — those global defaults
+  are tuned for ordinary one-shot queries and will otherwise fight the
+  orchestrator's own logic (an uncoordinated internal retry racing a shared
+  cooldown; a stale-cache hit silently skipping a fetch the orchestrator
+  believed it was making).
 - Accessibility and responsive behavior are mandatory, not a follow-up pass
   bolted on later: every new page must use Fluent's accessible primitives
   and be checked against desktop/tablet/mobile at the point it's built.

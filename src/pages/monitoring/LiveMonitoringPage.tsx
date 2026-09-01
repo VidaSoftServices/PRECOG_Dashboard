@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Card,
@@ -7,6 +7,9 @@ import {
   Select,
   Button,
   Switch,
+  MessageBar,
+  MessageBarBody,
+  MessageBarTitle,
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
@@ -22,17 +25,25 @@ import { useSensors } from '@/api/hooks/sensors';
 import { useTelemetryTrailingPeriods, familyFor, isCurveFamily } from '@/api/hooks/telemetry';
 import { useNumberSearchParam } from '@/lib/useNumberSearchParam';
 import { usePageVisible } from '@/lib/usePageVisible';
-import { toApiIso, formatRelative, freshnessOf } from '@/lib/dateTime';
+import { formatRelative, formatDateTime, freshnessOf } from '@/lib/dateTime';
 import { POLL_INTERVALS_MS } from '@/lib/pollIntervals';
+import { useLiveMonitoringSchedule, type RotationSensor } from './useLiveMonitoringSchedule';
 import type { SensorDto } from '@/api/hooks/sensors';
 
 const useStyles = makeStyles({
   toolbar: {
     display: 'flex',
     gap: tokens.spacingHorizontalM,
-    marginBottom: tokens.spacingVerticalL,
+    marginBottom: tokens.spacingVerticalM,
     flexWrap: 'wrap',
     alignItems: 'flex-end',
+  },
+  statusBar: {
+    display: 'flex',
+    gap: tokens.spacingHorizontalM,
+    marginBottom: tokens.spacingVerticalL,
+    flexWrap: 'wrap',
+    alignItems: 'center',
   },
   grid: {
     display: 'grid',
@@ -56,26 +67,18 @@ const useStyles = makeStyles({
   },
 });
 
-function SensorLiveCard({ deviceId, sensor, applicationMode, live }: { deviceId: number; sensor: SensorDto; applicationMode: 'continuous' | 'periodic'; live: boolean }) {
+function SensorLiveCard({ deviceId, sensor, applicationMode }: { deviceId: number; sensor: SensorDto; applicationMode: 'continuous' | 'periodic' }) {
   const styles = useStyles();
   const family = familyFor(applicationMode, sensor.direction);
   const curveFamily = isCurveFamily(family);
 
-  // Curve (Periodic) Sensors have no "trailing periods" concept - a curve
-  // run isn't a regular clock tick. Live Monitoring for those shows the
-  // freshest thing the API can give without downloading a full range: the
-  // Sensor's own heartbeat-adjacent state is not separately exposed, so this
-  // is flagged rather than faked - see the empty state below.
-  const trailing = useTelemetryTrailingPeriods({
-    family,
-    deviceId,
-    sensorId: sensor.id,
-    endDate: toApiIso(new Date()),
-    periods: 20,
-    live,
-  });
+  // Passive subscription only - see telemetry.ts's doc comment. This card
+  // never triggers its own fetch; it just reads whatever the page-level
+  // useLiveMonitoringSchedule orchestrator last wrote for this Sensor's key.
+  const trailing = useTelemetryTrailingPeriods({ family, deviceId, sensorId: sensor.id, periods: 20 });
 
   const latest = trailing.data?.[trailing.data.length - 1];
+  const neverFetched = trailing.data === undefined;
 
   return (
     <Card className={styles.card}>
@@ -89,10 +92,16 @@ function SensorLiveCard({ deviceId, sensor, applicationMode, live }: { deviceId:
           title="Not applicable to Periodic Sensors"
           description="Curve runs aren't a regular clock tick - use Smart Analytics to inspect the most recent curve period for this Sensor."
         />
-      ) : trailing.isLoading ? (
-        <LoadingState label="" />
       ) : trailing.isError ? (
-        <ErrorState error={trailing.error} onRetry={() => trailing.refetch()} />
+        <ErrorState error={trailing.error} />
+      ) : neverFetched ? (
+        // Real, honest state - the rotation hasn't reached this Sensor yet
+        // (see CLAUDE.md's "Live Monitoring" section: ~25 Sensors cannot all
+        // refresh every 3s under the confirmed API rate limit, so this is
+        // shown rather than a spinner that would never resolve, or a faked
+        // "live" value). trailing.isFetching flips true once this Sensor's
+        // turn actually comes up.
+        <LoadingState label={trailing.isFetching ? 'Refreshing…' : 'Waiting for first refresh…'} />
       ) : (
         <>
           <div className={styles.valueRow}>
@@ -106,9 +115,24 @@ function SensorLiveCard({ deviceId, sensor, applicationMode, live }: { deviceId:
             height={160}
             mode="single"
           />
+          <Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
+            {trailing.isFetching ? 'Refreshing…' : `Dashboard checked ${formatRelative(new Date(trailing.dataUpdatedAt))}`}
+          </Text>
         </>
       )}
     </Card>
+  );
+}
+
+function RateLimitBanner({ cooldownUntil }: { cooldownUntil: Date }) {
+  return (
+    <MessageBar intent="warning" role="status">
+      <MessageBarBody>
+        <MessageBarTitle>Too many requests</MessageBarTitle>
+        Live Monitoring is pausing its refresh cycle - the API asked every client on this network to slow down.
+        Existing readings stay visible. Retrying automatically around {formatDateTime(cooldownUntil)}.
+      </MessageBarBody>
+    </MessageBar>
   );
 }
 
@@ -127,6 +151,25 @@ export function LiveMonitoringPage() {
 
   const devices = devicesQuery.data ?? [];
   const selectedId = deviceId ?? devices[0]?.id;
+  const applicationMode = deviceQuery.data?.applicationMode as 'continuous' | 'periodic' | undefined;
+
+  // Only Sensors with a real trailing-periods concept belong in the
+  // rotation - a curve Sensor's card never fetches anything (see
+  // SensorLiveCard), so including it would just waste a turn every sweep.
+  const rotationSensors = useMemo<RotationSensor[]>(() => {
+    if (!applicationMode) return [];
+    return (sensorsQuery.data ?? [])
+      .map((sensor) => ({ id: sensor.id!, family: familyFor(applicationMode, sensor.direction) }))
+      .filter((s) => !isCurveFamily(s.family));
+  }, [sensorsQuery.data, applicationMode]);
+
+  const schedule = useLiveMonitoringSchedule({
+    active: effectiveLive && selectedId !== undefined,
+    deviceId: selectedId,
+    sensors: rotationSensors,
+    periods: 20,
+    intervalMs: POLL_INTERVALS_MS.liveMonitoringCycle,
+  });
 
   // Defaulting to the first Device must happen as an effect, not directly in
   // the render body - calling setDeviceId (which itself calls React
@@ -141,6 +184,8 @@ export function LiveMonitoringPage() {
 
   if (devicesQuery.isLoading) return <LoadingState label="Loading devices…" />;
   if (devicesQuery.isError) return <ErrorState error={devicesQuery.error} onRetry={() => devicesQuery.refetch()} />;
+
+  const refreshDisabled = schedule.cooldownUntil !== null || schedule.activeSensorId !== null;
 
   return (
     <>
@@ -167,13 +212,27 @@ export function LiveMonitoringPage() {
             </option>
           ))}
         </Select>
-        <Switch checked={live} onChange={(_, d) => setLive(d.checked)} label={live ? `Live (every ${POLL_INTERVALS_MS.liveCompactChart / 1000}s)` : 'Paused'} />
-        <Button icon={<ArrowClockwise24Regular />} onClick={() => sensorsQuery.refetch()}>
+        <Switch checked={live} onChange={(_, d) => setLive(d.checked)} label={live ? `Live (rotating refresh, every ${POLL_INTERVALS_MS.liveMonitoringCycle / 1000}s)` : 'Paused'} />
+        <Button icon={<ArrowClockwise24Regular />} onClick={schedule.refreshNow} disabled={refreshDisabled}>
           Refresh now
         </Button>
         {!pageVisible && live && (
           <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
             Paused - tab not visible
+          </Text>
+        )}
+      </div>
+
+      <div className={styles.statusBar}>
+        {schedule.cooldownUntil ? (
+          <RateLimitBanner cooldownUntil={schedule.cooldownUntil} />
+        ) : (
+          <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+            {schedule.lastTickAt
+              ? `Rotation cycle last advanced ${formatRelative(schedule.lastTickAt)} - each Sensor refreshes roughly every ${Math.round((rotationSensors.length * POLL_INTERVALS_MS.liveMonitoringCycle) / 1000)}s, one at a time, to stay within the API's rate limit (see CLAUDE.md).`
+              : live && rotationSensors.length > 0
+                ? 'Starting rotation…'
+                : null}
           </Text>
         )}
       </div>
@@ -191,7 +250,6 @@ export function LiveMonitoringPage() {
               deviceId={selectedId!}
               sensor={sensor}
               applicationMode={deviceQuery.data.applicationMode as 'continuous' | 'periodic'}
-              live={effectiveLive}
             />
           ))}
         </div>

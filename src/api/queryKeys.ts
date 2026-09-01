@@ -23,8 +23,14 @@ export const queryKeys = {
   effectiveSetpoint: (deviceId: number, sensorId: number, at?: string) =>
     ['devices', deviceId, 'sensors', sensorId, 'setpoints', 'effective', at ?? 'now'] as const,
 
-  telemetryTrailing: (family: string, deviceId: number, sensorId: number, endDate: string, periods: number) =>
-    ['telemetry', family, 'trailing', deviceId, sensorId, endDate, periods] as const,
+  // No `endDate` in this key, deliberately - `useTelemetryTrailingPeriods`
+  // always means "ending now", and including a fresh timestamp in the key
+  // on every fetch would make the cache entry a moving target instead of
+  // one stable, subscribable slot per Sensor (see telemetry.ts's own doc
+  // comment on `fetchTelemetryTrailingPeriods`, and CLAUDE.md's "Live
+  // Monitoring" section for why this mattered as a real bug, not just tidiness).
+  telemetryTrailing: (family: string, deviceId: number, sensorId: number, periods: number) =>
+    ['telemetry', family, 'trailing', deviceId, sensorId, periods] as const,
   telemetryPeriodRange: (family: string, deviceId: number, sensorId: number, from: number, to: number) =>
     ['telemetry', family, 'periodRange', deviceId, sensorId, from, to] as const,
   telemetryDateRange: (family: string, deviceId: number, sensorId: number, start: string, end: string) =>

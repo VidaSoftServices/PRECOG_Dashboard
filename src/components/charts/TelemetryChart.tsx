@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useId, useMemo } from 'react';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -77,6 +77,7 @@ function summarize(series: TelemetrySeriesInput[]): string {
 
 export function TelemetryChart({ series, height = 320, mode = 'single', showControlLimits = false, title, emptyLabel }: TelemetryChartProps) {
   const styles = useStyles();
+  const summaryId = useId();
 
   const { data, options } = useMemo<{ data: ChartData<'line'>; options: ChartOptions<'line'> }>(() => {
     const labelSet = new Set<string>();
@@ -176,11 +177,11 @@ export function TelemetryChart({ series, height = 320, mode = 'single', showCont
         {isEmpty ? (
           <Text className={styles.summary}>{emptyLabel ?? 'No telemetry in this range.'}</Text>
         ) : (
-          <Line data={data} options={options} />
+          <Line data={data} options={options} aria-labelledby={summaryId} />
         )}
       </div>
       {!isEmpty && (
-        <Text size={200} className={styles.summary}>
+        <Text id={summaryId} size={200} className={styles.summary}>
           {summarize(series)}
         </Text>
       )}
