@@ -14,7 +14,16 @@ export function useDevices() {
   });
 }
 
-export function useDevice(deviceId: number | undefined) {
+/**
+ * One Device's master data, including `heartBeat` - the server's "last observed
+ * activity" instant that the detail page renders as "Last heartbeat".
+ *
+ * `refetchIntervalMs` is opt-in and defaults to no polling, so every existing
+ * caller keeps its current behaviour. Pass a value (from
+ * `POLL_INTERVALS_MS`, never a literal) only on a screen that displays a value
+ * which changes on its own while the page sits open.
+ */
+export function useDevice(deviceId: number | undefined, refetchIntervalMs?: number) {
   return useQuery({
     queryKey: queryKeys.device(deviceId ?? -1),
     queryFn: async ({ signal }) =>
@@ -25,6 +34,7 @@ export function useDevice(deviceId: number | undefined) {
         }),
       ),
     enabled: deviceId !== undefined,
+    refetchInterval: refetchIntervalMs ?? false,
   });
 }
 

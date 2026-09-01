@@ -2330,3 +2330,41 @@ checkpoint against all 11 items in the post-review gap list.
   command was run. No commit or push was made - this checkpoint's changes
   remain in the working tree, awaiting explicit authorization per this
   project's own commit discipline.
+
+
+## Device heartbeat display (Last heartbeat)
+
+The Device detail page's `Last heartbeat` previously showed `never` for every
+Device, because the backend never wrote `Device.HeartBeat`. That was a backend
+gap, now closed on the API side; the dashboard's own rendering was already
+correct and needed no contract change.
+
+One real dashboard defect surfaced with it. The global query defaults are
+`staleTime: 15_000` and `refetchOnWindowFocus: false`, and `useDevice` had no
+`refetchInterval`, so a Device detail page left open would hold its first
+response for as long as it stayed mounted. Once the backend started updating the
+field every 30 s, that page would have shown a frozen instant that kept ageing
+("12 minutes ago") for a Device that was in fact reporting normally - which reads
+as a dead Device, and is worse than the `never` it replaced.
+
+Fixed in the smallest scope that works:
+
+- `POLL_INTERVALS_MS.deviceDetail = 30_000` - the value lives in the central
+  intervals file, per the existing convention;
+- `useDevice(deviceId, refetchIntervalMs?)` - opt-in, defaulting to no polling,
+  so all six other call sites (Smart Analytics, Model Query, Issue detail, Live
+  Monitoring, Overview) keep their exact current behaviour;
+- `DeviceDetailPage` passes the interval.
+
+`GET /api/Devices/{deviceId}` carries no named rate-limit policy, so this does
+not touch the `LargeTelemetryRead` budget Live Monitoring depends on.
+
+Tests: `src/pages/devices/deviceHeartbeat.test.ts` covers the null-to-`never`
+case that produced the original report, a live heartbeat rendering as a relative
+time, UTC parsing without a shift, the 15/60-minute freshness boundaries, and the
+poll cadence being neither a request storm nor slow enough to let the display
+drift out of the "fresh" window.
+
+Verified locally: `typecheck` clean, `lint` 0 errors, `vitest` 119/119,
+production build succeeds. Not verified against a live backend - that needs the
+API change deployed.

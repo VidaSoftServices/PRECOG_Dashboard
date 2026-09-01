@@ -20,4 +20,20 @@ export const POLL_INTERVALS_MS = {
   overviewSummary: 30_000,
   /** TrainingRequest or Ollama job while in an active (non-terminal) state. */
   activeJob: 5_000,
+  /**
+   * Device detail page, so its "Last heartbeat" stays truthful while the page
+   * is open. A Device reports liveness every 30 s, so matching that cadence is
+   * enough - anything faster only adds requests without adding information.
+   *
+   * Needed because the global query defaults are `staleTime: 15_000` with
+   * `refetchOnWindowFocus: false`: without an interval the page would hold its
+   * first response for as long as it stays mounted, and a healthy, actively
+   * reporting Device would appear to age ("12 minutes ago") indefinitely -
+   * which reads as a dead Device, and is worse than the "never" it replaced.
+   *
+   * `GET /api/Devices/{deviceId}` carries no named rate-limit policy (only the
+   * global per-address limiter), so this does not consume the
+   * `LargeTelemetryRead` budget that Live Monitoring depends on.
+   */
+  deviceDetail: 30_000,
 } as const;

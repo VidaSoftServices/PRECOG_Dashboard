@@ -26,6 +26,7 @@ import { useSensors, useCreateSensor, useUpdateSensor, type SensorDto } from '@/
 import { useDevicePrincipal } from '@/api/hooks/devicePrincipal';
 import { useTrainingRequests } from '@/api/hooks/training';
 import { freshnessOf, formatDateTimeWithZone, formatRelative } from '@/lib/dateTime';
+import { POLL_INTERVALS_MS } from '@/lib/pollIntervals';
 import { useAuth } from '@/auth/AuthContext';
 
 const useStyles = makeStyles({
@@ -236,7 +237,9 @@ export function DeviceDetailPage() {
   const { isAdmin } = useAuth();
   const toast = useAppToast();
 
-  const deviceQuery = useDevice(id);
+  // Polled so "Last heartbeat" keeps telling the truth while this page is
+  // open - the Device reports liveness on its own, without any user action.
+  const deviceQuery = useDevice(id, POLL_INTERVALS_MS.deviceDetail);
   const sensorsQuery = useSensors(id);
   const principalQuery = useDevicePrincipal(id);
   const trainingQuery = useTrainingRequests(id);

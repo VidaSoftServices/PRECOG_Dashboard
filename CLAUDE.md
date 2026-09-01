@@ -247,6 +247,14 @@ One `apiClient` instance, one `authMiddleware`:
   every interval is defined) and the Live Monitoring / Training / Ollama
   sections below for exactly which query polls, at what interval, and what
   stops it.
+- **Device detail heartbeat** — `useDevice` takes an optional
+  `refetchIntervalMs` and defaults to no polling, so only Device detail opts
+  in, at `POLL_INTERVALS_MS.deviceDetail` (30 s). It is needed because the
+  global defaults are `staleTime: 15_000` with `refetchOnWindowFocus: false`:
+  without it, a page left open would hold its first response indefinitely and a
+  healthy, actively reporting Device would appear to age — which reads as a dead
+  Device. `GET /api/Devices/{deviceId}` has no named rate-limit policy, so this
+  does not consume the `LargeTelemetryRead` budget Live Monitoring depends on.
 
 ### Authentication/session architecture
 
@@ -971,7 +979,7 @@ and the Admin-only transition link.
 | Gap | Frontend consequence | Status |
 |---|---|---|
 | No server-side Issue date-range filter (`Issue_GetIssues` has only `deviceId`/`skip`/`take`/`includeMembers`) | Smart Analytics filters locally over the bounded loaded result, explicitly labeled as such | Documented, not blocking |
-| No `NoteHeartBeat` equivalent | Removed per explicit instruction, not replaced or inferred; freshness relies solely on `Device.heartBeat`/telemetry `measured` timestamps | Documented, not blocking |
+| ~~No `NoteHeartBeat` equivalent~~ | **Closed.** The API now writes `Device.HeartBeat` on every accepted DevicePrincipal telemetry ingestion and on `POST /api/Devices/{deviceId}/Heartbeat` (server-side UTC, `204 No Content`, DevicePrincipal only). The dashboard needed no contract change - it already read `device.heartBeat`; only the Device detail page's refresh cadence was added. The legacy `NoteHeartBeat` operation was *not* revived. | Resolved |
 | No ModelVersion list/detail endpoint | Training page shows only what TrainingRequestDto/ModelQueryResponse actually return | Documented, not blocking |
 | No Ollama job list endpoint (submit/get/cancel only) | Ollama Jobs page is a by-id lookup, not a history list, stated in-page | Documented, not blocking |
 | No efficient Company-wide Issue/training/Ollama aggregate endpoint | Overview KPIs scoped to one selected Device rather than an unbounded fan-out download | Documented, not blocking |
