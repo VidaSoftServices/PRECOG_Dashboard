@@ -8,8 +8,8 @@ export const POLL_INTERVALS_MS = {
    * between rotation advances, NOT a per-Sensor refresh guarantee - see
    * `useLiveMonitoringSchedule.ts`'s own doc comment for why a literal
    * "every Sensor refreshes every 3s" is impossible under the API's
-   * confirmed `LargeTelemetryRead` rate limit (30 requests/60s per client
-   * IP, shared across every dashboard page and browser tab on that
+   * confirmed `LargeTelemetryRead` rate limit (240 requests/120s per client
+   * IP, i.e. 120/min on average, shared across every dashboard page and browser tab on that
    * network - CLAUDE.md's "Live Monitoring" section has the full
    * calculation). Named `liveMonitoringCycle`, not `liveSensorValue`/
    * `liveCompactChart` (both retired) - there is now exactly one polling

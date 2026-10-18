@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, Text, Body1Strong, Badge, Checkbox, Divider, makeStyles, tokens } from '@fluentui/react-components';
+import { Card, Text, Body1Strong, Badge, Checkbox, Divider, Tab, TabList, makeStyles, tokens } from '@fluentui/react-components';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
@@ -18,6 +18,7 @@ import {
   type CompanyMemberDto,
 } from '@/api/hooks/company';
 import { useDevices } from '@/api/hooks/devices';
+import { MobileDevicesPanel } from './MobileDevicesPanel';
 
 const useStyles = makeStyles({
   layout: { display: 'grid', gridTemplateColumns: '260px minmax(0,1fr)', gap: tokens.spacingHorizontalL },
@@ -139,7 +140,7 @@ function CompanyMembersCard() {
   );
 }
 
-export function ReadersPage() {
+function ReadersTab() {
   const styles = useStyles();
   const toast = useAppToast();
   const readersQuery = useReaders();
@@ -160,7 +161,6 @@ export function ReadersPage() {
 
   return (
     <>
-      <PageHeader title="Readers & Access" description="Company member roles, Readers, and their explicit per-Device grants." />
       <CompanyMembersCard />
       <div className={styles.layout}>
         <Card className={styles.card}>
@@ -216,6 +216,30 @@ export function ReadersPage() {
           )}
         </div>
       </div>
+    </>
+  );
+}
+
+/**
+ * Admin-only "user management" surface. Two separate capabilities live here:
+ * who holds which role and which Devices a Reader can see ("Members &
+ * access"), and the registry of the Users' mobile devices by MAC address
+ * ("Mobile devices" - the registration queue, assignments and blacklist).
+ */
+export function ReadersPage() {
+  const [tab, setTab] = useState<'members' | 'mobile'>('members');
+  return (
+    <>
+      <PageHeader
+        title="Users & Access"
+        description="Company member roles, Reader Device grants, and the mobile devices (MAC addresses) registered to Users."
+      />
+      <TabList selectedValue={tab} onTabSelect={(_, d) => setTab(d.value as 'members' | 'mobile')} style={{ marginBottom: tokens.spacingVerticalL }}>
+        <Tab value="members">Members &amp; access</Tab>
+        <Tab value="mobile">Mobile devices</Tab>
+      </TabList>
+      {tab === 'members' && <ReadersTab />}
+      {tab === 'mobile' && <MobileDevicesPanel />}
     </>
   );
 }

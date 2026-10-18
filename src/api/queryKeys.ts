@@ -7,6 +7,9 @@ export const queryKeys = {
   readerGrants: (userId: number) => ['company', 'readers', userId, 'devices'] as const,
   readerEffectiveAccess: (userId: number) => ['company', 'readers', userId, 'effectiveAccess'] as const,
 
+  macAddresses: ['macAddresses'] as const,
+  macAddressList: (status?: string) => ['macAddresses', status ?? 'all'] as const,
+
   devices: ['devices'] as const,
   device: (deviceId: number) => ['devices', deviceId] as const,
   devicePrincipal: (deviceId: number) => ['devices', deviceId, 'principal'] as const,

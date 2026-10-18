@@ -33,7 +33,7 @@ export const navEntries: NavEntry[] = [
   { path: '/knowledge-sharing', label: 'Knowledge Sharing', icon: Share24Regular, adminOnly: true },
   { path: '/training', label: 'Training & Models', icon: BrainCircuit24Regular, adminOnly: false },
   { path: '/ollama-jobs', label: 'Ollama Jobs', icon: ChatSparkle24Regular, adminOnly: false },
-  { path: '/admin/readers', label: 'Readers & Access', icon: PeopleTeam24Regular, adminOnly: true },
+  { path: '/admin/readers', label: 'Users & Access', icon: PeopleTeam24Regular, adminOnly: true },
   { path: '/admin/settings', label: 'Company Settings', icon: Settings24Regular, adminOnly: true },
   { path: '/status', label: 'System Status', icon: HeartPulse24Regular, adminOnly: false },
 ];

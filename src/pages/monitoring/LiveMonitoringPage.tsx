@@ -18,7 +18,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
 import { EmptyState } from '@/components/states/EmptyState';
-import { FreshnessPill } from '@/components/StatusPill';
+import { FreshnessPill, MaintenancePill } from '@/components/StatusPill';
 import { TelemetryChart } from '@/components/charts/TelemetryChart';
 import { useDevices, useDevice } from '@/api/hooks/devices';
 import { useSensors } from '@/api/hooks/sensors';
@@ -84,7 +84,8 @@ function SensorLiveCard({ deviceId, sensor, applicationMode }: { deviceId: numbe
     <Card className={styles.card}>
       <div className={styles.valueRow}>
         <Body1Strong>{sensor.name || sensor.externalSensorId}</Body1Strong>
-        {!curveFamily && <FreshnessPill freshness={freshnessOf(latest?.measured)} />}
+        {/* A Sensor in maintenance is being ignored on purpose, so its aging data must read as maintenance, not as a silent (stale) Sensor. */}
+        {!curveFamily && (sensor.maintenanceMode ? <MaintenancePill maintenanceMode /> : <FreshnessPill freshness={freshnessOf(latest?.measured)} />)}
       </div>
 
       {curveFamily ? (

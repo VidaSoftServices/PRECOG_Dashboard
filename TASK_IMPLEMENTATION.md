@@ -1650,7 +1650,7 @@ predict in advance (e.g., a specific validation failure shape).
 
 ## API-to-Dashboard Coverage Matrix
 
-Every public operation in the live OpenAPI contract (105 total, re-verified
+Every public operation in the live OpenAPI contract (105 total when this matrix was written; 117 after the registry/maintenance work, whose operations are appended below; re-verified
 this checkpoint - see "Live contract re-verified, no drift" above),
 classified individually, not just the ~96 this frontend's hooks actually
 call. Complements, rather than duplicates, the route-centric "Route and API
@@ -1761,6 +1761,37 @@ choice (see `CLAUDE.md`).
 | `Sensors_CreateSensor` | `POST /api/Devices/{deviceId}/Sensors` | 2 | `useCreateSensor` · `DeviceDetailPage.tsx`'s `NewSensorDialog` | Implemented (prior checkpoint) |
 | `Sensors_GetSensor` | `GET /api/Devices/{deviceId}/Sensors/{sensorId}` | 3 | `useSensor` · `SensorPoliciesPage.tsx` | Implemented |
 | `Sensors_UpdateSensor` | `PUT /api/Devices/{deviceId}/Sensors/{sensorId}` | 2 | `useUpdateSensor` · `DeviceDetailPage.tsx`'s `EditSensorDialog` | Implemented (prior checkpoint) |
+
+### Maintenance (3 operations)
+
+Device-scoped Sensor maintenance mode. DTOs: `SensorMaintenanceDto`,
+`DeviceMaintenanceDto`, `SetSensorMaintenanceRequest`. Readable by every level;
+changed by a human Company Admin only (a DevicePrincipal can read it but never change it).
+
+| Operation ID | Method + route | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `Maintenance_GetDeviceMaintenance` | `GET /api/Devices/{deviceId}/Maintenance` | 3 | none - the same state arrives with `SensorDto` | Not called: `useSensors` already carries `maintenanceMode`, one request instead of two |
+| `Maintenance_GetSensorMaintenance` | `GET /api/Devices/{deviceId}/Sensors/{sensorId}/Maintenance` | 3 | none - see above | Not called, same reason |
+| `Maintenance_SetSensorMaintenance` | `PUT /api/Devices/{deviceId}/Sensors/{sensorId}/Maintenance` | 2 | `useSetSensorMaintenance` · `DeviceDetailPage.tsx`'s `MaintenanceDialog` (Admin only) | Implemented |
+
+### MacAddresses (8 operations)
+
+Company-scoped registry of Users' mobile-device MAC addresses. DTOs:
+`MacAddressEntryDto`, `CreateMacAddressEntryRequest`,
+`UpdateMacAddressEntryRequest`, `MacAddressRequest`, `MacAddressRoleResponse`,
+`MacAddressSubscribeResponse`. The two machine operations are DevicePrincipal-only
+(a human receives 403) and are deliberately not built here.
+
+| Operation ID | Method + route | Classification | Dashboard hook / page | Status |
+|---|---|---|---|---|
+| `MacAddresses_GetMacAddresses` | `GET /api/MacAddresses?status&skip&take` | 1 (Admin) | `useMacAddresses` · `MobileDevicesPanel.tsx` | Implemented |
+| `MacAddresses_GetMacAddress` | `GET /api/MacAddresses/{id}` | 1 (Admin) | none | Not needed - the list already returns every field |
+| `MacAddresses_CreateMacAddress` | `POST /api/MacAddresses` | 2 | `useCreateMacAddress` · "Add MAC address" dialog | Implemented |
+| `MacAddresses_UpdateMacAddress` | `PUT /api/MacAddresses/{id}` | 2 | `useUpdateMacAddress` · assign / reassign / blacklist / move to queue | Implemented |
+| `MacAddresses_DeleteMacAddress` | `DELETE /api/MacAddresses/{id}` | 2 | `useDeleteMacAddress` · "Remove" | Implemented (a 204, handled by `unwrap()`) |
+| `MacAddresses_Subscribe` | `POST /api/MacAddresses/Subscribe` | machine only | none | Out of scope - DevicePrincipal is not an interactive dashboard role |
+| `MacAddresses_Resolve` | `POST /api/MacAddresses/Resolve` | machine only | none | Out of scope, same reason |
+| `MacAddresses_LatestIssue` | `POST /api/MacAddresses/LatestIssue` | machine only | none | Out of scope, same reason |
 
 ### AggregationPolicies (5 operations)
 
@@ -1987,7 +2018,7 @@ this dashboard does consume them.
 | Actor | Devices | Issues | Categories | Knowledge sharing | Training | Ollama | Admin pages | Notes |
 |---|---|---|---|---|---|---|---|---|
 | Unauthenticated | — | — | — | — | — | — | — | Redirected to `/login` by `RequireAuth` on every route |
-| Admin | Full CRUD (no delete — disable only) | Full (review/category/group/move/reassign/ungroup, all wired) | Full CRUD | Full workflow | Full + manual trigger | Full | Full | Company member role assignment (`/admin/readers`) additionally requires `profileSource === 'Local'` — a `MirroredDatabase` Company shows members read-only with an explanation, since role there is synchronized one-way from WordPress and a dashboard edit would be silently overwritten by the next sync. Company rename (`/admin/settings`) is gated the same way via `nameEditable`. |
+| Admin | Full CRUD (no delete — disable only) | Full (review/category/group/move/reassign/ungroup, all wired) | Full CRUD | Full workflow | Full + manual trigger | Full | Full | Company member role assignment (`/admin/readers`) additionally requires `profileSource === 'Local'` — a `MirroredDatabase` Company shows members read-only with an explanation, since role there is synchronized one-way from WordPress and a dashboard edit would be silently overwritten by the next sync. Company rename (`/admin/settings`) is gated the same way via `nameEditable`. Only an Admin manages the mobile-device MAC registry (`/admin/readers`, "Mobile devices" tab) and switches Sensor maintenance mode. |
 | Reader with Device access | Read granted Devices only | Read granted-Device Issues only, no mutation controls rendered | Read only | Read own-Device-touching shares only (`useKnowledgeShares` filters server-side per backend rule) | Read only — no manual-trigger control rendered | Submit/poll/cancel own-Device-touching jobs | Hidden from nav entirely | Mutation controls absent, not disabled. **Training is a deliberate frontend restriction stricter than the backend** — `Training_CreateTrainingRequest` only checks Device access server-side, not `IsCompanyAdmin`, so a Reader's request would technically succeed against the real API; the product rule that Reader stays strictly read-only wins regardless (see correction item 1, and the backend gap log below) |
 | Reader without Device access | 404 on direct access (existence not disclosed, matching backend pattern) | Same | n/a | n/a | n/a | n/a | Hidden | `NotAuthorizedState` rendered for a 403 or 404 alike |
 | DevicePrincipal | n/a — this is a human-only dashboard, no DevicePrincipal login UI exists | n/a | n/a | n/a | n/a | n/a | n/a | Explicitly out of scope per `AGENTS.md` |
@@ -2368,3 +2399,70 @@ drift out of the "fresh" window.
 Verified locally: `typecheck` clean, `lint` 0 errors, `vitest` 119/119,
 production build succeeds. Not verified against a live backend - that needs the
 API change deployed.
+
+## Mobile device registry, Sensor maintenance mode, doubled rate limits
+
+User request (2026-10-18), spanning both repositories. By explicit instruction
+the API repository was edited as well (normally read-only reference for this
+repo - AGENTS.md "Repository boundary"; the latest explicit user instruction
+takes precedence). The API side is documented in its own
+`VidaSoft.API/TASK_IMPLEMENTATION.md`; this section covers what the dashboard
+did and decided.
+
+Built:
+
+- `src/api/schema.generated.ts` regenerated from the API's real OpenAPI
+  document (117 operations, up from 105; it also picks up the previously
+  missing `Devices_Heartbeat`). The document was dumped by hosting the API
+  in-process through its test factory rather than starting the API, so
+  `npm run gen:api` against a running API should now produce an equivalent file.
+- `src/api/hooks/macAddresses.ts` (`useMacAddresses`, `useCreateMacAddress`,
+  `useUpdateMacAddress`, `useDeleteMacAddress`), `src/api/hooks/maintenance.ts`
+  (`useSetSensorMaintenance`), `queryKeys.macAddresses`/`macAddressList`.
+- `src/pages/admin/MobileDevicesPanel.tsx` - queue / registered / blacklist
+  tabs with assign, reassign, blacklist, move-to-queue, remove and add;
+  `ReadersPage.tsx` became a two-tab "Users & Access" page (nav label renamed from
+  "Readers & Access").
+- `MaintenancePill` (StatusPill.tsx); Device detail Sensor rows gain the pill,
+  an Admin-only "Maintenance"/"End maintenance" button with a confirm dialog and
+  a warning `MessageBar`; Live Monitoring cards show the pill instead of the
+  freshness pill.
+- `src/lib/macAddress.ts` - client-side shape hint only.
+
+Decisions:
+
+1. **Rate-limit documentation corrected, not just updated.** CLAUDE.md quoted
+   `LargeTelemetryRead` as 30 per 60 s; `appsettings.json` had been 120 per 120 s
+   (a prior "set limit to 60" commit). It is now 240 per 120 s. The Live
+   Monitoring math (20 req/min sustained) is now ~17% of the ceiling instead of
+   "67%"; the one-Sensor-per-tick design and its 3 s cadence were left unchanged -
+   a looser limit is not a reason to poll harder (AGENTS.md polling rule).
+2. **Maintenance state is read from `SensorDto`**, not from the two
+   `Maintenance_Get*` operations: the Sensor list already carries it, so the
+   Device page and Live Monitoring need no extra request.
+3. **No DevicePrincipal UI**, per AGENTS.md - `Subscribe`/`Resolve` are
+   firmware/Device-side operations.
+4. The Live Monitoring orchestrator was left alone: a Sensor in maintenance
+   stays in the rotation and shows its last stored values with the Maintenance
+   pill.
+
+Tests (new): `MobileDevicesPanel.test.tsx` (queue listing and device name, empty
+state, assign sends exactly one PUT `{status:'Assigned', userId, label}` and only
+lists enabled Admin/Reader members, blacklist needs confirmation, blacklist/
+registered views, `looksLikeMacAddress`), `maintenance.test.tsx` (PUT body is
+`{enabled}` only and a 403 surfaces as an error; `MaintenancePill`), and three
+`contract.test.ts` checks (maintenance request/SensorDto shape, registry routes).
+
+Verified locally: `typecheck` clean, `lint` 0 errors (5 pre-existing warnings), `vitest` 143/143 passing (20 files), production build succeeds.
+Not verified: against a live API, in a real browser, or with a real phone and
+Device - the mocked-browser/axe pass of Phase 22/23 was not re-run for the two
+new surfaces.
+
+Follow-up (same day, user decisions): a Device can never change maintenance mode
+(`SetSensorMaintenanceRequest` is just `{ enabled }`; the schema was regenerated,
+`useSetSensorMaintenance` unchanged apart from its comment, and the contract test
+now asserts there is no MAC field); a new DevicePrincipal-only
+`MacAddresses_LatestIssue` operation exists for Reader/Admin MAC addresses and is
+deliberately not called from the dashboard. Rate-limit documentation was already
+aligned to the code (`LargeTelemetryRead` 240 per 120 s); the API's compiled
+default was brought in line with `appsettings.json` as well.

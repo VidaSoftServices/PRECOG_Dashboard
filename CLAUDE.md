@@ -23,9 +23,11 @@ Readers of one Company at a time. It supports:
 - Model query and its ranked similar historical Issues.
 - Ollama job monitoring (submit, poll, cancel).
 - Company administration: Company profile (name/logo/website), Company
-  member role assignment, Reader Device-access grants, DevicePrincipal
-  lifecycle, Locations/DeviceGroups/DeviceClasses reference data (including
-  DeviceGroup membership).
+  member role assignment, Reader Device-access grants, the registry of Users'
+  mobile devices by MAC address (registration queue, assignments, blacklist),
+  DevicePrincipal lifecycle, Locations/DeviceGroups/DeviceClasses reference
+  data (including DeviceGroup membership).
+- Per-Sensor maintenance mode: any level sees it, Admins switch it.
 
 **The old dashboard is a product-reference prototype only.** It's useful for
 the workflows, visual ideas, live-monitoring instinct, and comparison
@@ -88,11 +90,11 @@ src/
     theme.ts                 PRECOG-blue-derived Fluent brand ramp
     ThemeContext.tsx          light/dark/system, persisted locally
   components/
-    PageHeader.tsx, StatusPill.tsx, DateTimeField.tsx
+    PageHeader.tsx, StatusPill.tsx (incl. MaintenancePill), DateTimeField.tsx
     charts/TelemetryChart.tsx, palette.ts
     states/LoadingState.tsx, EmptyState.tsx, ErrorState.tsx, NotAuthorizedState.tsx
   lib/
-    dateTime.ts, pollIntervals.ts, useMediaQuery.ts, useNumberSearchParam.ts, usePageVisible.ts
+    dateTime.ts, macAddress.ts, pollIntervals.ts, useMediaQuery.ts, useNumberSearchParam.ts, usePageVisible.ts
   pages/
     one folder per domain, one file per route (see TASK_IMPLEMENTATION.md's route matrix)
   test/
@@ -714,6 +716,72 @@ submits *as* a DevicePrincipal (backend explicitly excludes DevicePrincipal
 from Ollama submission — `ActorType != User` → 401). Output is always
 rendered as text (`resultText`), never raw HTML.
 
+## Mobile devices (MAC address registry)
+
+`ReadersPage.tsx` ("Users & Access", Admin-only) has two tabs: **Members &
+access** (company roles and Reader Device grants, unchanged) and **Mobile
+devices** (`MobileDevicesPanel.tsx`), the Company's registry of Users' phone
+MAC addresses. A Device can serve a local Wi-Fi network and a web page; its
+DevicePrincipal sends the MAC address of the phone that connected, and the
+registry is how a Company Admin decides which phone belongs to which User.
+
+- One registry row per (Company, MAC), moved between three views by a
+  `status`: **Queue** ("Queued" - submitted by a Device, oldest first),
+  **Registered** ("Assigned" - belongs to one enabled Admin/Reader User) and
+  **Blacklist** ("Blacklisted" - hidden from the queue; a Device submitting it
+  again is ignored). The unique row is what guarantees a MAC address is queued
+  only once and never in two states at once.
+- Admin actions: **Assign to user** / **Reassign** (a dialog listing only
+  enabled Company members holding the Admin or Reader role), **Blacklist**
+  (confirm dialog), **Move to queue** (takes a MAC address off the blacklist, or
+  unassigns it), **Remove** (confirm; deletes the row, so a Device may submit it
+  again) and **Add MAC address** (registers one directly for a User). One
+  `PUT /api/MacAddresses/{id}` with `status`/`userId`/`label` covers every
+  transition (`useUpdateMacAddress`); `useMacAddresses(status)` reads a view,
+  every mutation invalidates all three.
+- The server is the only validator. `looksLikeMacAddress` (`src/lib/macAddress.ts`)
+  only flags an obviously mistyped address before a round trip; the API also
+  rejects all-zero, broadcast and multicast addresses and normalizes notation.
+- **The dashboard never builds the DevicePrincipal side.** `Subscribe`,
+  `Resolve` and `LatestIssue` are machine-only operations (a human gets 403) and have no UI or
+  hook here - consistent with the rule that DevicePrincipal is not an
+  interactive dashboard role.
+- A MAC address is a spoofable identifier, **never a credential**: it grants
+  nothing in this dashboard or the API. It is personal data: shown only to
+  Admins on this tab, never placed in a URL, browser storage or a log line.
+- What a registered phone can do on a Device is decided on the Device side and
+  is read-only: an Admin or Reader MAC address may read the Device's latest
+  Issue text (`POST /api/MacAddresses/LatestIssue`, DevicePrincipal-only, so
+  not called from this dashboard), and anyone may read the maintenance state.
+  Nothing can be changed from a phone.
+
+## Sensor maintenance mode
+
+A Sensor in maintenance mode has every value its Device sends **accepted but
+ignored** by the API - not stored, not analysed - so a machine being serviced
+cannot raise false Issues. Data sent meanwhile cannot be recovered.
+
+- **Any level reads it.** `SensorDto.maintenanceMode`/`maintenanceSince` come
+  with `useSensors`, so Admin and Reader both see the `MaintenancePill`
+  (icon + text, never color alone) on the Device detail page's Sensor list, a
+  page-level warning `MessageBar` counting the Sensors in maintenance, and on a
+  Live Monitoring card - where it replaces the `FreshnessPill`, because a
+  Sensor ignored on purpose must not read as a silent ("stale") one.
+- **Only an Admin changes it.** `DeviceDetailPage` renders the
+  "Maintenance"/"End maintenance" button for `isAdmin` only, through the shared
+  `ConfirmDialog` (starting is destructive-styled and says the data is lost).
+  `useSetSensorMaintenance` sends `PUT .../Sensors/{sensorId}/Maintenance` with
+  `{ enabled }` only. **A Device can never change maintenance mode** - not even
+  for a person whose phone's MAC address is registered to an Admin: the API
+  lets a Device only read the state, so someone using a phone on a Device sees
+  it but modifies nothing. The control being hidden from a Reader is a UX
+  convenience; the server answers any non-Admin with 403
+  `You need admin privileges to set maintenance mode.`
+- Maintenance is an operational state, distinct from `Sensor.enabled` and from
+  configuration: it never triggers retraining and changes no Policy.
+- Live Monitoring still polls a Sensor in maintenance (it shows its last stored
+  values); it is not removed from the rotation.
+
 ## Live Monitoring
 
 The supported mechanism is **bounded polling of `MeasuredTrailingPeriods`**
@@ -727,10 +795,13 @@ route) — every read is necessarily one Sensor at a time.
 read-only backend source, not assumed**: `MeasuredTrailingPeriods` on both
 controllers carries `[EnableRateLimiting("LargeTelemetryRead")]`, a fixed-window
 limiter partitioned **per client IP** (`appsettings.json`'s `RateLimiting`
-block) — **30 requests per 60 seconds, `QueueLimit: 0`** (an over-limit
-request is rejected immediately, not queued). Per-IP partitioning means
-every browser tab and every dashboard page sharing that network shares one
-30/60s budget — this page cannot assume it owns the whole budget. On
+block) — **240 requests per 120 seconds (120/min on average), `QueueLimit: 0`**
+(an over-limit request is rejected immediately, not queued). That is the
+doubled value: `appsettings.json` carried 120 per 120 s before the API's
+rate limits were doubled, and earlier revisions of this document still quoted
+a stale 30 per 60 s. Per-IP partitioning means every browser tab and every
+dashboard page sharing that network shares one 240/120s budget — this page
+cannot assume it owns the whole budget. On
 rejection the API's `OnRejected` handler sets a genuine `Retry-After`
 header (confirmed in `Program.cs`) — this frontend must read and honor it,
 never treat a 429 as an ordinary retryable network error.
@@ -763,11 +834,12 @@ database, is the ceiling this page is built against.
   pool, which the math below shows would already blow the budget on its
   own.
   - **The math, not a guess**: 25 Sensors × 1 request/tick × 20
-    ticks/minute (3s cadence) = **20 requests/minute sustained**, 67% of the
-    confirmed 30/60s ceiling — a genuine 33% margin left for every other
-    page and every other browser tab on the same client IP. A naive "2-4
-    concurrent" scheme would be 40-80 req/min on its own, already over the
-    limit before anything else on that IP is counted.
+    ticks/minute (3s cadence) = **20 requests/minute sustained**, about 17% of
+    the confirmed 240/120s (120/min) ceiling — a wide margin left for every
+    other page and every other browser tab on the same client IP. A naive
+    "2-4 concurrent" scheme would be 40-80 req/min on its own (a third to two
+    thirds of the whole budget) before anything else on that IP is counted.
+    The cadence was deliberately not raised when the API's limits were doubled.
   - A consequence, stated honestly in the UI, not hidden: with 25 Sensors
     on one 3s cadence, any single card's own "last refreshed" is roughly
     `sensorCount × 3s` apart (~75s for 25 Sensors), not literally every 3s
@@ -777,9 +849,10 @@ database, is the ceiling this page is built against.
     value silently relabeled as live.
   - **Multiple browser tabs share one budget, not one each** — the rate
     limiter partitions per client IP, not per tab or per session. One tab on
-    a 25-Sensor Device already uses 20/30 req/min (67%); a **second**
+    a 25-Sensor Device already uses 20/120 req/min (17%); a **second**
     concurrent tab on the same network (a second Device, or the same one)
-    adds another ~20 req/min, for ~40/min combined — over the ceiling, and
+    adds another ~20 req/min, for ~40/min combined — still under the
+    ceiling, but several tabs add up, and
     the shared cooldown this page implements is itself per-tab (each tab
     runs its own orchestrator instance), so one tab's 429 does not pause
     the other's schedule. This is a real, known limit of the current

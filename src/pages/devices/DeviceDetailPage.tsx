@@ -10,19 +10,22 @@ import {
   Select,
   Switch,
   Divider,
+  MessageBar,
+  MessageBarBody,
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import { ShieldKeyhole24Regular, Settings24Regular, ChartMultiple24Regular, AddCircle24Regular, Edit24Regular } from '@fluentui/react-icons';
+import { ShieldKeyhole24Regular, Settings24Regular, ChartMultiple24Regular, AddCircle24Regular, Edit24Regular, Wrench24Regular } from '@fluentui/react-icons';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
 import { EmptyState } from '@/components/states/EmptyState';
-import { EnabledPill, FreshnessPill } from '@/components/StatusPill';
+import { EnabledPill, FreshnessPill, MaintenancePill } from '@/components/StatusPill';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useAppToast } from '@/components/ToastProvider';
 import { useDevice, useUpdateDevice, useDisableDevice } from '@/api/hooks/devices';
 import { useSensors, useCreateSensor, useUpdateSensor, type SensorDto } from '@/api/hooks/sensors';
+import { useSetSensorMaintenance } from '@/api/hooks/maintenance';
 import { useDevicePrincipal } from '@/api/hooks/devicePrincipal';
 import { useTrainingRequests } from '@/api/hooks/training';
 import { freshnessOf, formatDateTimeWithZone, formatRelative } from '@/lib/dateTime';
@@ -229,6 +232,54 @@ function EditSensorDialog({
   );
 }
 
+/**
+ * Switches one Sensor's maintenance mode. Starting maintenance is a
+ * consequential action - every value the Device sends for that Sensor is
+ * accepted but thrown away (not stored, not analysed) until it is ended, and
+ * that data cannot be recovered afterwards - so it goes through the shared
+ * confirm dialog and says so. Ending it is harmless and uses the same dialog
+ * only for consistency.
+ */
+function MaintenanceDialog({
+  deviceId,
+  sensor,
+  open,
+  onClose,
+}: {
+  deviceId: number;
+  sensor: SensorDto;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const toast = useAppToast();
+  const setMaintenance = useSetSensorMaintenance(deviceId, sensor.id!);
+  const starting = !sensor.maintenanceMode;
+  const label = sensor.name || sensor.externalSensorId;
+
+  return (
+    <ConfirmDialog
+      open={open}
+      title={starting ? `Start maintenance on ${label}?` : `End maintenance on ${label}?`}
+      confirmLabel={starting ? 'Start maintenance' : 'End maintenance'}
+      intent={starting ? 'destructive' : 'normal'}
+      busy={setMaintenance.isPending}
+      onConfirm={async () => {
+        await setMaintenance.mutateAsync(starting);
+        toast.success(starting ? `Maintenance started: ${label}` : `Maintenance ended: ${label}`);
+        onClose();
+      }}
+      onCancel={onClose}
+    >
+      <Text>
+        {starting
+          ? 'While this Sensor is in maintenance, every value the Device sends for it is accepted but ignored: it is not stored and not analysed, so no Issue can be raised from it. Data sent during maintenance cannot be recovered afterwards.'
+          : 'The Device’s values for this Sensor will be stored and analysed again from now on.'}
+      </Text>
+      {setMaintenance.isError && <ErrorState error={setMaintenance.error} />}
+    </ConfirmDialog>
+  );
+}
+
 export function DeviceDetailPage() {
   const styles = useStyles();
   const { deviceId } = useParams<{ deviceId: string }>();
@@ -251,6 +302,7 @@ export function DeviceDetailPage() {
   const [disableConfirmOpen, setDisableConfirmOpen] = useState(false);
   const [addSensorOpen, setAddSensorOpen] = useState(false);
   const [editingSensorId, setEditingSensorId] = useState<number | null>(null);
+  const [maintenanceSensorId, setMaintenanceSensorId] = useState<number | null>(null);
 
   if (deviceQuery.isLoading) return <LoadingState label="Loading device…" />;
   if (deviceQuery.isError) return <ErrorState error={deviceQuery.error} onRetry={() => deviceQuery.refetch()} />;
@@ -258,6 +310,8 @@ export function DeviceDetailPage() {
   if (!device) return <EmptyState title="Device not found" />;
 
   const editingSensor = sensorsQuery.data?.find((s) => s.id === editingSensorId) ?? null;
+  const maintenanceSensor = sensorsQuery.data?.find((s) => s.id === maintenanceSensorId) ?? null;
+  const sensorsInMaintenance = (sensorsQuery.data ?? []).filter((s) => s.maintenanceMode).length;
 
   const startEdit = () => {
     setNameDraft(device.deviceName ?? '');
@@ -402,6 +456,14 @@ export function DeviceDetailPage() {
           }
         />
       )}
+      {sensorsInMaintenance > 0 && (
+        <MessageBar intent="warning" style={{ marginBottom: tokens.spacingVerticalM }}>
+          <MessageBarBody>
+            {sensorsInMaintenance === 1 ? '1 Sensor is' : `${sensorsInMaintenance} Sensors are`} in maintenance mode: values the Device sends for{' '}
+            {sensorsInMaintenance === 1 ? 'it are' : 'them are'} ignored (not stored, not analysed).
+          </MessageBarBody>
+        </MessageBar>
+      )}
       {sensorsQuery.data && sensorsQuery.data.length > 0 && (
         <Card>
           {sensorsQuery.data.map((sensor, index) => (
@@ -417,7 +479,13 @@ export function DeviceDetailPage() {
                   </Text>
                 </div>
                 <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center' }}>
+                  <MaintenancePill maintenanceMode={sensor.maintenanceMode} />
                   <EnabledPill enabled={sensor.enabled} />
+                  {isAdmin && (
+                    <Button size="small" icon={<Wrench24Regular />} onClick={() => setMaintenanceSensorId(sensor.id!)}>
+                      {sensor.maintenanceMode ? 'End maintenance' : 'Maintenance'}
+                    </Button>
+                  )}
                   {isAdmin && (
                     <Button size="small" icon={<Edit24Regular />} onClick={() => setEditingSensorId(sensor.id!)}>
                       Edit
@@ -484,6 +552,16 @@ export function DeviceDetailPage() {
           sensor={editingSensor}
           open={editingSensorId !== null}
           onClose={() => setEditingSensorId(null)}
+        />
+      )}
+
+      {isAdmin && maintenanceSensor && (
+        <MaintenanceDialog
+          key={`${maintenanceSensor.id}-${maintenanceSensor.maintenanceMode}`}
+          deviceId={id}
+          sensor={maintenanceSensor}
+          open={maintenanceSensorId !== null}
+          onClose={() => setMaintenanceSensorId(null)}
         />
       )}
     </>

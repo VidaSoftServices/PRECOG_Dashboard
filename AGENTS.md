@@ -189,6 +189,17 @@ provide.
   written to React Query cache, browser storage, or a URL. See
   `src/pages/devices/DevicePrincipalPage.tsx` for the reference
   implementation.
+- A mobile-device MAC address is a spoofable identifier and personal data,
+  never a credential. It is shown only to Admins on the "Mobile devices" tab of
+  `/admin/readers`, and is never placed in a URL, browser storage, or a log
+  line. The dashboard does not implement the DevicePrincipal-only
+  `MacAddresses_Subscribe`/`MacAddresses_Resolve`/`MacAddresses_LatestIssue`
+  operations (a human receives 403 there). A Device can never change Sensor
+  maintenance mode - only read it.
+- Sensor maintenance mode is Admin-controlled: the control renders for an Admin
+  only and goes through `ConfirmDialog`, but hiding it is a UX convenience -
+  the server's 403 (`You need admin privileges to set maintenance mode.`) is
+  the boundary. Every level may see the state (`SensorDto.maintenanceMode`).
 - Backend-, User-, category-, technician-, and Ollama-authored text is
   always rendered as text (see the raw-HTML rule above).
 - Examples, tests, and fixtures use placeholder credentials only — never a

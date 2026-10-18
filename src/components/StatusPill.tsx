@@ -6,6 +6,7 @@ import {
   ErrorCircle16Regular,
   QuestionCircle16Regular,
   Circle16Regular,
+  Wrench16Regular,
 } from '@fluentui/react-icons';
 import type { Freshness } from '@/lib/dateTime';
 
@@ -73,6 +74,21 @@ export function EnabledPill({ enabled }: { enabled: boolean | null | undefined }
   ) : (
     <Badge appearance="tint" color="subtle" icon={<Circle16Regular />}>
       Disabled
+    </Badge>
+  );
+}
+
+/**
+ * Shown for a Sensor in maintenance mode: its telemetry is being ignored (not
+ * stored, not analysed), so this is a state the viewer must not mistake for
+ * "healthy" or "silent". Icon + text label, never color alone. Renders nothing
+ * for a Sensor that is not in maintenance.
+ */
+export function MaintenancePill({ maintenanceMode }: { maintenanceMode: boolean | null | undefined }) {
+  if (!maintenanceMode) return null;
+  return (
+    <Badge appearance="filled" color="warning" icon={<Wrench16Regular />}>
+      Maintenance
     </Badge>
   );
 }

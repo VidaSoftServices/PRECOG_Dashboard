@@ -31,18 +31,19 @@ export interface LiveMonitoringScheduleState {
 
 /**
  * Bounded-concurrency rate: math, not a guess (CLAUDE.md's "Live Monitoring"
- * has the full derivation). `LargeTelemetryRead` allows 30 requests/60s per
- * client IP - shared across every dashboard page and every browser tab on
- * that network, not just this one. Dispatching more than one Sensor
- * concurrently, even the commonly-suggested "2-4", already exceeds the
- * entire budget on its own (2 x 20 cycles/min = 40/min > 30/min) before
- * accounting for any other page or tab. Exactly one Sensor fetched per tick
- * (never more, by construction - the loop below always awaits the previous
- * fetch before scheduling the next) yields 20 requests/min sustained: 67%
- * of the hard limit, a genuine 33% margin for everything else sharing that
- * IP. This is a *stronger* guarantee than "bounded concurrency 2-4" would
- * have been, not a weaker one - peak concurrent Live-Monitoring-originated
- * requests is 1, not up to 4.
+ * has the full derivation). `LargeTelemetryRead` allows 240 requests/120s
+ * (120/min on average) per client IP - shared across every dashboard page and
+ * every browser tab on that network, not just this one. Dispatching several
+ * Sensors concurrently, even the commonly-suggested "2-4", multiplies the
+ * request rate (2 x 20 cycles/min = 40/min) and leaves that much less for
+ * every other page and tab. Exactly one Sensor fetched per tick (never more,
+ * by construction - the loop below always awaits the previous fetch before
+ * scheduling the next) yields 20 requests/min sustained: about 17% of the
+ * limit, a wide margin for everything else sharing that IP. This is a
+ * *stronger* guarantee than "bounded concurrency 2-4" would have been, not a
+ * weaker one - peak concurrent Live-Monitoring-originated requests is 1, not
+ * up to 4. The API's limits were doubled; the cadence was deliberately not
+ * raised with them.
  */
 const FALLBACK_BACKOFF_BASE_MS = 5_000;
 const FALLBACK_BACKOFF_MAX_MS = 60_000;

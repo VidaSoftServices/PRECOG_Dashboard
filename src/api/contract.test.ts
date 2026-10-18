@@ -92,4 +92,28 @@ describe('OpenAPI contract quality (static - reads schema.generated.ts, no live 
     const dtoBlock = schemaText.slice(start, end);
     expect(dtoBlock).toMatch(/status\??:\s*string(\s*\|\s*null)?;/);
   });
+
+  it('the Sensor maintenance request is just an explicit enabled flag - no MAC address: a Device can never change maintenance mode', () => {
+    const start = schemaText.indexOf('SetSensorMaintenanceRequest: {');
+    expect(start).toBeGreaterThan(-1);
+    const end = schemaText.indexOf('\n        };', start);
+    const dtoBlock = schemaText.slice(start, end);
+    expect(dtoBlock).toMatch(/enabled:\s*boolean;/);
+    expect(dtoBlock).not.toMatch(/macAddress/);
+  });
+
+  it('SensorDto still carries the maintenance state every access level reads', () => {
+    const start = schemaText.indexOf('SensorDto: {');
+    expect(start).toBeGreaterThan(-1);
+    const end = schemaText.indexOf('\n        };', start);
+    const dtoBlock = schemaText.slice(start, end);
+    expect(dtoBlock).toMatch(/maintenanceMode\?:\s*boolean;/);
+    expect(dtoBlock).toMatch(/maintenanceSince\?:/);
+  });
+
+  it('the MAC address registry routes this dashboard manages still exist', () => {
+    for (const path of ['/api/MacAddresses', '/api/MacAddresses/{id}']) {
+      expect(schemaText).toContain(`"${path}":`);
+    }
+  });
 });

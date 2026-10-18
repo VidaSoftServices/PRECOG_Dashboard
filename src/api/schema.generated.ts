@@ -114,7 +114,7 @@ export interface paths {
         put?: never;
         /**
          * Ingest BiSignal values for one or more bidirectional Sensors of a continuous-operation Device.
-         * @description SensorId is required on every item (CLAUDE.md "Final telemetry ingestion SensorId contract") - it is never taken from a query parameter. A batch may reference more than one Sensor only when every referenced Sensor belongs to this same Device; the complete batch is rejected before persistence if any item or Sensor is invalid.
+         * @description SensorId is required on every item (CLAUDE.md "Final telemetry ingestion SensorId contract") - it is never taken from a query parameter. A batch may reference more than one Sensor only when every referenced Sensor belongs to this same Device; the complete batch is rejected before persistence if any item or Sensor is invalid. Values for a Sensor that is in maintenance mode (see PUT /api/Devices/{deviceId}/Sensors/{sensorId}/Maintenance) are accepted but ignored - not stored and not analysed - and do not make the request fail; the response simply carries no analysis result for that Sensor.
          */
         post: operations["BiDirectionalContinuous_IngestBiSignals"];
         delete?: never;
@@ -254,7 +254,7 @@ export interface paths {
         put?: never;
         /**
          * Ingest one or more curve runs for bidirectional Sensors of a periodic-operation Device.
-         * @description SensorId is required on every item (CLAUDE.md "Final telemetry ingestion SensorId contract") - it is never taken from a query parameter. A batch may reference more than one Sensor only when every referenced Sensor belongs to this same Device; the complete batch is rejected before persistence if any item or Sensor is invalid.
+         * @description SensorId is required on every item (CLAUDE.md "Final telemetry ingestion SensorId contract") - it is never taken from a query parameter. A batch may reference more than one Sensor only when every referenced Sensor belongs to this same Device; the complete batch is rejected before persistence if any item or Sensor is invalid. Values for a Sensor that is in maintenance mode (see PUT /api/Devices/{deviceId}/Sensors/{sensorId}/Maintenance) are accepted but ignored - not stored and not analysed - and do not make the request fail; the response simply carries no analysis result for that Sensor.
          */
         post: operations["BiDirectionalPeriodic_IngestCurves"];
         delete?: never;
@@ -558,7 +558,7 @@ export interface paths {
         put?: never;
         /**
          * Ingest Signal values for one or more Sensors of a continuous-operation Device.
-         * @description SensorId is required on every item (CLAUDE.md "Final telemetry ingestion SensorId contract") - it is never taken from a query parameter. A batch may reference more than one Sensor only when every referenced Sensor belongs to this same Device; the complete batch is rejected before persistence if any item or Sensor is invalid.
+         * @description SensorId is required on every item (CLAUDE.md "Final telemetry ingestion SensorId contract") - it is never taken from a query parameter. A batch may reference more than one Sensor only when every referenced Sensor belongs to this same Device; the complete batch is rejected before persistence if any item or Sensor is invalid. Values for a Sensor that is in maintenance mode (see PUT /api/Devices/{deviceId}/Sensors/{sensorId}/Maintenance) are accepted but ignored - not stored and not analysed - and do not make the request fail; the response simply carries no analysis result for that Sensor.
          */
         post: operations["Continuous_IngestSignals"];
         delete?: never;
@@ -837,6 +837,26 @@ export interface paths {
          */
         put: operations["Devices_UpdateDevice"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Devices/{deviceId}/Heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report that this Device is alive. DevicePrincipal only.
+         * @description Stamps the Device's "last observed activity" (the DeviceDto.heartBeat value the dashboard shows as "Last heartbeat") with the SERVER's current UTC instant. Takes no request body and no timestamp: the client cannot influence the stored value in any way. Intended for a Device that is running but currently has nothing to upload - a stopped machine reports unchanged or zero-valued sensors, which the uploader legitimately suppresses, so telemetry alone would make a healthy Device look silent. A Device that uploads telemetry normally does not need this call: every accepted DevicePrincipal telemetry ingestion stamps the same field. Machine-only by design - a human Admin or Reader is rejected with 403, because a person calling it would fabricate Device activity that never happened. Purely a liveness marker: it writes no Signal row and starts no analysis, training, Issue processing or Ollama work. Idempotent and monotonic - repeating it only moves the stored instant forward, never backwards.
+         */
+        post: operations["Devices_Heartbeat"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1419,6 +1439,162 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/MacAddresses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the Company's MAC address registry entries. Requires Company Admin.
+         * @description Read-only. status selects one view: "Queued" is the registration queue (oldest request first), "Assigned" the MAC addresses already belonging to a User, "Blacklisted" the rejected ones (both most recently changed first). Omit status to list every entry, most recently changed first. Paginated with skip/take (take defaults to 100 and is clamped to 500). Requires an authenticated Company Admin; a DevicePrincipal is denied.
+         */
+        get: operations["MacAddresses_GetMacAddresses"];
+        put?: never;
+        /**
+         * Register a MAC address directly for a Company User. Requires Company Admin.
+         * @description Creates an Assigned entry without the MAC address having to wait in the queue. The User must belong to the caller's Company, be enabled, and hold the Admin or Reader role. A MAC address already present in the registry in any state (queued, assigned or blacklisted) is rejected with 409 - move it with PUT /api/MacAddresses/{id} instead, so a MAC address is never in two states at once. Audited. Requires an authenticated Company Admin; a DevicePrincipal is denied.
+         */
+        post: operations["MacAddresses_CreateMacAddress"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/MacAddresses/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get one MAC address registry entry. Requires Company Admin.
+         * @description Read-only. Returns 404 when the entry does not exist in the caller's Company. Requires an authenticated Company Admin; a DevicePrincipal is denied.
+         */
+        get: operations["MacAddresses_GetMacAddress"];
+        /**
+         * Assign, reassign, blacklist or re-queue a MAC address, or edit its note. Requires Company Admin.
+         * @description Moves one registry entry between the queue, a User and the blacklist. status "Assigned" with a userId assigns the MAC address (from the queue or the blacklist) or, if it is already assigned, moves it to another User. status "Blacklisted" blacklists it - it then no longer shows in the queue and is silently ignored when a Device submits it again. status "Queued" puts it back in the queue (the way to take a MAC address off the blacklist, or to unassign it). An assigned User must belong to the caller's Company, be enabled, and hold the Admin or Reader role. Every field is optional; omitted fields are left unchanged, and a request that changes nothing succeeds without writing an audit record. Audited. Requires an authenticated Company Admin; a DevicePrincipal is denied.
+         */
+        put: operations["MacAddresses_UpdateMacAddress"];
+        post?: never;
+        /**
+         * Remove a MAC address from the registry. Requires Company Admin.
+         * @description Deletes the entry whatever state it is in - queued, assigned or blacklisted. Removing a blacklisted entry takes the MAC address off the blacklist entirely; a Device may then submit it to the queue again. Idempotent: removing an entry that does not exist succeeds silently (204). Audited. Requires an authenticated Company Admin; a DevicePrincipal is denied.
+         */
+        delete: operations["MacAddresses_DeleteMacAddress"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/MacAddresses/Subscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask a Company Admin to register a mobile device's MAC address. DevicePrincipal only.
+         * @description Called by a Device (through its DevicePrincipal) when the person who just joined its network presents a MAC address it does not recognise. If the MAC address is already registered and resolves to a role on this Device, that role ("Admin" or "Reader") is returned and nothing is queued. Otherwise the MAC address is added to this Company's registration queue with the server's current UTC time as its submission timestamp, and the answer is role "Unknown" with queued true. A MAC address can be in the queue only once: repeating the request does not add a second entry or change the submission timestamp. A MAC address an Admin has blacklisted is ignored without any visible difference in the response, so the response never reveals whether an address is registered, queued or blacklisted. The queue is bounded per Company (MobileAccess:MaxQueuedPerCompany); when it is full the request is refused with 429. Example request: {"macAddress": "AA:BB:CC:DD:EE:FF"}. Machine-only: a human Admin or Reader is rejected with 403 - Admins register addresses with POST /api/MacAddresses.
+         */
+        post: operations["MacAddresses_Subscribe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/MacAddresses/Resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Look up the role of a mobile device's MAC address on this Device. DevicePrincipal only.
+         * @description Read-only; nothing is queued or changed. Called by a Device through its DevicePrincipal. Returns "Admin" when the MAC address is assigned to a Company Admin, "Reader" when it is assigned to a Company Reader who has access to the calling Device, and "Unknown" in every other case - not registered, queued, blacklisted, assigned to a disabled User, or assigned to a Reader without access to this Device. All the Unknown cases are indistinguishable, so the answer never reveals whether a MAC address exists in the registry; an Unknown MAC address may be submitted with POST /api/MacAddresses/Subscribe. Example request: {"macAddress": "AA:BB:CC:DD:EE:FF"}; example response: {"role": "Reader"}. Machine-only: a human Admin or Reader is rejected with 403. This is a POST so the MAC address travels in the body instead of a URL; it is safe to repeat.
+         */
+        post: operations["MacAddresses_Resolve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/MacAddresses/LatestIssue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read the latest Issue text of this Device for a recognised mobile device. DevicePrincipal only.
+         * @description Called by a Device through its DevicePrincipal. Lets a Device show the person who connected to it the text of the Device's most recent Issue, and nothing else. Read-only: it exposes no history, no telemetry and no way to change anything. The MAC address must resolve to "Admin" or "Reader" on this Device exactly as POST /api/MacAddresses/Resolve defines it (a Reader only when the Reader has access to this Device). Any other MAC address - not registered, queued, blacklisted, a disabled User, a Reader without access to this Device - is refused with the same 403 "Not available.", so the answer never reveals whether an address is registered. The Issue returned is the Device's most recently created canonical Issue (grouped duplicates are not listed separately); hasIssue is false when the Device has none yet, and message is null until the summary has been produced. Example request: {"macAddress": "AA:BB:CC:DD:EE:FF"}. Machine-only: a human Admin or Reader is rejected with 403 - they use the Issue endpoints. This is a POST so the MAC address travels in the body instead of a URL; it is safe to repeat.
+         */
+        post: operations["MacAddresses_LatestIssue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Devices/{deviceId}/Maintenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the maintenance state of every Sensor of a Device. Any authorized level.
+         * @description Read-only. Returns each Sensor of the Device with its maintenance state, plus anySensorInMaintenance - true when at least one Sensor is in maintenance - so a caller can tell at a glance whether the Device is being serviced. Readable by a Company Admin, by a Reader with access to the Device, and by the Device's own DevicePrincipal. 404 when the Device does not exist in the caller's Company or the caller has no access to it - existence is not disclosed either way.
+         */
+        get: operations["Maintenance_GetDeviceMaintenance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Devices/{deviceId}/Sensors/{sensorId}/Maintenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the maintenance state of one Sensor. Any authorized level.
+         * @description Read-only. maintenanceMode is true while telemetry for this Sensor is being ignored. Readable by a Company Admin, by a Reader with access to the Device, and by the Device's own DevicePrincipal. 404 when the Sensor does not exist on this Device or the caller has no access to the Device.
+         */
+        get: operations["Maintenance_GetSensorMaintenance"];
+        /**
+         * Switch a Sensor's maintenance mode on or off. Requires a human Company Admin.
+         * @description While a Sensor is in maintenance, telemetry sent for it is accepted (202) but ignored - not stored and not analysed. Maintenance is an operational state: it never changes the Sensor's configuration and never triggers retraining. Only a human Company Admin may change it. A Reader receives 403 with the message "You need admin privileges to set maintenance mode." A Device's DevicePrincipal can never change it - not even on behalf of an Admin's registered MAC address - and is rejected by default with 403 "Device principals cannot access this operation."; a Device can only READ the state (GET). Idempotent: setting the state the Sensor already has succeeds without writing an audit record. Every real change is audited and logged with the acting Admin. Example request: {"enabled": true}.
+         */
+        put: operations["Maintenance_SetSensorMaintenance"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/Devices/{deviceId}/ModelQuery": {
         parameters: {
             query?: never;
@@ -1510,7 +1686,7 @@ export interface paths {
         put?: never;
         /**
          * Ingest one or more curve runs for one or more Sensors of a periodic-operation Device.
-         * @description SensorId is required on every item (CLAUDE.md "Final telemetry ingestion SensorId contract") - it is never taken from a query parameter. A batch may reference more than one Sensor only when every referenced Sensor belongs to this same Device; the complete batch is rejected before persistence if any item or Sensor is invalid.
+         * @description SensorId is required on every item (CLAUDE.md "Final telemetry ingestion SensorId contract") - it is never taken from a query parameter. A batch may reference more than one Sensor only when every referenced Sensor belongs to this same Device; the complete batch is rejected before persistence if any item or Sensor is invalid. Values for a Sensor that is in maintenance mode (see PUT /api/Devices/{deviceId}/Sensors/{sensorId}/Maintenance) are accepted but ignored - not stored and not analysed - and do not make the request fail; the response simply carries no analysis result for that Sensor.
          */
         post: operations["Periodic_IngestCurves"];
         delete?: never;
@@ -2269,6 +2445,18 @@ export interface components {
             /** @description Required. Human-readable display name. */
             name: string | null;
         };
+        /** @description Request to register a MAC address directly for a User, without it having to wait in the queue. */
+        CreateMacAddressEntryRequest: {
+            /** @description The MAC address in any common notation (AA:BB:CC:DD:EE:FF, AA-BB-CC-DD-EE-FF, AABB.CCDD.EEFF or AABBCCDDEEFF, either case). Must be a unicast address: all-zero, broadcast and multicast addresses are rejected. */
+            macAddress: string;
+            /**
+             * Format: int64
+             * @description Internal id of the Company User the MAC address is assigned to. The User must belong to the caller's Company, be enabled, and hold the Admin or Reader role.
+             */
+            userId: number;
+            /** @description Optional note, at most 200 characters. */
+            label?: string | null;
+        };
         /**
          * @description Creating a Sensor also creates its required raw/base SensorAggregationPolicy
          *     (SourceDataKey=Actual, TimeScale=Native, AggregationFunction=Raw) in the
@@ -2648,6 +2836,18 @@ export interface components {
             principalId: number;
             /** @description Never echoed back in any response - see the WriteOnly schema annotation. */
             secret: string;
+        };
+        /** @description Maintenance state of every Sensor of one Device. */
+        DeviceMaintenanceDto: {
+            /**
+             * Format: int32
+             * @description Read-only. The Device.
+             */
+            deviceId?: number;
+            /** @description Read-only. True when at least one Sensor of the Device is in maintenance mode. */
+            anySensorInMaintenance?: boolean;
+            /** @description Read-only. Every Sensor of the Device with its maintenance state, ordered by Sensor id. */
+            sensors?: components["schemas"]["SensorMaintenanceDto"][] | null;
         };
         /** @description No SecretHash or any recoverable secret material is ever included here - status is conveyed only through RevokedAt/ExpiresAt/LastUsedAt. */
         DevicePrincipalCredentialDto: {
@@ -3120,6 +3320,28 @@ export interface components {
             /** @description Empty when CurrentlyCompatible is true. Otherwise every reason the frozen mapping no longer verifies, safe to show an Admin. */
             compatibilityIssues?: string[] | null;
         };
+        /** @description The text of one Issue, for a person reading it on a Device. Read-only: nothing here can be changed through this contract. */
+        LatestIssueTextDto: {
+            /** @description The Issue's own summary text (Ollama-generated or Admin-written). Null while the summary has not been produced yet. Untrusted text - render as plain text, never as HTML. */
+            message?: string | null;
+            /**
+             * Format: date-time
+             * @description UTC instant the Issue was first recorded.
+             */
+            createdAt?: string;
+            /**
+             * Format: date-time
+             * @description UTC start of the measured range the Issue covers.
+             */
+            measuredAtFrom?: string;
+            /**
+             * Format: date-time
+             * @description UTC end of the measured range the Issue covers.
+             */
+            measuredAtTo?: string;
+            /** @description Human review verdict: "PendingReview", "ReviewedFault" or "ReviewedFalsePositive". */
+            reviewState?: string | null;
+        };
         /** @description Response shape for a Location in the caller's Company hierarchy. */
         LocationDto: {
             /**
@@ -3146,6 +3368,90 @@ export interface components {
             userName: string;
             /** @description Required, non-empty. Write-only - never echoed back or logged. */
             password: string;
+        };
+        /** @description One MAC address in the Company's registry: queued, assigned to a User, or blacklisted. */
+        MacAddressEntryDto: {
+            /**
+             * Format: int64
+             * @description Read-only, server-generated. Registry entry identifier.
+             */
+            id?: number;
+            /** @description Read-only. The MAC address formatted as six colon-separated uppercase hexadecimal octets, e.g. "AA:BB:CC:DD:EE:FF". */
+            macAddress?: string | null;
+            /** @description Read-only. "Queued" (waiting for an Admin), "Assigned" (belongs to a User) or "Blacklisted" (rejected). */
+            status?: string | null;
+            /**
+             * Format: int64
+             * @description Read-only. Internal User id the MAC address is assigned to. Null unless Status is "Assigned".
+             */
+            userId?: number | null;
+            /** @description Read-only. Display name of the assigned User, or null. */
+            userDisplayName?: string | null;
+            /** @description Read-only. Email address of the assigned User, or null. */
+            userEmail?: string | null;
+            /** @description Read-only. Company role of the assigned User: "Admin" when the User holds the Admin role, "Reader" when only the Reader role, otherwise null. */
+            userRole?: string | null;
+            /**
+             * Format: date-time
+             * @description Read-only. UTC instant the MAC address was first submitted to the queue (or registered directly by an Admin). Kept after the entry leaves the queue.
+             */
+            requestedAt?: string;
+            /**
+             * Format: int32
+             * @description Read-only. Id of the Device whose DevicePrincipal submitted the request, or null for an entry an Admin created directly.
+             */
+            requestedDeviceId?: number | null;
+            /** @description Read-only. Name of the Device that submitted the request, or null when unknown or the Device no longer exists. */
+            requestedDeviceName?: string | null;
+            /** @description Optional Admin-written note about this MAC address, e.g. "Anna's phone". Untrusted text, at most 200 characters. */
+            label?: string | null;
+            /**
+             * Format: date-time
+             * @description Read-only. UTC instant Status last changed.
+             */
+            statusChangedAt?: string;
+        };
+        /** @description Answer to "what is the latest Issue of this Device?" for a recognised MAC address. */
+        MacAddressLatestIssueResponse: {
+            /** @description The role the MAC address has on this Device: "Admin" or "Reader". Never "Unknown" - an unrecognised address receives 403 instead. */
+            role?: components["schemas"]["MacAddressRole"];
+            /** @description False when this Device has no Issue yet; then VidaSoft.API.DataFlow.MacAddressLatestIssueResponse.Issue is null. */
+            hasIssue?: boolean;
+            /** @description The Device's most recently created canonical Issue, or null when there is none. */
+            issue?: components["schemas"]["LatestIssueTextDto"] | null;
+        };
+        /** @description Request carrying a MAC address from a Device's DevicePrincipal. */
+        MacAddressRequest: {
+            /** @description The user's mobile device MAC address in any common notation (AA:BB:CC:DD:EE:FF, AA-BB-CC-DD-EE-FF, AABB.CCDD.EEFF or AABBCCDDEEFF, either case). Must be a unicast address. */
+            macAddress: string;
+        };
+        /**
+         * @description The role a MAC address resolves to for one DevicePrincipal. Deliberately
+         *     coarse: VidaSoft.API.DataFlow.MacAddressRole.Unknown is returned for a MAC address that is not
+         *     registered, is queued, is blacklisted, belongs to a disabled User or a
+         *     User without a role, AND for a Reader who has no access to the asking
+         *     Device - so a caller can never learn from the answer whether a MAC
+         *     address exists in the registry.
+         * @enum {string}
+         */
+        MacAddressRole: "Unknown" | "Reader" | "Admin";
+        /** @description Answer to "which role does this MAC address have on this Device?". */
+        MacAddressRoleResponse: {
+            /** @description "Admin", "Reader" or "Unknown". "Unknown" deliberately covers every other case - see the MacAddressRole enum. */
+            role?: components["schemas"]["MacAddressRole"];
+        };
+        /** @description Answer to a subscription request. */
+        MacAddressSubscribeResponse: {
+            /** @description The role the MAC address already has on this Device: "Admin" or "Reader" when it is already registered, otherwise "Unknown". */
+            role?: components["schemas"]["MacAddressRole"];
+            /**
+             * @description True when the MAC address is not recognised and a Company Admin has
+             *     been (or already was) asked to assign it. Always true together with
+             *     Role "Unknown" - the response intentionally does not reveal whether
+             *     the request is actually waiting in the queue, was already queued, or
+             *     was ignored because an Admin blacklisted the address.
+             */
+            queued?: boolean;
         };
         /**
          * @description Merges a duplicate category into a surviving one: every Issue assignment
@@ -3470,11 +3776,45 @@ export interface components {
             isCurve?: boolean;
             /** @description Read-only. False excludes this Sensor from ingestion/analysis without deleting its historical data. */
             enabled?: boolean;
+            /** @description Read-only. True while the Sensor is in maintenance mode: telemetry sent for it is accepted but ignored (not stored, not analysed). Changed only through PUT /api/Devices/{deviceId}/Sensors/{sensorId}/Maintenance by a Company Admin. */
+            maintenanceMode?: boolean;
+            /**
+             * Format: date-time
+             * @description Read-only. UTC instant maintenance mode was switched on, or null while the Sensor is not in maintenance.
+             */
+            maintenanceSince?: string | null;
             /**
              * Format: date-time
              * @description Read-only, server-generated. UTC creation timestamp.
              */
             createdAt?: string;
+        };
+        /** @description Maintenance state of one Sensor. */
+        SensorMaintenanceDto: {
+            /**
+             * Format: int32
+             * @description Read-only. The Device the Sensor belongs to.
+             */
+            deviceId?: number;
+            /**
+             * Format: int32
+             * @description Read-only. Device-scoped Sensor identifier.
+             */
+            sensorId?: number;
+            /** @description Read-only. The Sensor's display name. */
+            sensorName?: string | null;
+            /** @description Read-only. True while the Sensor is in maintenance mode: telemetry sent for it is accepted but ignored - not stored and not analysed. */
+            maintenanceMode?: boolean;
+            /**
+             * Format: date-time
+             * @description Read-only. UTC instant maintenance mode was switched on. Null while the Sensor is not in maintenance.
+             */
+            maintenanceSince?: string | null;
+            /**
+             * Format: int64
+             * @description Read-only. Internal User id of the Admin who last switched maintenance mode on or off, or null if it has never been changed.
+             */
+            maintenanceSetByUserId?: number | null;
         };
         /** @description Request to enable or disable a Device's machine-access principal. */
         SetDevicePrincipalEnabledRequest: {
@@ -3483,6 +3823,11 @@ export interface components {
         };
         SetIssueCategoryEnabledRequest: {
             /** @description False retires the category, true restores it. Categories are never physically deleted while referenced by an Issue. */
+            enabled: boolean;
+        };
+        /** @description Request to switch one Sensor's maintenance mode on or off. Company Admin (human) only; a DevicePrincipal can never send it. */
+        SetSensorMaintenanceRequest: {
+            /** @description True to put the Sensor into maintenance mode (telemetry for it is ignored), false to take it out again. */
             enabled: boolean;
         };
         /**
@@ -3886,6 +4231,31 @@ export interface components {
             code?: string | null;
         };
         /**
+         * @description Request to move a registry entry between the queue, a User and the
+         *     blacklist, and/or to edit its note. Every field is optional; an omitted
+         *     field is left unchanged.
+         */
+        UpdateMacAddressEntryRequest: {
+            /**
+             * @description Target state: "Queued" (put it back in the queue, e.g. to take it off
+             *     the blacklist), "Assigned" (requires a User - see UserId) or
+             *     "Blacklisted". Omit to keep the current state.
+             */
+            status?: string | null;
+            /**
+             * Format: int64
+             * @description The User to assign the MAC address to. Required when Status is
+             *     "Assigned" and the entry is not already assigned; when the entry is
+             *     already assigned, supplying a different UserId reassigns it. Must be
+             *     omitted when Status is "Queued" or "Blacklisted". The User must
+             *     belong to the caller's Company, be enabled, and hold the Admin or
+             *     Reader role.
+             */
+            userId?: number | null;
+            /** @description New note, at most 200 characters. An empty string clears the note; omit to keep it. */
+            label?: string | null;
+        };
+        /**
          * @description Only Sensor-level fields. Lookback/Scale/MinIssueScore are updated per
          *     aggregation policy via PUT .../AggregationPolicies/{policyId} instead -
          *     updating one aggregation level must not modify another.
@@ -4281,49 +4651,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 3,
                  *         "period": 1,
-                 *         "measured": "2026-08-25T07:24:39.989187Z",
+                 *         "measured": "2026-10-12T14:17:39.1177823Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 2,
-                 *         "measured": "2026-08-26T07:24:39.989188Z",
+                 *         "measured": "2026-10-13T14:17:39.1178249Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 3,
-                 *         "measured": "2026-08-27T07:24:39.9891881Z",
+                 *         "measured": "2026-10-14T14:17:39.1178254Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 4,
-                 *         "measured": "2026-08-28T07:24:39.9891882Z",
+                 *         "measured": "2026-10-15T14:17:39.1178257Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 5,
-                 *         "measured": "2026-08-29T07:24:39.9891883Z",
+                 *         "measured": "2026-10-16T14:17:39.117826Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 6,
-                 *         "measured": "2026-08-30T07:24:39.9891885Z",
+                 *         "measured": "2026-10-17T14:17:39.117827Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 1,
-                 *         "measured": "2026-08-25T07:24:39.9891886Z",
+                 *         "measured": "2026-10-12T14:17:39.1178273Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 2,
-                 *         "measured": "2026-08-26T07:24:39.9891887Z",
+                 *         "measured": "2026-10-13T14:17:39.1178276Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -4334,49 +4704,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 3,
                  *         "period": 1,
-                 *         "measured": "2026-08-25T07:24:39.989187Z",
+                 *         "measured": "2026-10-12T14:17:39.1177823Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 2,
-                 *         "measured": "2026-08-26T07:24:39.989188Z",
+                 *         "measured": "2026-10-13T14:17:39.1178249Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 3,
-                 *         "measured": "2026-08-27T07:24:39.9891881Z",
+                 *         "measured": "2026-10-14T14:17:39.1178254Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 4,
-                 *         "measured": "2026-08-28T07:24:39.9891882Z",
+                 *         "measured": "2026-10-15T14:17:39.1178257Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 5,
-                 *         "measured": "2026-08-29T07:24:39.9891883Z",
+                 *         "measured": "2026-10-16T14:17:39.117826Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 6,
-                 *         "measured": "2026-08-30T07:24:39.9891885Z",
+                 *         "measured": "2026-10-17T14:17:39.117827Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 1,
-                 *         "measured": "2026-08-25T07:24:39.9891886Z",
+                 *         "measured": "2026-10-12T14:17:39.1178273Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 2,
-                 *         "measured": "2026-08-26T07:24:39.9891887Z",
+                 *         "measured": "2026-10-13T14:17:39.1178276Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -4387,49 +4757,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 3,
                  *         "period": 1,
-                 *         "measured": "2026-08-25T07:24:39.989187Z",
+                 *         "measured": "2026-10-12T14:17:39.1177823Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 2,
-                 *         "measured": "2026-08-26T07:24:39.989188Z",
+                 *         "measured": "2026-10-13T14:17:39.1178249Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 3,
-                 *         "measured": "2026-08-27T07:24:39.9891881Z",
+                 *         "measured": "2026-10-14T14:17:39.1178254Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 4,
-                 *         "measured": "2026-08-28T07:24:39.9891882Z",
+                 *         "measured": "2026-10-15T14:17:39.1178257Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 5,
-                 *         "measured": "2026-08-29T07:24:39.9891883Z",
+                 *         "measured": "2026-10-16T14:17:39.117826Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 6,
-                 *         "measured": "2026-08-30T07:24:39.9891885Z",
+                 *         "measured": "2026-10-17T14:17:39.117827Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 1,
-                 *         "measured": "2026-08-25T07:24:39.9891886Z",
+                 *         "measured": "2026-10-12T14:17:39.1178273Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 2,
-                 *         "measured": "2026-08-26T07:24:39.9891887Z",
+                 *         "measured": "2026-10-13T14:17:39.1178276Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -4783,22 +5153,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-08-31T04:24:39.9927752Z",
+                 *             "measured": "2026-10-18T11:17:39.1792714Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-08-31T04:54:39.9927763Z",
+                 *             "measured": "2026-10-18T11:47:39.1793168Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-08-31T05:24:39.9927764Z",
+                 *             "measured": "2026-10-18T12:17:39.1793172Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-08-31T05:54:39.9927765Z",
+                 *             "measured": "2026-10-18T12:47:39.1793175Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -4809,22 +5179,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-08-31T06:24:39.9927767Z",
+                 *             "measured": "2026-10-18T13:17:39.1793747Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-08-31T06:39:39.9927768Z",
+                 *             "measured": "2026-10-18T13:32:39.1793753Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-08-31T06:54:39.9927776Z",
+                 *             "measured": "2026-10-18T13:47:39.1793772Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-08-31T07:09:39.9927777Z",
+                 *             "measured": "2026-10-18T14:02:39.1793774Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -4835,12 +5205,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-08-31T04:24:39.9927778Z",
+                 *             "measured": "2026-10-18T11:17:39.1793779Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-08-31T04:54:39.9927779Z",
+                 *             "measured": "2026-10-18T11:47:39.1793783Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -4856,22 +5226,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-08-31T04:24:39.9927752Z",
+                 *             "measured": "2026-10-18T11:17:39.1792714Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-08-31T04:54:39.9927763Z",
+                 *             "measured": "2026-10-18T11:47:39.1793168Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-08-31T05:24:39.9927764Z",
+                 *             "measured": "2026-10-18T12:17:39.1793172Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-08-31T05:54:39.9927765Z",
+                 *             "measured": "2026-10-18T12:47:39.1793175Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -4882,22 +5252,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-08-31T06:24:39.9927767Z",
+                 *             "measured": "2026-10-18T13:17:39.1793747Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-08-31T06:39:39.9927768Z",
+                 *             "measured": "2026-10-18T13:32:39.1793753Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-08-31T06:54:39.9927776Z",
+                 *             "measured": "2026-10-18T13:47:39.1793772Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-08-31T07:09:39.9927777Z",
+                 *             "measured": "2026-10-18T14:02:39.1793774Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -4908,12 +5278,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-08-31T04:24:39.9927778Z",
+                 *             "measured": "2026-10-18T11:17:39.1793779Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-08-31T04:54:39.9927779Z",
+                 *             "measured": "2026-10-18T11:47:39.1793783Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -4929,22 +5299,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-08-31T04:24:39.9927752Z",
+                 *             "measured": "2026-10-18T11:17:39.1792714Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-08-31T04:54:39.9927763Z",
+                 *             "measured": "2026-10-18T11:47:39.1793168Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-08-31T05:24:39.9927764Z",
+                 *             "measured": "2026-10-18T12:17:39.1793172Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-08-31T05:54:39.9927765Z",
+                 *             "measured": "2026-10-18T12:47:39.1793175Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -4955,22 +5325,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-08-31T06:24:39.9927767Z",
+                 *             "measured": "2026-10-18T13:17:39.1793747Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-08-31T06:39:39.9927768Z",
+                 *             "measured": "2026-10-18T13:32:39.1793753Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-08-31T06:54:39.9927776Z",
+                 *             "measured": "2026-10-18T13:47:39.1793772Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-08-31T07:09:39.9927777Z",
+                 *             "measured": "2026-10-18T14:02:39.1793774Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -4981,12 +5351,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-08-31T04:24:39.9927778Z",
+                 *             "measured": "2026-10-18T11:17:39.1793779Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-08-31T04:54:39.9927779Z",
+                 *             "measured": "2026-10-18T11:47:39.1793783Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -5851,49 +6221,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 1,
                  *         "period": 1,
-                 *         "measured": "2026-08-25T07:24:40.0045025Z",
+                 *         "measured": "2026-10-12T14:17:39.2404452Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 2,
-                 *         "measured": "2026-08-26T07:24:40.0045033Z",
+                 *         "measured": "2026-10-13T14:17:39.2404814Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 3,
-                 *         "measured": "2026-08-27T07:24:40.0045034Z",
+                 *         "measured": "2026-10-14T14:17:39.2404818Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 4,
-                 *         "measured": "2026-08-28T07:24:40.0045035Z",
+                 *         "measured": "2026-10-15T14:17:39.2404821Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 5,
-                 *         "measured": "2026-08-29T07:24:40.0045036Z",
+                 *         "measured": "2026-10-16T14:17:39.2404824Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 6,
-                 *         "measured": "2026-08-30T07:24:40.0045039Z",
+                 *         "measured": "2026-10-17T14:17:39.240483Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 1,
-                 *         "measured": "2026-08-25T07:24:40.004504Z",
+                 *         "measured": "2026-10-12T14:17:39.2404834Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 2,
-                 *         "measured": "2026-08-26T07:24:40.0045041Z",
+                 *         "measured": "2026-10-13T14:17:39.2404837Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -5904,49 +6274,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 1,
                  *         "period": 1,
-                 *         "measured": "2026-08-25T07:24:40.0045025Z",
+                 *         "measured": "2026-10-12T14:17:39.2404452Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 2,
-                 *         "measured": "2026-08-26T07:24:40.0045033Z",
+                 *         "measured": "2026-10-13T14:17:39.2404814Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 3,
-                 *         "measured": "2026-08-27T07:24:40.0045034Z",
+                 *         "measured": "2026-10-14T14:17:39.2404818Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 4,
-                 *         "measured": "2026-08-28T07:24:40.0045035Z",
+                 *         "measured": "2026-10-15T14:17:39.2404821Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 5,
-                 *         "measured": "2026-08-29T07:24:40.0045036Z",
+                 *         "measured": "2026-10-16T14:17:39.2404824Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 6,
-                 *         "measured": "2026-08-30T07:24:40.0045039Z",
+                 *         "measured": "2026-10-17T14:17:39.240483Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 1,
-                 *         "measured": "2026-08-25T07:24:40.004504Z",
+                 *         "measured": "2026-10-12T14:17:39.2404834Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 2,
-                 *         "measured": "2026-08-26T07:24:40.0045041Z",
+                 *         "measured": "2026-10-13T14:17:39.2404837Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -5957,49 +6327,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 1,
                  *         "period": 1,
-                 *         "measured": "2026-08-25T07:24:40.0045025Z",
+                 *         "measured": "2026-10-12T14:17:39.2404452Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 2,
-                 *         "measured": "2026-08-26T07:24:40.0045033Z",
+                 *         "measured": "2026-10-13T14:17:39.2404814Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 3,
-                 *         "measured": "2026-08-27T07:24:40.0045034Z",
+                 *         "measured": "2026-10-14T14:17:39.2404818Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 4,
-                 *         "measured": "2026-08-28T07:24:40.0045035Z",
+                 *         "measured": "2026-10-15T14:17:39.2404821Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 5,
-                 *         "measured": "2026-08-29T07:24:40.0045036Z",
+                 *         "measured": "2026-10-16T14:17:39.2404824Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 6,
-                 *         "measured": "2026-08-30T07:24:40.0045039Z",
+                 *         "measured": "2026-10-17T14:17:39.240483Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 1,
-                 *         "measured": "2026-08-25T07:24:40.004504Z",
+                 *         "measured": "2026-10-12T14:17:39.2404834Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 2,
-                 *         "measured": "2026-08-26T07:24:40.0045041Z",
+                 *         "measured": "2026-10-13T14:17:39.2404837Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -6805,6 +7175,57 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Devices_Heartbeat: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                deviceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Activity recorded. No response body. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, malformed or expired HMAC token, or the caller could not be resolved to an authorized Company. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The caller is a human User. This operation is restricted to a Device's own machine principal. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found or not accessible to the caller - existence is not disclosed either way. A DevicePrincipal receives this for any deviceId other than its own. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limit exceeded for this client address and Device (policy "DeviceHeartbeat"). Honour the Retry-After response header. */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8726,6 +9147,583 @@ export interface operations {
             };
         };
     };
+    MacAddresses_GetMacAddresses: {
+        parameters: {
+            query?: {
+                status?: string;
+                skip?: number;
+                take?: number;
+            };
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The requested page of registry entries. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["MacAddressEntryDto"][];
+                    "application/json": components["schemas"]["MacAddressEntryDto"][];
+                    "text/json": components["schemas"]["MacAddressEntryDto"][];
+                };
+            };
+            /** @description status is not one of Queued, Assigned or Blacklisted, or skip is negative. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MacAddresses_CreateMacAddress: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CreateMacAddressEntryRequest"];
+                "text/json": components["schemas"]["CreateMacAddressEntryRequest"];
+                "application/*+json": components["schemas"]["CreateMacAddressEntryRequest"];
+            };
+        };
+        responses: {
+            /** @description The new registry entry. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["MacAddressEntryDto"];
+                    "application/json": components["schemas"]["MacAddressEntryDto"];
+                    "text/json": components["schemas"]["MacAddressEntryDto"];
+                };
+            };
+            /** @description macAddress is not a valid unicast MAC address, label is longer than 200 characters, or userId does not identify an enabled Admin or Reader of the caller's Company. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The MAC address is already in the registry (queued, assigned or blacklisted). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MacAddresses_GetMacAddress: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The registry entry. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["MacAddressEntryDto"];
+                    "application/json": components["schemas"]["MacAddressEntryDto"];
+                    "text/json": components["schemas"]["MacAddressEntryDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MacAddresses_UpdateMacAddress: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UpdateMacAddressEntryRequest"];
+                "text/json": components["schemas"]["UpdateMacAddressEntryRequest"];
+                "application/*+json": components["schemas"]["UpdateMacAddressEntryRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated registry entry. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["MacAddressEntryDto"];
+                    "application/json": components["schemas"]["MacAddressEntryDto"];
+                    "text/json": components["schemas"]["MacAddressEntryDto"];
+                };
+            };
+            /** @description status is not Queued, Assigned or Blacklisted; userId is missing for an assignment, supplied for a non-assignment, or does not identify an enabled Admin or Reader of the caller's Company; or label is longer than 200 characters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MacAddresses_DeleteMacAddress: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The entry no longer exists in the registry. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MacAddresses_Subscribe: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MacAddressRequest"];
+                "text/json": components["schemas"]["MacAddressRequest"];
+                "application/*+json": components["schemas"]["MacAddressRequest"];
+            };
+        };
+        responses: {
+            /** @description The role the MAC address has on this Device, or Unknown with queued true. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["MacAddressSubscribeResponse"];
+                    "application/json": components["schemas"]["MacAddressSubscribeResponse"];
+                    "text/json": components["schemas"]["MacAddressSubscribeResponse"];
+                };
+            };
+            /** @description macAddress is not a valid unicast MAC address. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, malformed or expired HMAC token, or the caller could not be resolved to an authorized Company. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The caller is a human User. This operation is restricted to a Device's own machine principal. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Either the rate limit (policy "MacSubscribe") was exceeded - honour the Retry-After header - or this Company's registration queue is full (no Retry-After; an Admin must clear it). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MacAddresses_Resolve: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MacAddressRequest"];
+                "text/json": components["schemas"]["MacAddressRequest"];
+                "application/*+json": components["schemas"]["MacAddressRequest"];
+            };
+        };
+        responses: {
+            /** @description The role the MAC address has on this Device. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["MacAddressRoleResponse"];
+                    "application/json": components["schemas"]["MacAddressRoleResponse"];
+                    "text/json": components["schemas"]["MacAddressRoleResponse"];
+                };
+            };
+            /** @description macAddress is not a valid unicast MAC address. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, malformed or expired HMAC token, or the caller could not be resolved to an authorized Company. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The caller is a human User. This operation is restricted to a Device's own machine principal. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limit exceeded for this client address (policy "MacLookup"). Honour the Retry-After response header. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MacAddresses_LatestIssue: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MacAddressRequest"];
+                "text/json": components["schemas"]["MacAddressRequest"];
+                "application/*+json": components["schemas"]["MacAddressRequest"];
+            };
+        };
+        responses: {
+            /** @description The role of the MAC address and the Device's latest Issue, if any. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["MacAddressLatestIssueResponse"];
+                    "application/json": components["schemas"]["MacAddressLatestIssueResponse"];
+                    "text/json": components["schemas"]["MacAddressLatestIssueResponse"];
+                };
+            };
+            /** @description macAddress is not a valid unicast MAC address. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, malformed or expired HMAC token, or the caller could not be resolved to an authorized Company. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The caller is a human User, or the MAC address is not recognised as an Admin or a Reader with access to this Device ("Not available."). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limit exceeded for this client address (policy "MacLookup"). Honour the Retry-After response header. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Maintenance_GetDeviceMaintenance: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                deviceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Device's maintenance state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["DeviceMaintenanceDto"];
+                    "application/json": components["schemas"]["DeviceMaintenanceDto"];
+                    "text/json": components["schemas"]["DeviceMaintenanceDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found or not accessible to the caller - existence is not disclosed either way. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Maintenance_GetSensorMaintenance: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                deviceId: number;
+                sensorId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Sensor's maintenance state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["SensorMaintenanceDto"];
+                    "application/json": components["schemas"]["SensorMaintenanceDto"];
+                    "text/json": components["schemas"]["SensorMaintenanceDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found or not accessible to the caller - existence is not disclosed either way. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Maintenance_SetSensorMaintenance: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                deviceId: number;
+                sensorId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SetSensorMaintenanceRequest"];
+                "text/json": components["schemas"]["SetSensorMaintenanceRequest"];
+                "application/*+json": components["schemas"]["SetSensorMaintenanceRequest"];
+            };
+        };
+        responses: {
+            /** @description The Sensor's maintenance state after the call. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["SensorMaintenanceDto"];
+                    "application/json": components["schemas"]["SensorMaintenanceDto"];
+                    "text/json": components["schemas"]["SensorMaintenanceDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description "You need admin privileges to set maintenance mode." - the caller is a Reader; or the caller is a DevicePrincipal, which can never change maintenance mode. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The Sensor does not exist on this Device, or the caller has no access to the Device. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limit exceeded for this client address (policy "MaintenanceWrite"). Honour the Retry-After response header. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     ModelQuery_Query: {
         parameters: {
             query?: never;
@@ -8935,22 +9933,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-08-31T04:24:40.0340559Z",
+                 *             "measured": "2026-10-18T11:17:39.3890423Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-08-31T04:54:40.034057Z",
+                 *             "measured": "2026-10-18T11:47:39.3891521Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-08-31T05:24:40.0340572Z",
+                 *             "measured": "2026-10-18T12:17:39.3891529Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-08-31T05:54:40.0340573Z",
+                 *             "measured": "2026-10-18T12:47:39.3891531Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -8961,22 +9959,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-08-31T06:24:40.0340576Z",
+                 *             "measured": "2026-10-18T13:17:39.3892309Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-08-31T06:39:40.0340577Z",
+                 *             "measured": "2026-10-18T13:32:39.3892313Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-08-31T06:54:40.034059Z",
+                 *             "measured": "2026-10-18T13:47:39.3892317Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-08-31T07:09:40.0340591Z",
+                 *             "measured": "2026-10-18T14:02:39.3892319Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -8987,12 +9985,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-08-31T04:24:40.0340742Z",
+                 *             "measured": "2026-10-18T11:17:39.3892324Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-08-31T04:54:40.0340744Z",
+                 *             "measured": "2026-10-18T11:47:39.3892327Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -9008,22 +10006,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-08-31T04:24:40.0340559Z",
+                 *             "measured": "2026-10-18T11:17:39.3890423Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-08-31T04:54:40.034057Z",
+                 *             "measured": "2026-10-18T11:47:39.3891521Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-08-31T05:24:40.0340572Z",
+                 *             "measured": "2026-10-18T12:17:39.3891529Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-08-31T05:54:40.0340573Z",
+                 *             "measured": "2026-10-18T12:47:39.3891531Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -9034,22 +10032,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-08-31T06:24:40.0340576Z",
+                 *             "measured": "2026-10-18T13:17:39.3892309Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-08-31T06:39:40.0340577Z",
+                 *             "measured": "2026-10-18T13:32:39.3892313Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-08-31T06:54:40.034059Z",
+                 *             "measured": "2026-10-18T13:47:39.3892317Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-08-31T07:09:40.0340591Z",
+                 *             "measured": "2026-10-18T14:02:39.3892319Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -9060,12 +10058,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-08-31T04:24:40.0340742Z",
+                 *             "measured": "2026-10-18T11:17:39.3892324Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-08-31T04:54:40.0340744Z",
+                 *             "measured": "2026-10-18T11:47:39.3892327Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -9081,22 +10079,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-08-31T04:24:40.0340559Z",
+                 *             "measured": "2026-10-18T11:17:39.3890423Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-08-31T04:54:40.034057Z",
+                 *             "measured": "2026-10-18T11:47:39.3891521Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-08-31T05:24:40.0340572Z",
+                 *             "measured": "2026-10-18T12:17:39.3891529Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-08-31T05:54:40.0340573Z",
+                 *             "measured": "2026-10-18T12:47:39.3891531Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -9107,22 +10105,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-08-31T06:24:40.0340576Z",
+                 *             "measured": "2026-10-18T13:17:39.3892309Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-08-31T06:39:40.0340577Z",
+                 *             "measured": "2026-10-18T13:32:39.3892313Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-08-31T06:54:40.034059Z",
+                 *             "measured": "2026-10-18T13:47:39.3892317Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-08-31T07:09:40.0340591Z",
+                 *             "measured": "2026-10-18T14:02:39.3892319Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -9133,12 +10131,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-08-31T04:24:40.0340742Z",
+                 *             "measured": "2026-10-18T11:17:39.3892324Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-08-31T04:54:40.0340744Z",
+                 *             "measured": "2026-10-18T11:47:39.3892327Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
