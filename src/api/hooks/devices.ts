@@ -7,6 +7,7 @@ export type DeviceDto = components['schemas']['DeviceDto'];
 export type CreateDeviceRequest = components['schemas']['CreateDeviceRequest'];
 export type UpdateDeviceRequest = components['schemas']['UpdateDeviceRequest'];
 export type DeviceDeletionResult = components['schemas']['DeviceDeletionResultDto'];
+export type DeviceDataDeletionResult = components['schemas']['DeviceDataDeletionResultDto'];
 
 export function useDevices() {
   return useQuery({
@@ -83,6 +84,31 @@ export function useDeleteDevice(deviceId: number) {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.devices });
+    },
+  });
+}
+
+/**
+ * PERMANENTLY deletes all data of the Device (Admin only): the telemetry of every Sensor and the aggregation derived from it,
+ * plus the analysis built on it - Issues, models, training requests. The Device, its Sensors and settings, credentials and
+ * share configuration stay. Same typed-name confirmation as `useDeleteDevice`, checked by the API. Everything that may
+ * display that data is refetched afterwards.
+ */
+export function useDeleteDeviceData(deviceId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (confirmDeviceName: string) =>
+      unwrap(
+        await apiClient.DELETE('/api/Devices/{deviceId}/Data', {
+          params: { path: { deviceId } },
+          body: { confirmDeviceName },
+        }),
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['telemetry'] });
+      queryClient.invalidateQueries({ queryKey: ['issues'] });
+      queryClient.invalidateQueries({ queryKey: ['training'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.device(deviceId) });
     },
   });
 }

@@ -24,7 +24,7 @@ import { EnabledPill, FreshnessPill, MaintenancePill, ProcessingOffPill } from '
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SensorImportDialog } from './SensorImportDialog';
 import { SensorTypeInput } from '@/components/SensorTypeInput';
-import { DeleteDeviceDialog } from './DeleteDeviceDialog';
+import { DeleteDeviceDataDialog, DeleteDeviceDialog } from './DeleteDeviceDialog';
 import { useAppToast } from '@/components/ToastProvider';
 import { useDevice, useUpdateDevice, useDisableDevice } from '@/api/hooks/devices';
 import { useSensors, useCreateSensor, useUpdateSensor, type SensorDto } from '@/api/hooks/sensors';
@@ -353,6 +353,7 @@ export function DeviceDetailPage() {
   const [nameDraft, setNameDraft] = useState('');
   const [disableConfirmOpen, setDisableConfirmOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteDataOpen, setDeleteDataOpen] = useState(false);
   const [addSensorOpen, setAddSensorOpen] = useState(false);
   const [importSensorsOpen, setImportSensorsOpen] = useState(false);
   const [editingSensorId, setEditingSensorId] = useState<number | null>(null);
@@ -427,7 +428,10 @@ export function DeviceDetailPage() {
             <Divider />
             <div className={styles.editForm}>
               <Body1Strong>Danger zone</Body1Strong>
-              <Text size={200}>Permanently delete this device and all of its data. This cannot be undone.</Text>
+              <Text size={200}>Permanently delete all data of the device - measurements, Issues, models (the device, its Sensors and their settings stay) - or the whole device with everything of it. Neither can be undone.</Text>
+              <Button icon={<Delete24Regular />} onClick={() => setDeleteDataOpen(true)}>
+                Delete all data…
+              </Button>
               <Button icon={<Delete24Regular />} onClick={() => setDeleteOpen(true)}>
                 Delete device…
               </Button>
@@ -625,6 +629,19 @@ export function DeviceDetailPage() {
           applicationMode={device.applicationMode}
           open={addSensorOpen}
           onClose={() => setAddSensorOpen(false)}
+        />
+      )}
+
+      {isAdmin && deleteDataOpen && (
+        <DeleteDeviceDataDialog
+          deviceId={id}
+          device={device}
+          open={deleteDataOpen}
+          onClose={() => setDeleteDataOpen(false)}
+          onDeleted={(result) => {
+            setDeleteDataOpen(false);
+            toast.success(`All data of "${result.deviceName || result.externalDeviceId}" permanently deleted (${result.telemetryRowsDeleted} telemetry rows, ${result.issuesDeleted ?? 0} Issue(s), ${result.modelVersionsDeleted ?? 0} model version(s); ${result.sensorsAffected} Sensor(s) now empty).`);
+          }}
         />
       )}
 
