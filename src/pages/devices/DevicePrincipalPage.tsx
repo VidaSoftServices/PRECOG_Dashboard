@@ -20,6 +20,7 @@ import {
   MessageBar,
   MessageBarBody,
   MessageBarTitle,
+  Field,
   Input,
   Switch,
   makeStyles,
@@ -41,6 +42,7 @@ import {
   type ProvisionDevicePrincipalResponse,
 } from '@/api/hooks/devicePrincipal';
 import { formatDateTimeWithZone, formatRelative } from '@/lib/dateTime';
+import { MAX_EXACT_ID, formatInt64Id } from '@/lib/ids';
 
 const useStyles = makeStyles({
   secretBox: {
@@ -55,7 +57,61 @@ const useStyles = makeStyles({
     gap: tokens.spacingVerticalM,
     marginBottom: tokens.spacingVerticalL,
   },
+  fields: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacingVerticalM,
+    marginTop: tokens.spacingVerticalM,
+  },
 });
+
+/**
+ * A labelled, read-only value with its own Copy button - the shape of the Secret field, reused for the ids so all three
+ * look and behave the same. The value is only ever passed in by the caller; nothing is stored here beyond the "copied"
+ * flag, and nothing is written anywhere except the clipboard the user asked for.
+ */
+function CopyField({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  const styles = useStyles();
+  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setState('copied');
+    } catch {
+      // No clipboard permission / insecure context: say so instead of pretending, the value stays selectable.
+      setState('failed');
+    }
+  };
+
+  return (
+    <Field label={label} hint={hint}>
+      <div className={styles.secretBox}>
+        <Input value={value} readOnly style={{ flex: 1, fontFamily: 'monospace' }} />
+        <Button icon={<Copy24Regular />} onClick={copy} aria-label={`Copy ${label}`}>
+          {state === 'copied' ? 'Copied' : state === 'failed' ? 'Copy failed' : 'Copy'}
+        </Button>
+      </div>
+    </Field>
+  );
+}
+
+/**
+ * An id (the DevicePrincipal's, the Device's) as plain digits with a Copy button. Ids are NOT secrets and do not change on
+ * rotation. An id the browser cannot hold exactly (beyond 2^53 - 1, rounded by JSON parsing before it reaches this
+ * component) is never shown: showing rounded digits would be showing a wrong id, so the user is told instead.
+ */
+function IdField({ label, value, hint }: { label: string; value: number | null | undefined; hint?: string }) {
+  const id = formatInt64Id(value);
+  if (!id.exact) {
+    return (
+      <Field label={label} validationState="error" validationMessage={`This id is larger than ${MAX_EXACT_ID}, which the dashboard cannot show exactly. Read it from the API response instead.`}>
+        <Input value="" readOnly />
+      </Field>
+    );
+  }
+  return <CopyField label={label} value={id.text} hint={hint} />;
+}
 
 /**
  * The raw Secret is held ONLY in this component's local state, for exactly
@@ -65,19 +121,15 @@ const useStyles = makeStyles({
  */
 function SecretRevealDialog({
   secret,
+  deviceId,
   onClose,
 }: {
   secret: ProvisionDevicePrincipalResponse | null;
+  /** The Device this credential belongs to (from the page's route). */
+  deviceId: number;
   onClose: () => void;
 }) {
   const styles = useStyles();
-  const [copied, setCopied] = useState(false);
-
-  const copy = async () => {
-    if (!secret) return;
-    await navigator.clipboard.writeText(secret.secret ?? '');
-    setCopied(true);
-  };
 
   return (
     <Dialog open={secret !== null} onOpenChange={(_, data) => !data.open && onClose()}>
@@ -92,11 +144,10 @@ function SecretRevealDialog({
                 metadata (creation time, last used) will remain visible.
               </MessageBarBody>
             </MessageBar>
-            <div className={styles.secretBox}>
-              <Input value={secret?.secret ?? ''} readOnly style={{ flex: 1, fontFamily: 'monospace' }} />
-              <Button icon={<Copy24Regular />} onClick={copy}>
-                {copied ? 'Copied' : 'Copy'}
-              </Button>
+            <div className={styles.fields}>
+              <CopyField label="Secret" value={secret?.secret ?? ''} />
+              <IdField label="Principal ID" value={secret?.principalId} hint="Not a secret - it stays the same when the credential is rotated." />
+              <IdField label="Device ID" value={deviceId} />
             </div>
           </DialogContent>
           <DialogActions>
@@ -176,6 +227,10 @@ export function DevicePrincipalPage() {
                 }
               />
             </div>
+            <div className={styles.fields} style={{ marginTop: 0 }}>
+              <IdField label="Principal ID" value={principal.principalId} />
+              <IdField label="Device ID" value={principal.deviceId ?? id} />
+            </div>
             <div style={{ display: 'flex', gap: tokens.spacingHorizontalS }}>
               <Button
                 icon={<ArrowClockwise24Regular />}
@@ -233,7 +288,7 @@ export function DevicePrincipalPage() {
         </>
       )}
 
-      <SecretRevealDialog secret={revealedSecret} onClose={() => setRevealedSecret(null)} />
+      <SecretRevealDialog secret={revealedSecret} deviceId={id} onClose={() => setRevealedSecret(null)} />
 
       <ConfirmDialog
         open={revokeTargetId !== null}

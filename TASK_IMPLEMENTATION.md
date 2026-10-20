@@ -2539,3 +2539,8 @@ test on the API side either), and the Device-detail Switch/dialog has no compone
 
 - New: `DeleteDeviceDialog.tsx` (+ 7 tests: warning first, typed exact name, request body, name-less Device, server refusal), `useDeleteDevice`, a "Danger zone" in the Device Edit card (Admin only); `schema.generated.ts` regenerated. Supersedes the earlier "no delete" open point above.
 - Not covered by an automated test: the page-level wiring (button visibility for a Reader, navigation after deletion).
+
+## DevicePrincipal ids next to the Secret
+
+- `DevicePrincipalPage.tsx`: Principal ID + Device ID with Copy buttons in the credential dialog (Provision and Rotate) and permanently in the principal card; shared `CopyField`/`IdField`; `src/lib/ids.ts` (+ test) refuses ids beyond 2^53 - 1 instead of showing rounded digits. No API change.
+- Tests: `DevicePrincipalPage.test.tsx` (ids on the page, copy unchanged, largest exact id, an id beyond the limit is not shown, no-principal state, dialog after Provision and after Rotate, Secret not in browser storage or on the page after Done), `ids.test.ts`. The dialog is looked up with `hidden: true` and without its accessible name, because under a loaded full-suite run Tabster marks it aria-hidden (same library behaviour as the other dialog tests).
