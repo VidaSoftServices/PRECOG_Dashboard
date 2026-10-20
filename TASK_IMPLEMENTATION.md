@@ -203,7 +203,7 @@ hadn't been flagged before:
   invalidation), but grepping the entire `src/` tree for any call site,
   any "Add Sensor" control, or any Sensor-editing form found **none** —
   `DeviceDetailPage.tsx`'s Sensors card is read-only (name, direction,
-  quantity kind, unit, enabled state, a link to that Sensor's policies) with
+  sensor type, unit, enabled state, a link to that Sensor's policies) with
   no create action, even though its own empty state literally says "Add a
   Sensor to start collecting telemetry from this Device" with no control to
   do so. This is a real product gap, not a documented scope decision — no
@@ -211,7 +211,7 @@ hadn't been flagged before:
   status (Sensors + AggregationPolicies + Setpoints "all live on
   SensorPoliciesPage.tsx") **overstates completeness**: aggregation
   policies and setpoints are genuinely editable there, but the Sensor
-  entity itself (name, direction, quantity kind, unit, enabled) has no
+  entity itself (name, direction, sensor type, unit, enabled) has no
   create or edit path anywhere in this dashboard. Corrected in the phase
   log below.
 - **A second, related gap of the same shape**: `useCreateAggregationPolicy`
@@ -2521,3 +2521,21 @@ test on the API side either), and the Device-detail Switch/dialog has no compone
 - **Done**: regenerated `schema.generated.ts`; `useSensorMetadata`; import parsing/validation/preview/template/POST body with unit, aggregation type and explanation, driven by the API catalog; `MetricDefinitionCard`; chart axis/tooltip unit from the API; regenerated sample CSVs.
 - **Tests**: `sensorImport.metadata.test.ts` (catalog validation, exact names, template), `sensorImport.samples.test.ts` (163/326 rows valid and equal to the catalog), `SensorImportDialog.test.tsx` (allowed values, preview, POST body, blocking), `MetricDefinitionCard.test.tsx`, `TelemetryChart.units.test.ts`, `noHardcodedMetadata.test.ts`. Full run: 27 files / 240 tests pass; `npm run typecheck` and `npm run build` pass; `npm run lint` has 0 errors (7 existing-style react-refresh warnings, 2 of them from the new exported chart helpers).
 - **Not done / by design**: no rollup, no Sensor export (none exists), no browser (Playwright) pass for this change, no commit/push.
+
+## Bulk import: setpoint columns and column names
+
+- The template columns are now `sensorName`, `displayName`, `direction`, `sensorType`, `unitCode`, `aggregationType`, `aggregationExplanation`, `rawScale`, `rawLookback`, `rawMinIssueScore`, `processingEnabled`, `target`, `tolerance`, `targetAbove`, `targetBelow`, `toleranceAbove`, `toleranceBelow`. `externalSensorId`/`machineName`, `name` and `sensorType` stay accepted as aliases; the sample CSVs use the new names.
+- A row with target/tolerance gets a Setpoint (`validFrom` = the import's start, open ended) right after its Sensor is created; validation per direction, clear errors by line/field/value, setpoint failures reported without undoing the Sensor. See CLAUDE.md "Bulk Sensor import".
+- Tests: `sensorImport.setpoint.test.ts` (parsing/validation/template), `SensorImportDialog.test.tsx` (setpoint POSTs, validFrom, failure reporting, preview/blocking). Full run: 28 files / 254 tests; typecheck, build and lint (0 errors) pass.
+- Not done: no API change was needed (the Setpoints endpoint already existed); no tooltip/bulk edit of existing Sensors' setpoints; not committed.
+
+## Data sets workbook, sensorType rename (Dashboard)
+
+- New: `xlsxWriter.ts` (+ tests: ZIP/CRC structure, well-formed XML, escaping, sheet names), `sensorDataSets.ts` (+ tests against the catalog and the importer), the "Download Data sets" button, `sensorImport.columns.test.ts`.
+- `quantityKind` -> `sensorType` across src, samples and docs; `schema.generated.ts` regenerated from the new API. Full run: 31 files, typecheck, lint (0 errors) pass.
+- Not done / open: the Device edit dialog has no delete (the API has no Device delete endpoint - see the open question in the hand-off); the workbook was not opened in Excel (structure verified by test only).
+
+## Permanent Device deletion (Dashboard)
+
+- New: `DeleteDeviceDialog.tsx` (+ 7 tests: warning first, typed exact name, request body, name-less Device, server refusal), `useDeleteDevice`, a "Danger zone" in the Device Edit card (Admin only); `schema.generated.ts` regenerated. Supersedes the earlier "no delete" open point above.
+- Not covered by an automated test: the page-level wiring (button visibility for a Reader, navigation after deletion).

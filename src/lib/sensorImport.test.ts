@@ -103,7 +103,7 @@ describe('parseSensorTable', () => {
     const { rows } = parseSensorTable(text, DEFAULTS, CATALOG);
     const errors = rows.map((r) => r.errors.join(' '));
 
-    expect(errors[0]).toMatch(/externalSensorId is empty/);
+    expect(errors[0]).toMatch(/sensorName is empty/);
     expect(errors[1]).toMatch(/direction "sideways"/);
     expect(errors[2]).toMatch(/repeated \(first on line 3\)/);
     expect(errors[2]).toMatch(/rawScale "Fortnights"/);

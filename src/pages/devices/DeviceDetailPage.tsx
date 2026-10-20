@@ -15,7 +15,7 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import { ShieldKeyhole24Regular, Settings24Regular, ChartMultiple24Regular, AddCircle24Regular, Edit24Regular, Wrench24Regular, TableArrowUp24Regular } from '@fluentui/react-icons';
+import { Delete24Regular, ShieldKeyhole24Regular, Settings24Regular, ChartMultiple24Regular, AddCircle24Regular, Edit24Regular, Wrench24Regular, TableArrowUp24Regular } from '@fluentui/react-icons';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
@@ -23,6 +23,7 @@ import { EmptyState } from '@/components/states/EmptyState';
 import { EnabledPill, FreshnessPill, MaintenancePill, ProcessingOffPill } from '@/components/StatusPill';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SensorImportDialog } from './SensorImportDialog';
+import { DeleteDeviceDialog } from './DeleteDeviceDialog';
 import { useAppToast } from '@/components/ToastProvider';
 import { useDevice, useUpdateDevice, useDisableDevice } from '@/api/hooks/devices';
 import { useSensors, useCreateSensor, useUpdateSensor, type SensorDto } from '@/api/hooks/sensors';
@@ -105,7 +106,7 @@ function NewSensorDialog({
   const [externalSensorId, setExternalSensorId] = useState('');
   const [name, setName] = useState('');
   const [direction, setDirection] = useState<Direction>('lowerisbetter');
-  const [quantityKind, setQuantityKind] = useState('');
+  const [sensorType, setSensorType] = useState('');
   const [unitCode, setUnitCode] = useState('');
   const [rawLookback, setRawLookback] = useState('');
   const [rawScale, setRawScale] = useState('');
@@ -114,7 +115,7 @@ function NewSensorDialog({
     setExternalSensorId('');
     setName('');
     setDirection('lowerisbetter');
-    setQuantityKind('');
+    setSensorType('');
     setUnitCode('');
     setRawLookback('');
     setRawScale('');
@@ -134,7 +135,7 @@ function NewSensorDialog({
           externalSensorId,
           name: name || undefined,
           direction,
-          quantityKind: quantityKind || undefined,
+          sensorType: sensorType || undefined,
           unitCode: unitCode || undefined,
           isCurve: applicationMode === 'periodic',
           rawScale,
@@ -159,8 +160,8 @@ function NewSensorDialog({
         <Field label="Direction" required>
           <DirectionSelect value={direction} onChange={setDirection} />
         </Field>
-        <Field label="Quantity kind" hint="e.g. temperature, pressure, vibration">
-          <Input value={quantityKind} onChange={(_, d) => setQuantityKind(d.value)} />
+        <Field label="Sensor type" hint="e.g. temperature, pressure, vibration">
+          <Input value={sensorType} onChange={(_, d) => setSensorType(d.value)} />
         </Field>
         <Field label="Unit code" hint="e.g. degC, bar, mm/s">
           <Input value={unitCode} onChange={(_, d) => setUnitCode(d.value)} />
@@ -192,7 +193,7 @@ function EditSensorDialog({
   const toast = useAppToast();
   const updateSensor = useUpdateSensor(deviceId, sensor.id!);
   const [name, setName] = useState(sensor.name ?? '');
-  const [quantityKind, setQuantityKind] = useState(sensor.quantityKind ?? '');
+  const [sensorType, setSensorType] = useState(sensor.sensorType ?? '');
   const [unitCode, setUnitCode] = useState(sensor.unitCode ?? '');
   const [direction, setDirection] = useState<Direction>((sensor.direction as Direction) ?? 'lowerisbetter');
 
@@ -205,7 +206,7 @@ function EditSensorDialog({
       onConfirm={async () => {
         await updateSensor.mutateAsync({
           name: name || null,
-          quantityKind: quantityKind || null,
+          sensorType: sensorType || null,
           unitCode: unitCode || null,
           direction,
         });
@@ -221,8 +222,8 @@ function EditSensorDialog({
         <Field label="Direction">
           <DirectionSelect value={direction} onChange={setDirection} />
         </Field>
-        <Field label="Quantity kind">
-          <Input value={quantityKind} onChange={(_, d) => setQuantityKind(d.value)} />
+        <Field label="Sensor type">
+          <Input value={sensorType} onChange={(_, d) => setSensorType(d.value)} />
         </Field>
         <Field label="Unit code">
           <Input value={unitCode} onChange={(_, d) => setUnitCode(d.value)} />
@@ -339,7 +340,8 @@ export function DeviceDetailPage() {
 
   // Polled so "Last heartbeat" keeps telling the truth while this page is
   // open - the Device reports liveness on its own, without any user action.
-  const deviceQuery = useDevice(id, POLL_INTERVALS_MS.deviceDetail);
+  const [deleted, setDeleted] = useState(false);
+  const deviceQuery = useDevice(id, deleted ? undefined : POLL_INTERVALS_MS.deviceDetail);
   const sensorsQuery = useSensors(id);
   const principalQuery = useDevicePrincipal(id);
   const trainingQuery = useTrainingRequests(id);
@@ -349,6 +351,7 @@ export function DeviceDetailPage() {
   const disableDevice = useDisableDevice(id);
   const [nameDraft, setNameDraft] = useState('');
   const [disableConfirmOpen, setDisableConfirmOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [addSensorOpen, setAddSensorOpen] = useState(false);
   const [importSensorsOpen, setImportSensorsOpen] = useState(false);
   const [editingSensorId, setEditingSensorId] = useState<number | null>(null);
@@ -420,6 +423,14 @@ export function DeviceDetailPage() {
             <Button appearance="secondary" onClick={() => setEditing(false)}>
               Close
             </Button>
+            <Divider />
+            <div className={styles.editForm}>
+              <Body1Strong>Danger zone</Body1Strong>
+              <Text size={200}>Permanently delete this device and all of its data. This cannot be undone.</Text>
+              <Button icon={<Delete24Regular />} onClick={() => setDeleteOpen(true)}>
+                Delete device…
+              </Button>
+            </div>
           </div>
         </Card>
       )}
@@ -536,7 +547,7 @@ export function DeviceDetailPage() {
                   <Body1Strong>{sensor.name || sensor.externalSensorId}</Body1Strong>
                   <br />
                   <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-                    {sensor.direction} {sensor.quantityKind ? `· ${sensor.quantityKind}` : ''}{' '}
+                    {sensor.direction} {sensor.sensorType ? `· ${sensor.sensorType}` : ''}{' '}
                     {sensor.unitLabel ?? sensor.unitCode ? `(${sensor.unitLabel ?? sensor.unitCode})` : ''}
                   </Text>
                 </div>
@@ -613,6 +624,22 @@ export function DeviceDetailPage() {
           applicationMode={device.applicationMode}
           open={addSensorOpen}
           onClose={() => setAddSensorOpen(false)}
+        />
+      )}
+
+      {isAdmin && deleteOpen && (
+        <DeleteDeviceDialog
+          deviceId={id}
+          device={device}
+          open={deleteOpen}
+          onClose={() => setDeleteOpen(false)}
+          onDeleted={(result) => {
+            setDeleted(true);
+            toast.success(
+              `Device "${result.deviceName || result.externalDeviceId}" permanently deleted (${result.sensorsDeleted} Sensor(s), ${result.telemetryRowsDeleted} telemetry rows, ${result.issuesDeleted} Issue(s)).`,
+            );
+            navigate('/devices');
+          }}
         />
       )}
 

@@ -180,7 +180,7 @@ describe('template and round trip', () => {
   it('the template lists the metadata columns and its example rows are valid and equal to the catalog', () => {
     const csv = buildTemplateCsv(CATALOG);
     const header = csv.replace(/^\uFEFF/, '').split('\r\n')[0]!.split(',');
-    for (const column of ['machineName', 'displayName', 'unitCode', 'aggregationType', 'aggregationExplanation']) expect(header).toContain(column);
+    for (const column of ['sensorName', 'displayName', 'unitCode', 'aggregationType', 'aggregationExplanation']) expect(header).toContain(column);
     expect(header).toEqual([...TEMPLATE_HEADERS]);
 
     const { rows, fileErrors } = parseSensorTable(csv, { ...DEFAULTS, rawScale: '', rawLookback: '' }, CATALOG);

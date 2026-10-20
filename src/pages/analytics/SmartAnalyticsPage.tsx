@@ -263,7 +263,7 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
           <MessageBarBody>
             <MessageBarTitle>Not proven compatible</MessageBarTitle>
             {stream?.failures?.join(' ') ??
-              'These Sensors have not been proven compatible (matching QuantityKind, convertible units, and matching aggregation configuration). Shown side by side rather than overlaid.'}
+              'These Sensors have not been proven compatible (matching SensorType, convertible units, and matching aggregation configuration). Shown side by side rather than overlaid.'}
           </MessageBarBody>
         </MessageBar>
       )}

@@ -755,12 +755,29 @@ opens `SensorImportDialog.tsx`:
   (comma, semicolon - what a Hungarian Excel writes - or tab, detected from the
   header). The first row is the header; column names are case-insensitive and
   tolerate spaces/underscores (`External Sensor ID`, `external_sensor_id`).
-  Only `externalSensorId` is required. `name`, `direction`, `quantityKind`,
-  `unitCode`, `rawScale`, `rawLookback`, `rawMinIssueScore`, `processingEnabled` are optional; a
+  Only the Sensor-id column is required: the template calls it `sensorName` (the Sensor's
+  `externalSensorId`; `externalSensorId` and `machineName` are accepted as aliases). Optional: `displayName`
+  (the Sensor's name; alias `name`), `direction`, `sensorType` (the Sensor's `sensorType`; alias `sensorType`),
+  `unitCode`, `aggregationType`, `aggregationExplanation`, `rawScale`, `rawLookback`, `rawMinIssueScore`,
+  `processingEnabled` and the setpoint columns below; a
   missing column or empty cell takes the **dialog's default** (direction,
   scale, lookback, min issue score). Raw scale and raw lookback have no built-in
   default (as in the single "Add Sensor" form) - they come from the sheet or the
   defaults, never invented. "Download template" gives a ready CSV.
+- **Setpoint columns (target / tolerance)**: `target`, `tolerance` for a lowerisbetter/higherisbetter
+  Sensor (the template header reads `target (optional)` / `tolerance (optional)`; a trailing "(optional)" in any
+  header is ignored, so both spellings import); `targetAbove`, `targetBelow`, `toleranceAbove`, `toleranceBelow` for a bidirectional one. A row that
+  fills any of them gets a **Setpoint recorded right after its Sensor is created**
+  (`POST .../Sensors/{sensorId}/Setpoints`, `validFrom` = the moment the import started - one instant for the
+  whole run, open ended). That is the "default" target/tolerance: a Sensor with a setpoint is analysed from
+  actual values alone. Rules, taken from what the API's calculation uses: a one-sided Sensor needs a `target`; a
+  bidirectional one needs `targetAbove` and/or `targetBelow`, and a tolerance needs the target of its own side;
+  a tolerance is never negative; the columns of the other direction are rejected (named by field); a decimal
+  comma (`0,5`) is read as 0.5. A row without any value gets no setpoint and its Sensor is stored but **not
+  analysed** until one is added on its Policies page (no default is invented). Rows skipped because the Sensor
+  already exists get no setpoint (their configuration is not this import's to change). If a setpoint cannot be
+  saved the Sensor stays created and the dialog lists it ("Setpoints not saved"); 429 waits `Retry-After`,
+  401/403 stops the import.
 - **Validation is all-or-nothing before the first request** (`src/lib/sensorImport.ts`,
   pure and unit-tested): required/duplicate ids, direction, scale names, whole-number
   lookback, min score range and the API's column lengths. Problem rows are listed by
@@ -1155,6 +1172,15 @@ The API owns a catalog of units, aggregation types and the 163 Vibration_Duo met
 
 - **Display**: `SensorDto` carries `unitCode`, `unitLabel`, `unitLabelHu`, `aggregationType`, `aggregationExplanation`. `MetricDefinitionCard` (Sensor Policies page) shows display name, machine name, unit label with its code, aggregation type with its code, and the explanation; a Sensor that is a known metric but lacks the metadata gets a visible error (nothing guessed), an ordinary Sensor a plain notice. The Device detail Sensor row shows `unitLabel`. The general dimension of a metric without one (kurtosis, crest factor) is the unit `one`, labelled **"Unit"** by the API; energy metrics are "Relative spectrum energy" (`raw_energy`).
 - **Charts**: `TelemetryChart` takes `unitLabel` per series (from the API) for the y-axis title and the tooltip (`sharedUnitLabel`, `unitLabelOfDataset`). Two different units never share one axis title; a series with no unit gets none.
-- **Import** (`src/lib/sensorImport.ts`, `SensorImportDialog`): new columns `machineName` (a header alias of `externalSensorId`; the cell holds the full id `{machineName}_{point}`), `displayName`, `unitCode`, `aggregationType`, `aggregationExplanation`. The catalog is required (no catalog = the import is blocked). A row whose id exactly matches a known metric must carry exactly that metric's unit, type and explanation; any problem is listed by sheet line, field and value and blocks the whole import before the first request. The dialog lists the allowed units and types from the catalog, the preview shows unit, aggregation type, explanation and validation state per row, and the template (built from catalog examples, one per unit/aggregation combination) is generated from the same catalog. Unit, type and explanation are sent unchanged to `POST .../Sensors`.
+- **Import** (`src/lib/sensorImport.ts`, `SensorImportDialog`): new columns `sensorName` (the Sensor's `externalSensorId`; the cell holds the full id `{machineName}_{point}`; `machineName` and `externalSensorId` are accepted aliases), `displayName`, `unitCode`, `aggregationType`, `aggregationExplanation`. The catalog is required (no catalog = the import is blocked). A row whose id exactly matches a known metric must carry exactly that metric's unit, type and explanation; any problem is listed by sheet line, field and value and blocks the whole import before the first request. The dialog lists the allowed units and types from the catalog, the preview shows unit, aggregation type, explanation and validation state per row, and the template (built from catalog examples, one per unit/aggregation combination) is generated from the same catalog. Unit, type and explanation are sent unchanged to `POST .../Sensors`.
 - **Samples** `samples/vibration-duo-*.csv` carry the metadata of all 163 / 326 rows and are tested against the catalog fixture (`src/test/fixtures/sensorMetadataCatalog.json`, a dump of the endpoint - test data only).
 - **No Sensor export exists** in this dashboard.
+
+## "Data sets" workbook and the QuantityKind -> SensorType rename
+
+- **Rename.** The Sensor's former `quantityKind` is now **`sensorType`** everywhere: DB column (`pg.sensors.sensortype`, `pg.deviceknowledgesharesensormaps.normalizedsensortype`), API fields (`SensorDto`/create/update requests `sensorType`, knowledge-sharing `normalizedSensorType`), generated schema, hooks, the "Sensor type" form fields, the import column `sensorType` and all docs. It stays a free-text description of what the Sensor measures (temperature, vibration...); it is part of the knowledge-sharing compatibility proof. The old import headers `quantityKind` / `quantity` are still accepted. **This is a breaking API change**: a client sending `quantityKind` no longer sets it (the Dashboard was updated with the API; the one-off script is `DB_SensorType_Rename.sql` in the API repo - run it before deploying).
+- **Data sets workbook.** The import dialog's **Download Data sets** button builds `sensor-import-data-sets.xlsx` in the browser (`src/lib/sensorDataSets.ts`, `src/lib/xlsxWriter.ts` - a small dependency-free writer, no library added): an Overview of every import column (required?, what to enter, where the values are) plus one sheet per selectable field - `direction`, `rawScale`, `processingEnabled` (from the importer's own constants), `unitCode`, `aggregationType` (from the API catalog, with labels, valid units and explanations) and **Known metrics** (all 163 with exact unit/aggregation/explanation). Nothing about units or aggregations is written in this file; tests check the workbook lists exactly what the importer accepts.
+
+## Permanent Device deletion
+
+The Device page's **Edit** card (Admin only) has a "Danger zone" with **Delete device...** (`DeleteDeviceDialog.tsx`, `useDeleteDevice` -> `DELETE /api/Devices/{deviceId}`). It is two steps on purpose: (1) a warning that lists what is destroyed and that it cannot be undone; (2) the user must **type the Device's name exactly** (case sensitive; the Device's name, or its external id when it has none - same rule as the API's `DeviceDeletionService.ConfirmationName`); the delete button stays disabled until it matches. The server checks the name again, refuses (409, shown inline) while training or an Ollama job runs, audits and logs the deletion, and the Dashboard then toasts the counts and returns to the device list. The old "no delete - disable only" rule applies to every other entity (Issues, categories, DevicePrincipals...), not to Devices.

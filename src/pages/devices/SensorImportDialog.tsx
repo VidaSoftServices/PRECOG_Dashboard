@@ -34,9 +34,12 @@ import {
   toImportCatalog,
   type ImportCatalog,
   type ImportDefaults,
+  type ParsedSensorRow,
   type SensorDirection,
 } from '@/lib/sensorImport';
-import { downloadTextFile } from '@/lib/downloadFile';
+import { downloadBinaryFile, downloadTextFile } from '@/lib/downloadFile';
+import { DATA_SETS_FILE_NAME, buildDataSetsWorkbook } from '@/lib/sensorDataSets';
+import { XLSX_MIME_TYPE } from '@/lib/xlsxWriter';
 
 const useStyles = makeStyles({
   surface: { maxWidth: '920px', width: '96vw' },
@@ -79,6 +82,18 @@ function typeText(catalog: ImportCatalog | undefined, code: string): string {
   if (!code) return '';
   const type = catalog?.aggregationTypes.find((a) => a.code === code);
   return type ? `${type.label} (${code})` : code;
+}
+
+/** "target 5 ± 0.5" / "above 5 ± 1, below 3 ± 1": the row's setpoint as it will be recorded; '' when the row has none. */
+function setpointText(setpoint: ParsedSensorRow['setpoint']): string {
+  if (!setpoint) return '';
+  const side = (label: string, target: number | undefined, tolerance: number | undefined) =>
+    target === undefined ? [] : [`${label} ${target}${tolerance === undefined ? '' : ` ± ${tolerance}`}`];
+  return [
+    ...side('target', setpoint.target, setpoint.tolerance),
+    ...side('above', setpoint.targetAbove, setpoint.toleranceAbove),
+    ...side('below', setpoint.targetBelow, setpoint.toleranceBelow),
+  ].join(', ');
 }
 
 const DEFAULTS: ImportDefaults = { direction: 'lowerisbetter', rawScale: '', rawLookback: '', rawMinIssueScore: '1', processingEnabled: true };
@@ -194,6 +209,8 @@ export function SensorImportDialog({
   const created = outcomes?.filter((o) => o.status === 'created').length ?? 0;
   const skipped = outcomes?.filter((o) => o.status === 'skipped').length ?? 0;
   const failed = outcomes?.filter((o) => o.status === 'failed') ?? [];
+  const setpointsSaved = outcomes?.filter((o) => o.setpoint === 'created').length ?? 0;
+  const setpointsFailed = outcomes?.filter((o) => o.setpoint === 'failed') ?? [];
 
   return (
     <Dialog open={open} onOpenChange={(_, d) => !d.open && close()}>
@@ -203,8 +220,10 @@ export function SensorImportDialog({
           <DialogContent className={styles.content}>
             <Text size={200} className={styles.muted}>
               Paste the cells you copied from Excel, or choose a .csv file. The first row is the header; only{' '}
-              <b>externalSensorId</b> is required, every other column is optional and falls back to the defaults below. Sensors are created in
-              sheet order, so their numeric ids follow the rows.
+              <b>sensorName</b> (the Sensor's externalSensorId) is required, every other column is optional and falls back to the defaults below. Sensors are created in
+              sheet order, so their numeric ids follow the rows. Optional <b>target</b>/<b>tolerance</b> columns (bidirectional Sensors: <b>targetAbove</b>,{' '}
+              <b>targetBelow</b>, <b>toleranceAbove</b>, <b>toleranceBelow</b>) are recorded as each new Sensor&apos;s first setpoint, effective from the moment of the import; a Sensor
+              without a setpoint is stored but not analysed.
             </Text>
 
             <div className={styles.row}>
@@ -214,6 +233,13 @@ export function SensorImportDialog({
                 onClick={() => catalog && downloadTextFile('sensor-import-template.csv', buildTemplateCsv(catalog))}
               >
                 Download template
+              </Button>
+              <Button
+                icon={<ArrowDownload24Regular />}
+                disabled={!catalog}
+                onClick={() => catalog && downloadBinaryFile(DATA_SETS_FILE_NAME, buildDataSetsWorkbook(catalog), XLSX_MIME_TYPE)}
+              >
+                Download Data sets
               </Button>
               <Button icon={<DocumentArrowUp24Regular />} onClick={() => fileRef.current?.click()} disabled={running}>
                 Choose .csv file
@@ -330,7 +356,7 @@ export function SensorImportDialog({
                 <table className={styles.preview} aria-label="Preview of the first rows">
                   <thead>
                     <tr>
-                      {['Line', 'Machine name', 'Display name', 'Unit', 'Aggregation type', 'Explanation', 'Calc', 'Validation'].map((h) => (
+                      {['Line', 'Machine name', 'Display name', 'Unit', 'Aggregation type', 'Explanation', 'Calc', 'Setpoint', 'Validation'].map((h) => (
                         <th key={h} className={styles.cell}>
                           {h}
                         </th>
@@ -349,6 +375,7 @@ export function SensorImportDialog({
                           {r.aggregationExplanation.length > 70 ? `${r.aggregationExplanation.slice(0, 70)}…` : r.aggregationExplanation}
                         </td>
                         <td className={styles.cell}>{r.processingEnabled ? 'on' : 'off'}</td>
+                        <td className={styles.cell}>{setpointText(r.setpoint) || '—'}</td>
                         <td className={styles.cell}>{r.errors.length === 0 ? 'OK' : `Error (${r.issues.map((i) => i.field).join(', ')})`}</td>
                       </tr>
                     ))}
@@ -377,6 +404,8 @@ export function SensorImportDialog({
                   <MessageBarBody>
                     {created} created{skipped > 0 && `, ${skipped} already existed`}
                     {failed.length > 0 && `, ${failed.length} failed`}.
+                    {setpointsSaved > 0 && ` ${setpointsSaved} setpoint(s) recorded, effective from the import.`}
+                    {setpointsFailed.length > 0 && ` ${setpointsFailed.length} setpoint(s) could not be saved - those Sensors exist but are not analysed until a setpoint is added on their Policies page.`}
                     {abortRef.current?.signal.aborted && ' The import was stopped before the end.'}
                   </MessageBarBody>
                 </MessageBar>
@@ -385,6 +414,15 @@ export function SensorImportDialog({
                     {failed.slice(0, MAX_LISTED).map((o) => (
                       <li key={o.line}>
                         Line {o.line} ({o.externalSensorId}): {o.message}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {setpointsFailed.length > 0 && (
+                  <ul className={styles.problems} aria-label="Setpoints not saved">
+                    {setpointsFailed.slice(0, MAX_LISTED).map((o) => (
+                      <li key={o.line}>
+                        Line {o.line} ({o.externalSensorId}): {o.setpointMessage}
                       </li>
                     ))}
                   </ul>

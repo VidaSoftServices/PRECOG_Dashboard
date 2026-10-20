@@ -10,9 +10,13 @@
  *     international one writes `,` - the delimiter is detected, never asked.
  * Column names are case-insensitive and may use spaces, underscores or
  * dashes (`External Sensor ID`, `externalSensorId` and `external_sensor_id`
- * are the same column). Only `externalSensorId` is mandatory in the file; every
+ * are the same column; the template calls it `sensorName`). Only that column is mandatory in the file; every
  * other column may be left out, or left empty on a row, and then the dialog's
  * default applies.
+ *
+ * Optional setpoint columns (`target`, `tolerance`; bidirectional: `targetAbove`, `targetBelow`, `toleranceAbove`,
+ * `toleranceBelow`) are validated here and recorded by the import as the new Sensor's first Setpoint, effective from
+ * the moment of the import.
  *
  * Unit and future-aggregation metadata (`unitCode`, `aggregationType`, `aggregationExplanation`) is validated
  * against the catalog the API publishes (GET /api/SensorMetadata, passed in as `ImportCatalog`) - this file contains
@@ -33,7 +37,7 @@ export const TEMPLATE_COLUMNS = [
   'externalSensorId',
   'name',
   'direction',
-  'quantityKind',
+  'sensorType',
   'unitCode',
   'aggregationType',
   'aggregationExplanation',
@@ -41,15 +45,27 @@ export const TEMPLATE_COLUMNS = [
   'rawLookback',
   'rawMinIssueScore',
   'processingEnabled',
+  'target',
+  'tolerance',
+  'targetAbove',
+  'targetBelow',
+  'toleranceAbove',
+  'toleranceBelow',
 ] as const;
 type Column = (typeof TEMPLATE_COLUMNS)[number];
 
-/** Header row of the downloadable template: the metric's `machineName` is the Sensor's externalSensorId, its `displayName` the Sensor's name. */
+/** The setpoint columns: the Sensor's target/tolerance, recorded as its first Setpoint at the moment of the import. */
+export const SETPOINT_COLUMNS = ['target', 'tolerance', 'targetAbove', 'targetBelow', 'toleranceAbove', 'toleranceBelow'] as const;
+export type SetpointColumn = (typeof SETPOINT_COLUMNS)[number];
+/** Target/tolerance values of one row; only the fields the sheet filled are present. */
+export type SetpointValues = Partial<Record<SetpointColumn, number>>;
+
+/** Header row of the downloadable template. (A header may end in "(optional)" - `target (optional)` is the `target` column. The `sensorName` column holds the Sensor's externalSensorId, `displayName` its name; `externalSensorId`, `machineName`, `name` and the former `quantityKind` / `quantity` headers are accepted as aliases.) */
 export const TEMPLATE_HEADERS = [
-  'machineName',
+  'sensorName',
   'displayName',
   'direction',
-  'quantityKind',
+  'sensorType',
   'unitCode',
   'aggregationType',
   'aggregationExplanation',
@@ -57,6 +73,12 @@ export const TEMPLATE_HEADERS = [
   'rawLookback',
   'rawMinIssueScore',
   'processingEnabled',
+  'target (optional)',
+  'tolerance (optional)',
+  'targetAbove',
+  'targetBelow',
+  'toleranceAbove',
+  'toleranceBelow',
 ] as const;
 
 /**
@@ -64,8 +86,8 @@ export const TEMPLATE_HEADERS = [
  * knows about units, aggregation types and the known metrics comes from here.
  */
 export interface ImportCatalog {
-  units: { code: string; label: string }[];
-  aggregationTypes: { code: string; label: string; allowedUnitCodes: string[] }[];
+  units: { code: string; label: string; labelHu?: string }[];
+  aggregationTypes: { code: string; label: string; allowedUnitCodes: string[]; explanation?: string }[];
   metrics: { machineName: string; displayName: string; unitCode: string; aggregationType: string; aggregationExplanation: string }[];
 }
 
@@ -80,14 +102,14 @@ export interface ImportIssue {
 type Opt<T> = T | null | undefined;
 
 export function toImportCatalog(api: Opt<{
-  units?: Opt<{ code?: Opt<string>; label?: Opt<string> }[]>;
-  aggregationTypes?: Opt<{ code?: Opt<string>; label?: Opt<string>; allowedUnitCodes?: Opt<string[]> }[]>;
+  units?: Opt<{ code?: Opt<string>; label?: Opt<string>; labelHu?: Opt<string> }[]>;
+  aggregationTypes?: Opt<{ code?: Opt<string>; label?: Opt<string>; allowedUnitCodes?: Opt<string[]>; explanation?: Opt<string> }[]>;
   metrics?: Opt<{ machineName?: Opt<string>; displayName?: Opt<string>; unitCode?: Opt<string>; aggregationType?: Opt<string>; aggregationExplanation?: Opt<string> }[]>;
 }>): ImportCatalog | undefined {
   if (!api?.units || !api.aggregationTypes || !api.metrics) return undefined;
   return {
-    units: api.units.flatMap((u) => (u.code ? [{ code: u.code, label: u.label ?? u.code }] : [])),
-    aggregationTypes: api.aggregationTypes.flatMap((a) => (a.code ? [{ code: a.code, label: a.label ?? a.code, allowedUnitCodes: a.allowedUnitCodes ?? [] }] : [])),
+    units: api.units.flatMap((u) => (u.code ? [{ code: u.code, label: u.label ?? u.code, ...(u.labelHu ? { labelHu: u.labelHu } : {}) }] : [])),
+    aggregationTypes: api.aggregationTypes.flatMap((a) => (a.code ? [{ code: a.code, label: a.label ?? a.code, allowedUnitCodes: a.allowedUnitCodes ?? [], ...(a.explanation ? { explanation: a.explanation } : {}) }] : [])),
     metrics: api.metrics.flatMap((m) =>
       m.machineName && m.unitCode && m.aggregationType
         ? [{ machineName: m.machineName, displayName: m.displayName ?? m.machineName, unitCode: m.unitCode, aggregationType: m.aggregationType, aggregationExplanation: m.aggregationExplanation ?? '' }]
@@ -157,10 +179,13 @@ export function validateMetadata(
 }
 
 /** Maximum lengths enforced by the API's columns - checked here so a bad row is flagged before 160 requests are sent. */
-const MAX_LENGTH: Partial<Record<Column, number>> = { externalSensorId: 100, name: 200, quantityKind: 100, unitCode: 20 };
+/** The header the user sees in the template for a column whose internal (API) name differs. */
+const COLUMN_LABEL: Partial<Record<Column, string>> = { externalSensorId: 'sensorName', name: 'displayName' };
+
+export const MAX_LENGTH: Partial<Record<Column, number>> = { externalSensorId: 100, name: 200, sensorType: 100, unitCode: 20 };
 
 /** Same limit as the API's aggregationExplanation column. */
-const MAX_EXPLANATION_LENGTH = 1000;
+export const MAX_EXPLANATION_LENGTH = 1000;
 
 /** Hard cap on one import, so a mistakenly pasted sheet cannot fire thousands of requests. */
 export const MAX_IMPORT_ROWS = 1000;
@@ -180,7 +205,7 @@ export interface ParsedSensorRow {
   externalSensorId: string;
   name: string;
   direction: SensorDirection;
-  quantityKind: string;
+  sensorType: string;
   unitCode: string;
   /** EQUIVALENT_RMS, WEIGHTED_MEAN or MAXIMUM, or '' when the row carries none (allowed only for a Sensor that is not a known metric). */
   aggregationType: string;
@@ -192,6 +217,11 @@ export interface ParsedSensorRow {
   rawMinIssueScore: number;
   /** False: the data is stored and trained on, but its arrival triggers no calculation. */
   processingEnabled: boolean;
+  /**
+   * The row's target/tolerance, present only when the sheet filled at least one of them. The import records them as the
+   * Sensor's first Setpoint, valid from the moment of the import; without one the Sensor's data is stored but not analysed.
+   */
+  setpoint?: SetpointValues;
   /** One entry per problem, each naming the field and the offending value (the row is `line`). */
   issues: ImportIssue[];
   /** The issues' messages, for simple display. */
@@ -207,7 +237,7 @@ export interface ParseResult {
 }
 
 function normalizeHeader(value: string): string {
-  return value.split(BOM).join('').trim().toLowerCase().replace(/[\s_-]+/g, '');
+  return value.split(BOM).join('').trim().toLowerCase().replace(/\(optional\)/g, '').replace(/[\s_-]+/g, '');
 }
 
 const COLUMN_ALIASES: Record<string, Column> = {
@@ -219,11 +249,13 @@ const COLUMN_ALIASES: Record<string, Column> = {
   name: 'name',
   displayname: 'name',
   machinename: 'externalSensorId',
+  sensorname: 'externalSensorId',
   aggregationtype: 'aggregationType',
   aggregationexplanation: 'aggregationExplanation',
   direction: 'direction',
-  quantitykind: 'quantityKind',
-  quantity: 'quantityKind',
+  sensortype: 'sensorType',
+  quantitykind: 'sensorType',
+  quantity: 'sensorType',
   unitcode: 'unitCode',
   unit: 'unitCode',
   rawscale: 'rawScale',
@@ -237,7 +269,69 @@ const COLUMN_ALIASES: Record<string, Column> = {
   dataprocessing: 'processingEnabled',
   calculation: 'processingEnabled',
   calculate: 'processingEnabled',
+  target: 'target',
+  tolerance: 'tolerance',
+  targetabove: 'targetAbove',
+  targetbelow: 'targetBelow',
+  toleranceabove: 'toleranceAbove',
+  tolerancebelow: 'toleranceBelow',
 };
+
+/** A plain decimal number as an Excel user types it; a decimal comma ("0,5") is read as 0.5. null for anything else (text, "1e", blanks). */
+function parseDecimal(raw: string): number | null {
+  const text = raw.trim().replace(/^(-?\d+),(\d+)$/, '$1.$2');
+  return /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(text) && Number.isFinite(Number(text)) ? Number(text) : null;
+}
+
+/**
+ * Reads and validates the setpoint columns of one row against the Sensor's resolved direction, with the same rules the
+ * API's calculation relies on: a one-sided Sensor (lowerisbetter/higherisbetter) uses target + tolerance, a bidirectional
+ * one uses targetAbove/targetBelow + toleranceAbove/toleranceBelow; at least one target is needed; a tolerance is never
+ * negative and needs the target it belongs to. Returns undefined when the row has no setpoint value at all.
+ */
+function readSetpoint(
+  cell: (column: SetpointColumn) => string,
+  direction: SensorDirection | null,
+  fail: (field: string, value: string, message: string) => void,
+): SetpointValues | undefined {
+  const values: SetpointValues = {};
+  let anyFilled = false;
+  for (const column of SETPOINT_COLUMNS) {
+    const raw = cell(column);
+    if (raw === '') continue;
+    anyFilled = true;
+    const value = parseDecimal(raw);
+    if (value === null) fail(column, raw, `${column} "${raw}" must be a number.`);
+    else if (column.startsWith('tolerance') && value < 0) fail(column, raw, `${column} "${raw}" must not be negative.`);
+    else values[column] = value;
+  }
+  if (!anyFilled) return undefined;
+  if (!direction) return values; // the direction itself is already reported
+
+  const bidirectional = direction === 'bidirectional';
+  const wrongSide: SetpointColumn[] = bidirectional ? ['target', 'tolerance'] : ['targetAbove', 'targetBelow', 'toleranceAbove', 'toleranceBelow'];
+  for (const column of wrongSide) {
+    if (cell(column) !== '') {
+      fail(
+        column,
+        cell(column),
+        bidirectional
+          ? `${column} applies to lowerisbetter/higherisbetter Sensors; a bidirectional Sensor uses targetAbove/targetBelow and toleranceAbove/toleranceBelow.`
+          : `${column} applies to bidirectional Sensors only; this Sensor is ${direction} and uses target and tolerance.`,
+      );
+      delete values[column];
+    }
+  }
+
+  if (bidirectional) {
+    if (values.targetAbove === undefined && values.targetBelow === undefined) fail('targetAbove', '', 'A bidirectional Sensor needs targetAbove and/or targetBelow when a setpoint is given.');
+    if (values.toleranceAbove !== undefined && values.targetAbove === undefined) fail('toleranceAbove', cell('toleranceAbove'), 'toleranceAbove needs targetAbove.');
+    if (values.toleranceBelow !== undefined && values.targetBelow === undefined) fail('toleranceBelow', cell('toleranceBelow'), 'toleranceBelow needs targetBelow.');
+  } else {
+    if (values.target === undefined) fail('target', '', `A ${direction} Sensor needs a target when a setpoint is given.`);
+  }
+  return values;
+}
 
 /** Picks `\t` when the header has one (an Excel paste), otherwise whichever of `;` / `,` is more frequent. */
 export function detectDelimiter(headerLine: string): string {
@@ -298,8 +392,8 @@ function parseDirection(raw: string): SensorDirection | null {
   return (DIRECTIONS as readonly string[]).includes(key) ? (key as SensorDirection) : null;
 }
 
-const TRUE_WORDS = ['true', '1', 'yes', 'y', 'on', 'igen', 'be', 'x'];
-const FALSE_WORDS = ['false', '0', 'no', 'n', 'off', 'nem', 'ki'];
+export const TRUE_WORDS = ['true', '1', 'yes', 'y', 'on', 'igen', 'be', 'x'];
+export const FALSE_WORDS = ['false', '0', 'no', 'n', 'off', 'nem', 'ki'];
 
 /** Accepts the words an Excel user would type (true/false, 1/0, yes/no, on/off, igen/nem); null for anything else. */
 function parseBoolean(raw: string): boolean | null {
@@ -339,7 +433,7 @@ export function parseSensorTable(text: string, defaults: ImportDefaults, catalog
   });
 
   if (!columnIndex.has('externalSensorId')) {
-    fileErrors.push('The first row must be a header that contains an "externalSensorId" column.');
+    fileErrors.push('The first row must be a header that contains a "sensorName" column (the Sensor externalSensorId).');
     return { rows: [], fileErrors, ignoredColumns };
   }
 
@@ -361,10 +455,10 @@ export function parseSensorTable(text: string, defaults: ImportDefaults, catalog
     const fail = (field: string, value: string, message: string) => issues.push({ field, value, message });
 
     const externalSensorId = cell(cells, 'externalSensorId');
-    if (externalSensorId === '') fail('externalSensorId', '', 'externalSensorId is empty.');
+    if (externalSensorId === '') fail('externalSensorId', '', 'sensorName is empty.');
     const firstSeen = seen.get(externalSensorId.toLowerCase());
     if (externalSensorId !== '') {
-      if (firstSeen !== undefined) fail('externalSensorId', externalSensorId, `externalSensorId "${externalSensorId}" is repeated (first on line ${firstSeen}).`);
+      if (firstSeen !== undefined) fail('externalSensorId', externalSensorId, `sensorName "${externalSensorId}" is repeated (first on line ${firstSeen}).`);
       else seen.set(externalSensorId.toLowerCase(), line);
     }
 
@@ -392,14 +486,16 @@ export function parseSensorTable(text: string, defaults: ImportDefaults, catalog
     const processingParsed = processingRaw === '' ? defaults.processingEnabled : parseBoolean(processingRaw);
     if (processingParsed === null) fail('processingEnabled', processingRaw, `processingEnabled "${processingRaw}" must be true or false (also 1/0, yes/no, on/off, igen/nem).`);
 
+    const setpoint = readSetpoint((column) => cell(cells, column), direction, fail);
+
     const name = cell(cells, 'name');
-    const quantityKind = cell(cells, 'quantityKind');
+    const sensorType = cell(cells, 'sensorType');
     const unitCode = cell(cells, 'unitCode');
     const aggregationType = cell(cells, 'aggregationType');
     const aggregationExplanation = cell(cells, 'aggregationExplanation');
-    for (const [column, value] of [['externalSensorId', externalSensorId], ['name', name], ['quantityKind', quantityKind], ['unitCode', unitCode]] as const) {
+    for (const [column, value] of [['externalSensorId', externalSensorId], ['name', name], ['sensorType', sensorType], ['unitCode', unitCode]] as const) {
       const max = MAX_LENGTH[column];
-      if (max !== undefined && value.length > max) fail(column, value, `${column} is longer than ${max} characters.`);
+      if (max !== undefined && value.length > max) fail(column, value, `${COLUMN_LABEL[column] ?? column} is longer than ${max} characters.`);
     }
 
     issues.push(...validateMetadata(externalSensorId, unitCode, aggregationType, aggregationExplanation, catalog));
@@ -410,7 +506,7 @@ export function parseSensorTable(text: string, defaults: ImportDefaults, catalog
       externalSensorId,
       name,
       direction: direction ?? defaults.direction,
-      quantityKind,
+      sensorType,
       unitCode,
       aggregationType,
       aggregationExplanation,
@@ -419,6 +515,7 @@ export function parseSensorTable(text: string, defaults: ImportDefaults, catalog
       rawLookback: Number.isFinite(rawLookback) ? rawLookback : 0,
       rawMinIssueScore: Number.isFinite(rawMinIssueScore) ? rawMinIssueScore : 1,
       processingEnabled: processingParsed ?? defaults.processingEnabled,
+      ...(setpoint ? { setpoint } : {}),
       issues,
       errors: issues.map((i) => i.message),
     };
@@ -452,7 +549,7 @@ export function buildTemplateCsv(catalog: ImportCatalog): string {
       seen.add(kind);
       return true;
     })
-    .map((m) => [`${m.machineName}_1`, m.displayName, 'lowerisbetter', '', m.unitCode, m.aggregationType, m.aggregationExplanation, 'Seconds', 60, 1, 'true']);
+    .map((m) => [`${m.machineName}_1`, m.displayName, 'lowerisbetter', '', m.unitCode, m.aggregationType, m.aggregationExplanation, 'Seconds', 60, 1, 'true', '', '', '', '', '', '']);
   return BOM + [TEMPLATE_HEADERS.join(','), ...examples.map((r) => r.map(csvField).join(','))].join('\r\n') + '\r\n';
 }
 

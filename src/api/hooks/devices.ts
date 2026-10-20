@@ -6,6 +6,7 @@ import type { components } from '@/api/schema.generated';
 export type DeviceDto = components['schemas']['DeviceDto'];
 export type CreateDeviceRequest = components['schemas']['CreateDeviceRequest'];
 export type UpdateDeviceRequest = components['schemas']['UpdateDeviceRequest'];
+export type DeviceDeletionResult = components['schemas']['DeviceDeletionResultDto'];
 
 export function useDevices() {
   return useQuery({
@@ -65,7 +66,28 @@ export function useUpdateDevice(deviceId: number) {
   });
 }
 
-/** Convenience wrapper for the common "just disable it" action - there is no delete endpoint (see the modernization audit, §7). */
+/**
+ * PERMANENTLY deletes the Device and everything of it (Admin only). The API requires the Device's name as confirmation
+ * (`confirmDeviceName`) and checks it itself; it audits and logs the deletion. Only the device list is invalidated here -
+ * the caller navigates away from the (now gone) Device's pages.
+ */
+export function useDeleteDevice(deviceId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (confirmDeviceName: string) =>
+      unwrap(
+        await apiClient.DELETE('/api/Devices/{deviceId}', {
+          params: { path: { deviceId } },
+          body: { confirmDeviceName },
+        }),
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.devices });
+    },
+  });
+}
+
+/** Convenience wrapper for the common "just disable it" action - the non-destructive alternative to `useDeleteDevice`. */
 export function useDisableDevice(deviceId: number) {
   const update = useUpdateDevice(deviceId);
   return {

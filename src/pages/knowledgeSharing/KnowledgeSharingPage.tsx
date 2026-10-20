@@ -80,7 +80,7 @@ function ShareCard({ share }: { share: KnowledgeShareDto }) {
       {share.sensorMaps?.map((map) => (
         <div key={map.id} className={styles.mapRow}>
           <Text size={200}>
-            Sensor {map.sourceSensorId} → {map.targetSensorId} ({map.normalizedQuantityKind})
+            Sensor {map.sourceSensorId} → {map.targetSensorId} ({map.normalizedSensorType})
           </Text>
           <Badge appearance="tint" color={map.currentlyCompatible ? 'success' : 'danger'}>
             {map.currentlyCompatible ? 'compatible' : (map.compatibilityIssues ?? []).join(', ') || 'incompatible'}

@@ -1,4 +1,4 @@
-﻿machineName,displayName,direction,quantityKind,unitCode,aggregationType,aggregationExplanation,rawScale,rawLookback,rawMinIssueScore,processingEnabled
+﻿sensorName,displayName,direction,sensorType,unitCode,aggregationType,aggregationExplanation,rawScale,rawLookback,rawMinIssueScore,processingEnabled
 acceleration_rms_x_eq_1,Acceleration RMS X (equivalent RMS) - point 1,lowerisbetter,acceleration RMS X,g,EQUIVALENT_RMS,"For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean.",,,,
 acceleration_rms_x_max_1,Acceleration RMS X (maximum) - point 1,lowerisbetter,acceleration RMS X,g,MAXIMUM,"For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values.",,,,
 acceleration_rms_y_eq_1,Acceleration RMS Y (equivalent RMS) - point 1,lowerisbetter,acceleration RMS Y,g,EQUIVALENT_RMS,"For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean.",,,,

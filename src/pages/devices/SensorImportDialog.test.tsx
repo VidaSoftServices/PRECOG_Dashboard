@@ -28,6 +28,8 @@ function mockApi(existing: { id: number; externalSensorId: string }[], failOn: (
     const failure = failOn(body);
     if (failure) return failure;
     posted.push({ url: request.url, body });
+    // Only a Sensor creation takes the next Device-scoped id; a setpoint POST does not.
+    if (request.url.includes('/Setpoints')) return json({ id: 1, validFrom: body.validFrom }, 201);
     return json({ id: nextId++, externalSensorId: body.externalSensorId }, 201);
   });
   return posted;
@@ -178,6 +180,112 @@ describe('SensorImportDialog', { timeout: 20_000 }, () => {
     expect(within(problems).getByText(/Line 4 \(shaft_rpm_mean_1\).*\[aggregationType\]/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Import/ })).toBeDisabled();
     expect(posted).toHaveLength(0);
+  });
+
+  it('records target/tolerance as the first setpoint of the new Sensor, effective from the import, right after the Sensor', async () => {
+    const posted = mockApi([]);
+    const user = userEvent.setup();
+    renderDialog();
+    await screen.findByTestId('allowed-values');
+
+    paste(
+      [
+        'sensorName,direction,target,tolerance,targetAbove,targetBelow,toleranceAbove,toleranceBelow',
+        'a_1,lowerisbetter,5,0.5,,,,',
+        'b_1,lowerisbetter,,,,,,',
+        'c_1,bidirectional,,,1500,1400,20,10',
+      ].join('\n'),
+    );
+    await setDefaults(user);
+    const before = Date.now();
+    await user.click(await screen.findByRole('button', { name: 'Import 3 Sensor(s)' }));
+
+    // 3 Sensors + 2 setpoints (the row without target/tolerance gets none).
+    await waitFor(() => expect(posted).toHaveLength(5));
+    const after = Date.now();
+    expect(posted.map((p) => p.url.replace(/^.*\/api\//, ''))).toEqual([
+      'Devices/4/Sensors',
+      'Devices/4/Sensors/1/Setpoints',
+      'Devices/4/Sensors',
+      'Devices/4/Sensors',
+      'Devices/4/Sensors/3/Setpoints',
+    ]);
+    expect(posted[1]!.body).toMatchObject({ target: 5, tolerance: 0.5 });
+    expect(posted[1]!.body).not.toHaveProperty('targetAbove');
+    expect(posted[4]!.body).toMatchObject({ targetAbove: 1500, targetBelow: 1400, toleranceAbove: 20, toleranceBelow: 10 });
+    expect(posted[4]!.body).not.toHaveProperty('target');
+
+    // Effective from the moment of the import - the same instant for every Sensor of the run, no open end.
+    const validFrom = posted[1]!.body.validFrom as string;
+    expect(validFrom).toBe(posted[4]!.body.validFrom);
+    expect(new Date(validFrom).getTime()).toBeGreaterThanOrEqual(before - 1);
+    expect(new Date(validFrom).getTime()).toBeLessThanOrEqual(after);
+    expect(posted[1]!.body).not.toHaveProperty('validTo');
+    expect(await screen.findByText(/2 setpoint\(s\) recorded/)).toBeInTheDocument();
+  });
+
+  it('a Sensor whose setpoint cannot be saved stays created, and the dialog says which setpoint failed', async () => {
+    const posted = mockApi([], (body) => ('validFrom' in body ? new Response('Interval overlaps.', { status: 409 }) : null));
+    const user = userEvent.setup();
+    renderDialog();
+    await screen.findByTestId('allowed-values');
+
+    paste(['sensorName,target', 'a_1,5', 'b_1,6'].join('\n'));
+    await setDefaults(user);
+    await user.click(await screen.findByRole('button', { name: 'Import 2 Sensor(s)' }));
+
+    expect(await screen.findByText(/2 created/)).toBeInTheDocument();
+    expect(await screen.findByText(/2 setpoint\(s\) could not be saved/)).toBeInTheDocument();
+    const list = await screen.findByRole('list', { name: 'Setpoints not saved' });
+    expect(within(list).getByText(/Line 2 \(a_1\)/)).toBeInTheDocument();
+    expect(posted.filter((p) => p.url.endsWith('/Sensors'))).toHaveLength(2);
+  });
+
+  it('shows the setpoint in the preview and blocks a setpoint that does not fit the direction', async () => {
+    const posted = mockApi([]);
+    const user = userEvent.setup();
+    renderDialog();
+    await screen.findByTestId('allowed-values');
+
+    paste(['sensorName,direction,target,tolerance,targetAbove', 'a_1,lowerisbetter,5,0.5,', 'b_1,bidirectional,,,10', 'c_1,bidirectional,7,,'].join('\n'));
+    await setDefaults(user);
+
+    const problems = await screen.findByRole('list', { name: 'Rows with problems' });
+    expect(within(problems).getByText(/Line 4 \(c_1\).*\[target = "7"\]/)).toBeInTheDocument();
+    const preview = screen.getByRole('table', { name: 'Preview of the first rows' });
+    expect(within(preview).getByText('target 5 ± 0.5')).toBeInTheDocument();
+    expect(within(preview).getByText('above 10')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Import/ })).toBeDisabled();
+    expect(posted).toHaveLength(0);
+  });
+
+  it('offers the "Data sets" workbook once the catalog is loaded, as an .xlsx download', async () => {
+    mockApi([]);
+    const created: Blob[] = [];
+    URL.createObjectURL = (blob: Blob | MediaSource) => {
+      created.push(blob as Blob);
+      return 'blob:data-sets';
+    };
+    URL.revokeObjectURL = () => undefined;
+    const clicked: string[] = [];
+    const click = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) {
+      clicked.push(this.download);
+    };
+    try {
+      const user = userEvent.setup();
+      renderDialog();
+      await screen.findByTestId('allowed-values');
+
+      await user.click(screen.getByRole('button', { name: 'Download Data sets' }));
+
+      expect(clicked).toEqual(['sensor-import-data-sets.xlsx']);
+      expect(created).toHaveLength(1);
+      expect(created[0]!.type).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      expect(created[0]!.size).toBeGreaterThan(20_000);
+    } finally {
+      HTMLAnchorElement.prototype.click = click;
+    }
   });
 
   it('sends isCurve for a periodic Device', async () => {

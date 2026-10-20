@@ -418,7 +418,7 @@ export function SensorPoliciesPage() {
     <>
       <PageHeader
         title={`${sensorQuery.data?.name || sensorQuery.data?.externalSensorId} · Sensor configuration`}
-        description={`${sensorQuery.data?.direction ?? ''} ${sensorQuery.data?.quantityKind ? '· ' + sensorQuery.data.quantityKind : ''}`}
+        description={`${sensorQuery.data?.direction ?? ''} ${sensorQuery.data?.sensorType ? '· ' + sensorQuery.data.sensorType : ''}`}
       />
 
       {sensorQuery.data && <MetricDefinitionCard sensor={sensorQuery.data} />}
