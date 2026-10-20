@@ -47,7 +47,10 @@ export function useCreateSensor(deviceId: number) {
           body,
         }),
       ),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.sensors(deviceId) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sensors(deviceId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sensorTypes }); // a new Sensor may bring a new Sensor type
+    },
   });
 }
 
@@ -64,6 +67,7 @@ export function useUpdateSensor(deviceId: number, sensorId: number) {
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKeys.sensor(deviceId, sensorId), updated);
       queryClient.invalidateQueries({ queryKey: queryKeys.sensors(deviceId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sensorTypes });
     },
   });
 }
@@ -238,6 +242,9 @@ export function useImportSensors(deviceId: number) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (args: Omit<ImportSensorsArgs, 'deviceId'>) => importSensors({ ...args, deviceId }),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.sensors(deviceId) }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sensors(deviceId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sensorTypes });
+    },
   });
 }

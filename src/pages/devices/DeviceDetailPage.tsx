@@ -23,6 +23,7 @@ import { EmptyState } from '@/components/states/EmptyState';
 import { EnabledPill, FreshnessPill, MaintenancePill, ProcessingOffPill } from '@/components/StatusPill';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SensorImportDialog } from './SensorImportDialog';
+import { SensorTypeInput } from '@/components/SensorTypeInput';
 import { DeleteDeviceDialog } from './DeleteDeviceDialog';
 import { useAppToast } from '@/components/ToastProvider';
 import { useDevice, useUpdateDevice, useDisableDevice } from '@/api/hooks/devices';
@@ -160,8 +161,8 @@ function NewSensorDialog({
         <Field label="Direction" required>
           <DirectionSelect value={direction} onChange={setDirection} />
         </Field>
-        <Field label="Sensor type" hint="e.g. temperature, pressure, vibration">
-          <Input value={sensorType} onChange={(_, d) => setSensorType(d.value)} />
+        <Field label="Sensor type" hint="Pick one already in use, or type a new one - e.g. temperature, pressure, vibration">
+          <SensorTypeInput value={sensorType} onChange={setSensorType} />
         </Field>
         <Field label="Unit code" hint="e.g. degC, bar, mm/s">
           <Input value={unitCode} onChange={(_, d) => setUnitCode(d.value)} />
@@ -223,7 +224,7 @@ function EditSensorDialog({
           <DirectionSelect value={direction} onChange={setDirection} />
         </Field>
         <Field label="Sensor type">
-          <Input value={sensorType} onChange={(_, d) => setSensorType(d.value)} />
+          <SensorTypeInput value={sensorType} onChange={setSensorType} />
         </Field>
         <Field label="Unit code">
           <Input value={unitCode} onChange={(_, d) => setUnitCode(d.value)} />
@@ -586,7 +587,7 @@ export function DeviceDetailPage() {
       {isAdmin && (
         <div style={{ marginTop: tokens.spacingVerticalXL }}>
           <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-            There is no permanent delete for a Device - disabling is the supported way to retire one.
+            Disabling keeps all of the Device's data and can be undone. To remove a Device and all of its data for good, use Edit, then Delete device.
           </Text>
           <br />
           <Button
