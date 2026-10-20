@@ -78,6 +78,22 @@ describe('setpoint columns (target / tolerance) of the Sensor import', () => {
     expect(parse('sensorName;TARGET(Optional);Tolerance  (optional)\nt_1;4;1').rows[0]!.setpoint).toEqual({ target: 4, tolerance: 1 });
   });
 
+  it('reads the four bidirectional template headers with their "(optional)" mark', () => {
+    const header = 'sensorName,direction,targetAbove (optional),targetBelow (optional),toleranceAbove (optional),toleranceBelow (optional)';
+    const { rows, ignoredColumns } = parse(`${header}\nr_1,bidirectional,1500,1400,20,10`);
+    expect(ignoredColumns).toEqual([]);
+    expect(rows[0]!.errors).toEqual([]);
+    expect(rows[0]!.setpoint).toEqual({ targetAbove: 1500, targetBelow: 1400, toleranceAbove: 20, toleranceBelow: 10 });
+  });
+
+  it('every optional setpoint column of the template header is read back by the importer', () => {
+    const optional = TEMPLATE_HEADERS.filter((h) => h.endsWith('(optional)'));
+    expect(optional).toHaveLength(6);
+    const csv = buildTemplateCsv(CATALOG).replace(/^\uFEFF/, '');
+    const { ignoredColumns } = parse(csv);
+    expect(ignoredColumns).toEqual([]);
+  });
+
   it('accepts a target of zero (not treated as empty)', () => {
     const { rows } = parse('externalSensorId,target,tolerance\nt_1,0,0');
     expect(rows[0]!.errors).toEqual([]);
@@ -86,7 +102,7 @@ describe('setpoint columns (target / tolerance) of the Sensor import', () => {
 
   it('the template lists the setpoint columns, and the id/name columns are sensorName and displayName', () => {
     expect(TEMPLATE_HEADERS.slice(0, 2)).toEqual(['sensorName', 'displayName']);
-    for (const column of ['target (optional)', 'tolerance (optional)', 'targetAbove', 'targetBelow', 'toleranceAbove', 'toleranceBelow']) expect(TEMPLATE_HEADERS).toContain(column);
+    for (const column of ['target (optional)', 'tolerance (optional)', 'targetAbove (optional)', 'targetBelow (optional)', 'toleranceAbove (optional)', 'toleranceBelow (optional)']) expect(TEMPLATE_HEADERS).toContain(column);
     const csv = buildTemplateCsv(CATALOG).replace(/^\uFEFF/, '');
     const [header, firstRow] = csv.split('\r\n');
     expect(header!.split(',')).toEqual([...TEMPLATE_HEADERS]);

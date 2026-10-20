@@ -9,6 +9,9 @@ export const queryKeys = {
 
   sensorMetadata: ['sensorMetadata'] as const,
   sensorTypes: ['sensorTypes'] as const,
+  // Admin-only logs; the filters are part of the key, so each filter set has its own paged list.
+  auditLog: (filters: object) => ['logs', 'audit', filters] as const,
+  systemLog: (filters: object) => ['logs', 'system', filters] as const,
   macAddresses: ['macAddresses'] as const,
   macAddressList: (status?: string) => ['macAddresses', status ?? 'all'] as const,
 

@@ -75,10 +75,10 @@ export const TEMPLATE_HEADERS = [
   'processingEnabled',
   'target (optional)',
   'tolerance (optional)',
-  'targetAbove',
-  'targetBelow',
-  'toleranceAbove',
-  'toleranceBelow',
+  'targetAbove (optional)',
+  'targetBelow (optional)',
+  'toleranceAbove (optional)',
+  'toleranceBelow (optional)',
 ] as const;
 
 /**

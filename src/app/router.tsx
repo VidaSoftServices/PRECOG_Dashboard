@@ -111,6 +111,16 @@ export const router = createBrowserRouter([
             ],
           },
           {
+            path: 'admin/logs',
+            element: <RequireAdmin />,
+            children: [
+              {
+                index: true,
+                lazy: () => import('@/pages/admin/LogsPage').then((m) => ({ Component: m.LogsPage })),
+              },
+            ],
+          },
+          {
             path: 'status',
             lazy: () => import('@/pages/status/SystemStatusPage').then((m) => ({ Component: m.SystemStatusPage })),
           },

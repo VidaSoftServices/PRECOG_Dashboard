@@ -12,6 +12,7 @@ import {
   PeopleTeam24Regular,
   Settings24Regular,
   HeartPulse24Regular,
+  TextBulletListSquare24Regular,
 } from '@fluentui/react-icons';
 
 export interface NavEntry {
@@ -35,5 +36,6 @@ export const navEntries: NavEntry[] = [
   { path: '/ollama-jobs', label: 'Ollama Jobs', icon: ChatSparkle24Regular, adminOnly: false },
   { path: '/admin/readers', label: 'Users & Access', icon: PeopleTeam24Regular, adminOnly: true },
   { path: '/admin/settings', label: 'Company Settings', icon: Settings24Regular, adminOnly: true },
+  { path: '/admin/logs', label: 'Logs', icon: TextBulletListSquare24Regular, adminOnly: true },
   { path: '/status', label: 'System Status', icon: HeartPulse24Regular, adminOnly: false },
 ];
