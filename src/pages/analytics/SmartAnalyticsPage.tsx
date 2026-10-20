@@ -116,7 +116,7 @@ function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; sta
       const sensor = sensors.find((s) => s.id === sensorId);
       const q = queries[i];
       if (!sensor || !q) return null;
-      return { label: sensor.name || sensor.externalSensorId || `Sensor ${sensorId}`, points: q.data ?? [], bidirectional: sensor.direction === 'bidirectional' };
+      return { label: sensor.name || sensor.externalSensorId || `Sensor ${sensorId}`, points: q.data ?? [], bidirectional: sensor.direction === 'bidirectional', unitLabel: sensor.unitLabel };
     })
     .filter((s): s is NonNullable<typeof s> => s !== null);
 

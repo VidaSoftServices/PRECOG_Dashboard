@@ -235,3 +235,7 @@ When a backend documentation file and the live OpenAPI contract disagree
 4. Record the discrepancy in `TASK_IMPLEMENTATION.md`'s source-reading log.
 5. Continue all frontend work that isn't blocked by the discrepancy.
 6. Never invent missing data or behavior to paper over it.
+
+## Sensor unit and aggregation metadata
+
+Units and aggregation types come only from the API catalog (`GET /api/SensorMetadata`). Never hardcode a metric-name-to-unit mapping or a unit/aggregation literal in application code (`src/test/noHardcodedMetadata.test.ts` enforces it). The aggregation type is metadata only - no rollup in the browser. See `CLAUDE.md` "Sensor unit and aggregation metadata".

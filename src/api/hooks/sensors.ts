@@ -135,6 +135,8 @@ export async function importSensors({ deviceId, rows, isCurve, signal, onProgres
               direction: row.direction,
               quantityKind: row.quantityKind || undefined,
               unitCode: row.unitCode || undefined,
+              aggregationType: row.aggregationType ? (row.aggregationType as CreateSensorRequest['aggregationType']) : undefined,
+              aggregationExplanation: row.aggregationType ? row.aggregationExplanation : undefined,
               isCurve,
               rawScale: row.rawScale,
               rawLookback: row.rawLookback,

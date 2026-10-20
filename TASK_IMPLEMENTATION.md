@@ -2515,3 +2515,9 @@ value), `SensorImportDialog.test.tsx` (default vs. column reaches the POST body)
 Verified locally: typecheck clean, lint 0 errors, vitest 185/185 (23 files), production build succeeds.
 Not verified against the real API (the analysis skip and the no-backlog rule have no automated runtime
 test on the API side either), and the Device-detail Switch/dialog has no component test of its own.
+
+## Vibration_Duo KPI unit and aggregation metadata (Dashboard)
+
+- **Done**: regenerated `schema.generated.ts`; `useSensorMetadata`; import parsing/validation/preview/template/POST body with unit, aggregation type and explanation, driven by the API catalog; `MetricDefinitionCard`; chart axis/tooltip unit from the API; regenerated sample CSVs.
+- **Tests**: `sensorImport.metadata.test.ts` (catalog validation, exact names, template), `sensorImport.samples.test.ts` (163/326 rows valid and equal to the catalog), `SensorImportDialog.test.tsx` (allowed values, preview, POST body, blocking), `MetricDefinitionCard.test.tsx`, `TelemetryChart.units.test.ts`, `noHardcodedMetadata.test.ts`. Full run: 27 files / 240 tests pass; `npm run typecheck` and `npm run build` pass; `npm run lint` has 0 errors (7 existing-style react-refresh warnings, 2 of them from the new exported chart helpers).
+- **Not done / by design**: no rollup, no Sensor export (none exists), no browser (Playwright) pass for this change, no commit/push.

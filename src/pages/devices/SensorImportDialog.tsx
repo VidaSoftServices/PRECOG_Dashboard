@@ -23,6 +23,7 @@ import { ArrowDownload24Regular, DocumentArrowUp24Regular } from '@fluentui/reac
 import { ErrorState } from '@/components/states/ErrorState';
 import { useAppToast } from '@/components/ToastProvider';
 import { useImportSensors, useSensors, type SensorImportOutcome } from '@/api/hooks/sensors';
+import { useSensorMetadata } from '@/api/hooks/sensorMetadata';
 import {
   DIRECTIONS,
   MAX_IMPORT_ROWS,
@@ -30,6 +31,8 @@ import {
   buildSensorIdMapCsv,
   buildTemplateCsv,
   parseSensorTable,
+  toImportCatalog,
+  type ImportCatalog,
   type ImportDefaults,
   type SensorDirection,
 } from '@/lib/sensorImport';
@@ -46,6 +49,37 @@ const useStyles = makeStyles({
   cell: { textAlign: 'left', padding: `${tokens.spacingVerticalXXS} ${tokens.spacingHorizontalS}`, borderBottom: `1px solid ${tokens.colorNeutralStroke2}` },
   muted: { color: tokens.colorNeutralForeground3 },
 });
+
+/** The allowed unitCode and aggregationType values, listed from the API catalog next to the template. */
+function AllowedValues({ catalog }: { catalog: ImportCatalog }) {
+  const styles = useStyles();
+  return (
+    <div className={styles.muted} data-testid="allowed-values">
+      <Text size={200} block>
+        <b>unitCode</b> (stable code, not the label): {catalog.units.map((u) => `${u.code} (${u.label})`).join(', ')}.
+      </Text>
+      <Text size={200} block>
+        <b>aggregationType</b> (future aggregation, metadata only): {catalog.aggregationTypes.map((a) => `${a.code} (${a.label})`).join(', ')}.
+      </Text>
+      <Text size={200} block>
+        A Sensor named like a known metric (machine name + point number) must carry exactly that metric&apos;s unitCode, aggregationType and an aggregationExplanation; other columns are optional.
+      </Text>
+    </div>
+  );
+}
+
+/** "mm/s (mm_s)": the display label AND the stable code, so a raw_energy value is visibly raw_energy and never g. */
+function unitText(catalog: ImportCatalog | undefined, code: string): string {
+  if (!code) return '';
+  const unit = catalog?.units.find((u) => u.code === code);
+  return unit ? `${unit.label} (${code})` : code;
+}
+
+function typeText(catalog: ImportCatalog | undefined, code: string): string {
+  if (!code) return '';
+  const type = catalog?.aggregationTypes.find((a) => a.code === code);
+  return type ? `${type.label} (${code})` : code;
+}
 
 const DEFAULTS: ImportDefaults = { direction: 'lowerisbetter', rawScale: '', rawLookback: '', rawMinIssueScore: '1', processingEnabled: true };
 const PREVIEW_ROWS = 8;
@@ -82,6 +116,8 @@ export function SensorImportDialog({
   const styles = useStyles();
   const toast = useAppToast();
   const sensorsQuery = useSensors(deviceId);
+  const catalogQuery = useSensorMetadata();
+  const catalog = useMemo(() => toImportCatalog(catalogQuery.data), [catalogQuery.data]);
   const importer = useImportSensors(deviceId);
 
   const [text, setText] = useState('');
@@ -92,7 +128,7 @@ export function SensorImportDialog({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const running = importer.isPending;
-  const parsed = useMemo(() => parseSensorTable(text, defaults), [text, defaults]);
+  const parsed = useMemo(() => parseSensorTable(text, defaults, catalog), [text, defaults, catalog]);
 
   const existingIds = useMemo(
     () => new Set((sensorsQuery.data ?? []).map((s) => (s.externalSensorId ?? '').toLowerCase())),
@@ -172,7 +208,11 @@ export function SensorImportDialog({
             </Text>
 
             <div className={styles.row}>
-              <Button icon={<ArrowDownload24Regular />} onClick={() => downloadTextFile('sensor-import-template.csv', buildTemplateCsv())}>
+              <Button
+                icon={<ArrowDownload24Regular />}
+                disabled={!catalog}
+                onClick={() => catalog && downloadTextFile('sensor-import-template.csv', buildTemplateCsv(catalog))}
+              >
                 Download template
               </Button>
               <Button icon={<DocumentArrowUp24Regular />} onClick={() => fileRef.current?.click()} disabled={running}>
@@ -190,6 +230,10 @@ export function SensorImportDialog({
                 }}
               />
             </div>
+
+            {catalogQuery.isLoading && <Text size={200}>Loading the unit and aggregation catalog…</Text>}
+            {catalogQuery.isError && <ErrorState error={catalogQuery.error} onRetry={() => catalogQuery.refetch()} />}
+            {catalog && <AllowedValues catalog={catalog} />}
 
             <Field label="Sensor table" hint={`Header row plus up to ${MAX_IMPORT_ROWS} Sensors. Tab-, semicolon- and comma-separated text all work.`}>
               <Textarea
@@ -276,7 +320,8 @@ export function SensorImportDialog({
                     {withProblems.slice(0, MAX_LISTED).map((r) => (
                       <li key={r.line}>
                         Line {r.line}
-                        {r.externalSensorId && ` (${r.externalSensorId})`}: {r.errors.join(' ')}
+                        {r.externalSensorId && ` (${r.externalSensorId})`}:{' '}
+                        {r.issues.map((i) => `[${i.field}${i.value ? ` = "${i.value}"` : ''}] ${i.message}`).join(' ')}
                       </li>
                     ))}
                     {withProblems.length > MAX_LISTED && <li>…and {withProblems.length - MAX_LISTED} more.</li>}
@@ -285,7 +330,7 @@ export function SensorImportDialog({
                 <table className={styles.preview} aria-label="Preview of the first rows">
                   <thead>
                     <tr>
-                      {['Line', 'externalSensorId', 'name', 'direction', 'unit', 'scale', 'lookback', 'calc'].map((h) => (
+                      {['Line', 'Machine name', 'Display name', 'Unit', 'Aggregation type', 'Explanation', 'Calc', 'Validation'].map((h) => (
                         <th key={h} className={styles.cell}>
                           {h}
                         </th>
@@ -298,11 +343,13 @@ export function SensorImportDialog({
                         <td className={styles.cell}>{r.line}</td>
                         <td className={styles.cell}>{r.externalSensorId}</td>
                         <td className={styles.cell}>{r.name}</td>
-                        <td className={styles.cell}>{r.direction}</td>
-                        <td className={styles.cell}>{r.unitCode}</td>
-                        <td className={styles.cell}>{r.rawScale}</td>
-                        <td className={styles.cell}>{r.rawLookback || ''}</td>
+                        <td className={styles.cell}>{unitText(catalog, r.unitCode)}</td>
+                        <td className={styles.cell}>{typeText(catalog, r.aggregationType)}</td>
+                        <td className={styles.cell} title={r.aggregationExplanation}>
+                          {r.aggregationExplanation.length > 70 ? `${r.aggregationExplanation.slice(0, 70)}…` : r.aggregationExplanation}
+                        </td>
                         <td className={styles.cell}>{r.processingEnabled ? 'on' : 'off'}</td>
+                        <td className={styles.cell}>{r.errors.length === 0 ? 'OK' : `Error (${r.issues.map((i) => i.field).join(', ')})`}</td>
                       </tr>
                     ))}
                   </tbody>

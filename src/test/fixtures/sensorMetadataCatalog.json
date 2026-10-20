@@ -1,0 +1,1548 @@
+{
+  "units": [
+    {
+      "code": "g",
+      "label": "g",
+      "labelHu": "g"
+    },
+    {
+      "code": "mm_s",
+      "label": "mm/s",
+      "labelHu": "mm/s"
+    },
+    {
+      "code": "mm",
+      "label": "mm",
+      "labelHu": "mm"
+    },
+    {
+      "code": "one",
+      "label": "Unit",
+      "labelHu": "Unit"
+    },
+    {
+      "code": "raw_energy",
+      "label": "Relative spectrum energy",
+      "labelHu": "Relatív spektrumenergia"
+    },
+    {
+      "code": "degC",
+      "label": "°C",
+      "labelHu": "°C"
+    },
+    {
+      "code": "rpm",
+      "label": "RPM",
+      "labelHu": "RPM"
+    }
+  ],
+  "aggregationTypes": [
+    {
+      "code": "EQUIVALENT_RMS",
+      "label": "Equivalent RMS",
+      "explanation": "For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean.",
+      "allowedUnitCodes": [
+        "g",
+        "mm_s",
+        "mm"
+      ]
+    },
+    {
+      "code": "WEIGHTED_MEAN",
+      "label": "Weighted mean",
+      "explanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values.",
+      "allowedUnitCodes": [
+        "g",
+        "mm_s",
+        "mm",
+        "one",
+        "raw_energy",
+        "degC",
+        "rpm"
+      ]
+    },
+    {
+      "code": "MAXIMUM",
+      "label": "Maximum",
+      "explanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values.",
+      "allowedUnitCodes": [
+        "g",
+        "mm_s",
+        "mm",
+        "one",
+        "raw_energy",
+        "degC",
+        "rpm"
+      ]
+    }
+  ],
+  "metrics": [
+    {
+      "machineName": "acceleration_rms_x_eq",
+      "displayName": "Acceleration RMS X (equivalent RMS)",
+      "unitCode": "g",
+      "unitLabel": "g",
+      "unitLabelHu": "g",
+      "aggregationType": "EQUIVALENT_RMS",
+      "aggregationExplanation": "For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean."
+    },
+    {
+      "machineName": "acceleration_rms_x_max",
+      "displayName": "Acceleration RMS X (maximum)",
+      "unitCode": "g",
+      "unitLabel": "g",
+      "unitLabelHu": "g",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "acceleration_rms_y_eq",
+      "displayName": "Acceleration RMS Y (equivalent RMS)",
+      "unitCode": "g",
+      "unitLabel": "g",
+      "unitLabelHu": "g",
+      "aggregationType": "EQUIVALENT_RMS",
+      "aggregationExplanation": "For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean."
+    },
+    {
+      "machineName": "acceleration_rms_y_max",
+      "displayName": "Acceleration RMS Y (maximum)",
+      "unitCode": "g",
+      "unitLabel": "g",
+      "unitLabelHu": "g",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "acceleration_rms_z_eq",
+      "displayName": "Acceleration RMS Z (equivalent RMS)",
+      "unitCode": "g",
+      "unitLabel": "g",
+      "unitLabelHu": "g",
+      "aggregationType": "EQUIVALENT_RMS",
+      "aggregationExplanation": "For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean."
+    },
+    {
+      "machineName": "acceleration_rms_z_max",
+      "displayName": "Acceleration RMS Z (maximum)",
+      "unitCode": "g",
+      "unitLabel": "g",
+      "unitLabelHu": "g",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "acceleration_rms_total_eq",
+      "displayName": "Acceleration RMS total (equivalent RMS)",
+      "unitCode": "g",
+      "unitLabel": "g",
+      "unitLabelHu": "g",
+      "aggregationType": "EQUIVALENT_RMS",
+      "aggregationExplanation": "For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean."
+    },
+    {
+      "machineName": "acceleration_rms_total_max",
+      "displayName": "Acceleration RMS total (maximum)",
+      "unitCode": "g",
+      "unitLabel": "g",
+      "unitLabelHu": "g",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "velocity_rms_x_eq",
+      "displayName": "Velocity RMS X (equivalent RMS)",
+      "unitCode": "mm_s",
+      "unitLabel": "mm/s",
+      "unitLabelHu": "mm/s",
+      "aggregationType": "EQUIVALENT_RMS",
+      "aggregationExplanation": "For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean."
+    },
+    {
+      "machineName": "velocity_rms_x_max",
+      "displayName": "Velocity RMS X (maximum)",
+      "unitCode": "mm_s",
+      "unitLabel": "mm/s",
+      "unitLabelHu": "mm/s",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "velocity_rms_y_eq",
+      "displayName": "Velocity RMS Y (equivalent RMS)",
+      "unitCode": "mm_s",
+      "unitLabel": "mm/s",
+      "unitLabelHu": "mm/s",
+      "aggregationType": "EQUIVALENT_RMS",
+      "aggregationExplanation": "For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean."
+    },
+    {
+      "machineName": "velocity_rms_y_max",
+      "displayName": "Velocity RMS Y (maximum)",
+      "unitCode": "mm_s",
+      "unitLabel": "mm/s",
+      "unitLabelHu": "mm/s",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "velocity_rms_z_eq",
+      "displayName": "Velocity RMS Z (equivalent RMS)",
+      "unitCode": "mm_s",
+      "unitLabel": "mm/s",
+      "unitLabelHu": "mm/s",
+      "aggregationType": "EQUIVALENT_RMS",
+      "aggregationExplanation": "For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean."
+    },
+    {
+      "machineName": "velocity_rms_z_max",
+      "displayName": "Velocity RMS Z (maximum)",
+      "unitCode": "mm_s",
+      "unitLabel": "mm/s",
+      "unitLabelHu": "mm/s",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "velocity_rms_total_eq",
+      "displayName": "Velocity RMS total (equivalent RMS)",
+      "unitCode": "mm_s",
+      "unitLabel": "mm/s",
+      "unitLabelHu": "mm/s",
+      "aggregationType": "EQUIVALENT_RMS",
+      "aggregationExplanation": "For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean."
+    },
+    {
+      "machineName": "velocity_rms_total_max",
+      "displayName": "Velocity RMS total (maximum)",
+      "unitCode": "mm_s",
+      "unitLabel": "mm/s",
+      "unitLabelHu": "mm/s",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "displacement_rms_x_eq",
+      "displayName": "Displacement RMS X (equivalent RMS)",
+      "unitCode": "mm",
+      "unitLabel": "mm",
+      "unitLabelHu": "mm",
+      "aggregationType": "EQUIVALENT_RMS",
+      "aggregationExplanation": "For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean."
+    },
+    {
+      "machineName": "displacement_rms_x_max",
+      "displayName": "Displacement RMS X (maximum)",
+      "unitCode": "mm",
+      "unitLabel": "mm",
+      "unitLabelHu": "mm",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "displacement_rms_y_eq",
+      "displayName": "Displacement RMS Y (equivalent RMS)",
+      "unitCode": "mm",
+      "unitLabel": "mm",
+      "unitLabelHu": "mm",
+      "aggregationType": "EQUIVALENT_RMS",
+      "aggregationExplanation": "For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean."
+    },
+    {
+      "machineName": "displacement_rms_y_max",
+      "displayName": "Displacement RMS Y (maximum)",
+      "unitCode": "mm",
+      "unitLabel": "mm",
+      "unitLabelHu": "mm",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "displacement_rms_z_eq",
+      "displayName": "Displacement RMS Z (equivalent RMS)",
+      "unitCode": "mm",
+      "unitLabel": "mm",
+      "unitLabelHu": "mm",
+      "aggregationType": "EQUIVALENT_RMS",
+      "aggregationExplanation": "For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean."
+    },
+    {
+      "machineName": "displacement_rms_z_max",
+      "displayName": "Displacement RMS Z (maximum)",
+      "unitCode": "mm",
+      "unitLabel": "mm",
+      "unitLabelHu": "mm",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "displacement_rms_total_eq",
+      "displayName": "Displacement RMS total (equivalent RMS)",
+      "unitCode": "mm",
+      "unitLabel": "mm",
+      "unitLabelHu": "mm",
+      "aggregationType": "EQUIVALENT_RMS",
+      "aggregationExplanation": "For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean."
+    },
+    {
+      "machineName": "displacement_rms_total_max",
+      "displayName": "Displacement RMS total (maximum)",
+      "unitCode": "mm",
+      "unitLabel": "mm",
+      "unitLabelHu": "mm",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "acceleration_kurtosis_x_mean",
+      "displayName": "Acceleration kurtosis X (mean)",
+      "unitCode": "one",
+      "unitLabel": "Unit",
+      "unitLabelHu": "Unit",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second kurtosis values. It would not be the kurtosis of one continuous longer raw waveform."
+    },
+    {
+      "machineName": "acceleration_kurtosis_x_max",
+      "displayName": "Acceleration kurtosis X (maximum)",
+      "unitCode": "one",
+      "unitLabel": "Unit",
+      "unitLabelHu": "Unit",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "acceleration_kurtosis_y_mean",
+      "displayName": "Acceleration kurtosis Y (mean)",
+      "unitCode": "one",
+      "unitLabel": "Unit",
+      "unitLabelHu": "Unit",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second kurtosis values. It would not be the kurtosis of one continuous longer raw waveform."
+    },
+    {
+      "machineName": "acceleration_kurtosis_y_max",
+      "displayName": "Acceleration kurtosis Y (maximum)",
+      "unitCode": "one",
+      "unitLabel": "Unit",
+      "unitLabelHu": "Unit",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "acceleration_kurtosis_z_mean",
+      "displayName": "Acceleration kurtosis Z (mean)",
+      "unitCode": "one",
+      "unitLabel": "Unit",
+      "unitLabelHu": "Unit",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second kurtosis values. It would not be the kurtosis of one continuous longer raw waveform."
+    },
+    {
+      "machineName": "acceleration_kurtosis_z_max",
+      "displayName": "Acceleration kurtosis Z (maximum)",
+      "unitCode": "one",
+      "unitLabel": "Unit",
+      "unitLabelHu": "Unit",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "acceleration_kurtosis_max_axis_mean",
+      "displayName": "Acceleration kurtosis max axis (mean)",
+      "unitCode": "one",
+      "unitLabel": "Unit",
+      "unitLabelHu": "Unit",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second kurtosis values. It would not be the kurtosis of one continuous longer raw waveform."
+    },
+    {
+      "machineName": "acceleration_kurtosis_max_axis_max",
+      "displayName": "Acceleration kurtosis max axis (maximum)",
+      "unitCode": "one",
+      "unitLabel": "Unit",
+      "unitLabelHu": "Unit",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "crest_factor_x_mean",
+      "displayName": "Acceleration crest factor X (mean)",
+      "unitCode": "one",
+      "unitLabel": "Unit",
+      "unitLabelHu": "Unit",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second crest-factor values. It would not be a global long-period peak divided by a global long-period RMS."
+    },
+    {
+      "machineName": "crest_factor_x_max",
+      "displayName": "Acceleration crest factor X (maximum)",
+      "unitCode": "one",
+      "unitLabel": "Unit",
+      "unitLabelHu": "Unit",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "crest_factor_y_mean",
+      "displayName": "Acceleration crest factor Y (mean)",
+      "unitCode": "one",
+      "unitLabel": "Unit",
+      "unitLabelHu": "Unit",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second crest-factor values. It would not be a global long-period peak divided by a global long-period RMS."
+    },
+    {
+      "machineName": "crest_factor_y_max",
+      "displayName": "Acceleration crest factor Y (maximum)",
+      "unitCode": "one",
+      "unitLabel": "Unit",
+      "unitLabelHu": "Unit",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "crest_factor_z_mean",
+      "displayName": "Acceleration crest factor Z (mean)",
+      "unitCode": "one",
+      "unitLabel": "Unit",
+      "unitLabelHu": "Unit",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second crest-factor values. It would not be a global long-period peak divided by a global long-period RMS."
+    },
+    {
+      "machineName": "crest_factor_z_max",
+      "displayName": "Acceleration crest factor Z (maximum)",
+      "unitCode": "one",
+      "unitLabel": "Unit",
+      "unitLabelHu": "Unit",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "crest_factor_max_axis_mean",
+      "displayName": "Acceleration crest factor max axis (mean)",
+      "unitCode": "one",
+      "unitLabel": "Unit",
+      "unitLabelHu": "Unit",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second crest-factor values. It would not be a global long-period peak divided by a global long-period RMS."
+    },
+    {
+      "machineName": "crest_factor_max_axis_max",
+      "displayName": "Acceleration crest factor max axis (maximum)",
+      "unitCode": "one",
+      "unitLabel": "Unit",
+      "unitLabelHu": "Unit",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_0_25x_x_mean",
+      "displayName": "Order 0.25x energy X (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_0_25x_x_max",
+      "displayName": "Order 0.25x energy X (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_0_25x_y_mean",
+      "displayName": "Order 0.25x energy Y (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_0_25x_y_max",
+      "displayName": "Order 0.25x energy Y (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_0_25x_z_mean",
+      "displayName": "Order 0.25x energy Z (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_0_25x_z_max",
+      "displayName": "Order 0.25x energy Z (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_0_25x_total_mean",
+      "displayName": "Order 0.25x energy total (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_0_25x_total_max",
+      "displayName": "Order 0.25x energy total (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_0_5x_x_mean",
+      "displayName": "Order 0.5x energy X (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_0_5x_x_max",
+      "displayName": "Order 0.5x energy X (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_0_5x_y_mean",
+      "displayName": "Order 0.5x energy Y (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_0_5x_y_max",
+      "displayName": "Order 0.5x energy Y (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_0_5x_z_mean",
+      "displayName": "Order 0.5x energy Z (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_0_5x_z_max",
+      "displayName": "Order 0.5x energy Z (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_0_5x_total_mean",
+      "displayName": "Order 0.5x energy total (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_0_5x_total_max",
+      "displayName": "Order 0.5x energy total (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_1x_x_mean",
+      "displayName": "Order 1x energy X (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_1x_x_max",
+      "displayName": "Order 1x energy X (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_1x_y_mean",
+      "displayName": "Order 1x energy Y (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_1x_y_max",
+      "displayName": "Order 1x energy Y (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_1x_z_mean",
+      "displayName": "Order 1x energy Z (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_1x_z_max",
+      "displayName": "Order 1x energy Z (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_1x_total_mean",
+      "displayName": "Order 1x energy total (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_1x_total_max",
+      "displayName": "Order 1x energy total (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_2x_x_mean",
+      "displayName": "Order 2x energy X (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_2x_x_max",
+      "displayName": "Order 2x energy X (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_2x_y_mean",
+      "displayName": "Order 2x energy Y (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_2x_y_max",
+      "displayName": "Order 2x energy Y (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_2x_z_mean",
+      "displayName": "Order 2x energy Z (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_2x_z_max",
+      "displayName": "Order 2x energy Z (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_2x_total_mean",
+      "displayName": "Order 2x energy total (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_2x_total_max",
+      "displayName": "Order 2x energy total (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_3x_x_mean",
+      "displayName": "Order 3x energy X (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_3x_x_max",
+      "displayName": "Order 3x energy X (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_3x_y_mean",
+      "displayName": "Order 3x energy Y (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_3x_y_max",
+      "displayName": "Order 3x energy Y (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_3x_z_mean",
+      "displayName": "Order 3x energy Z (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_3x_z_max",
+      "displayName": "Order 3x energy Z (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_3x_total_mean",
+      "displayName": "Order 3x energy total (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_3x_total_max",
+      "displayName": "Order 3x energy total (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_4x_x_mean",
+      "displayName": "Order 4x energy X (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_4x_x_max",
+      "displayName": "Order 4x energy X (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_4x_y_mean",
+      "displayName": "Order 4x energy Y (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_4x_y_max",
+      "displayName": "Order 4x energy Y (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_4x_z_mean",
+      "displayName": "Order 4x energy Z (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_4x_z_max",
+      "displayName": "Order 4x energy Z (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_4x_total_mean",
+      "displayName": "Order 4x energy total (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_4x_total_max",
+      "displayName": "Order 4x energy total (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_5x_x_mean",
+      "displayName": "Order 5x energy X (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_5x_x_max",
+      "displayName": "Order 5x energy X (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_5x_y_mean",
+      "displayName": "Order 5x energy Y (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_5x_y_max",
+      "displayName": "Order 5x energy Y (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_5x_z_mean",
+      "displayName": "Order 5x energy Z (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_5x_z_max",
+      "displayName": "Order 5x energy Z (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_5x_total_mean",
+      "displayName": "Order 5x energy total (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_5x_total_max",
+      "displayName": "Order 5x energy total (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_6x_x_mean",
+      "displayName": "Order 6x energy X (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_6x_x_max",
+      "displayName": "Order 6x energy X (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_6x_y_mean",
+      "displayName": "Order 6x energy Y (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_6x_y_max",
+      "displayName": "Order 6x energy Y (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_6x_z_mean",
+      "displayName": "Order 6x energy Z (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_6x_z_max",
+      "displayName": "Order 6x energy Z (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "energy_6x_total_mean",
+      "displayName": "Order 6x energy total (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "energy_6x_total_max",
+      "displayName": "Order 6x energy total (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_0_0_5x_x_mean",
+      "displayName": "Band 0-0.5x energy X (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_0_0_5x_x_max",
+      "displayName": "Band 0-0.5x energy X (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_0_0_5x_y_mean",
+      "displayName": "Band 0-0.5x energy Y (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_0_0_5x_y_max",
+      "displayName": "Band 0-0.5x energy Y (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_0_0_5x_z_mean",
+      "displayName": "Band 0-0.5x energy Z (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_0_0_5x_z_max",
+      "displayName": "Band 0-0.5x energy Z (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_0_0_5x_total_mean",
+      "displayName": "Band 0-0.5x energy total (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_0_0_5x_total_max",
+      "displayName": "Band 0-0.5x energy total (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_0_5_1x_x_mean",
+      "displayName": "Band 0.5-1x energy X (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_0_5_1x_x_max",
+      "displayName": "Band 0.5-1x energy X (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_0_5_1x_y_mean",
+      "displayName": "Band 0.5-1x energy Y (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_0_5_1x_y_max",
+      "displayName": "Band 0.5-1x energy Y (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_0_5_1x_z_mean",
+      "displayName": "Band 0.5-1x energy Z (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_0_5_1x_z_max",
+      "displayName": "Band 0.5-1x energy Z (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_0_5_1x_total_mean",
+      "displayName": "Band 0.5-1x energy total (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_0_5_1x_total_max",
+      "displayName": "Band 0.5-1x energy total (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_1_2x_x_mean",
+      "displayName": "Band 1-2x energy X (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_1_2x_x_max",
+      "displayName": "Band 1-2x energy X (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_1_2x_y_mean",
+      "displayName": "Band 1-2x energy Y (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_1_2x_y_max",
+      "displayName": "Band 1-2x energy Y (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_1_2x_z_mean",
+      "displayName": "Band 1-2x energy Z (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_1_2x_z_max",
+      "displayName": "Band 1-2x energy Z (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_1_2x_total_mean",
+      "displayName": "Band 1-2x energy total (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_1_2x_total_max",
+      "displayName": "Band 1-2x energy total (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_2_3x_x_mean",
+      "displayName": "Band 2-3x energy X (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_2_3x_x_max",
+      "displayName": "Band 2-3x energy X (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_2_3x_y_mean",
+      "displayName": "Band 2-3x energy Y (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_2_3x_y_max",
+      "displayName": "Band 2-3x energy Y (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_2_3x_z_mean",
+      "displayName": "Band 2-3x energy Z (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_2_3x_z_max",
+      "displayName": "Band 2-3x energy Z (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_2_3x_total_mean",
+      "displayName": "Band 2-3x energy total (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_2_3x_total_max",
+      "displayName": "Band 2-3x energy total (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_3_4x_x_mean",
+      "displayName": "Band 3-4x energy X (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_3_4x_x_max",
+      "displayName": "Band 3-4x energy X (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_3_4x_y_mean",
+      "displayName": "Band 3-4x energy Y (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_3_4x_y_max",
+      "displayName": "Band 3-4x energy Y (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_3_4x_z_mean",
+      "displayName": "Band 3-4x energy Z (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_3_4x_z_max",
+      "displayName": "Band 3-4x energy Z (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_3_4x_total_mean",
+      "displayName": "Band 3-4x energy total (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_3_4x_total_max",
+      "displayName": "Band 3-4x energy total (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_4_5x_x_mean",
+      "displayName": "Band 4-5x energy X (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_4_5x_x_max",
+      "displayName": "Band 4-5x energy X (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_4_5x_y_mean",
+      "displayName": "Band 4-5x energy Y (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_4_5x_y_max",
+      "displayName": "Band 4-5x energy Y (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_4_5x_z_mean",
+      "displayName": "Band 4-5x energy Z (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_4_5x_z_max",
+      "displayName": "Band 4-5x energy Z (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "band_4_5x_total_mean",
+      "displayName": "Band 4-5x energy total (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "band_4_5x_total_max",
+      "displayName": "Band 4-5x energy total (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "spectrum_energy_x_mean",
+      "displayName": "Total spectrum energy X (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "spectrum_energy_x_max",
+      "displayName": "Total spectrum energy X (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "spectrum_energy_y_mean",
+      "displayName": "Total spectrum energy Y (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "spectrum_energy_y_max",
+      "displayName": "Total spectrum energy Y (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "spectrum_energy_z_mean",
+      "displayName": "Total spectrum energy Z (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "spectrum_energy_z_max",
+      "displayName": "Total spectrum energy Z (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "spectrum_energy_total_mean",
+      "displayName": "Total spectrum energy total (mean)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. The longer-period value would be the weighted mean of the five-second relative spectrum-energy levels. It would not be accumulated physical energy."
+    },
+    {
+      "machineName": "spectrum_energy_total_max",
+      "displayName": "Total spectrum energy total (maximum)",
+      "unitCode": "raw_energy",
+      "unitLabel": "Relative spectrum energy",
+      "unitLabelHu": "Relatív spektrumenergia",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "sensor_temperature_mean",
+      "displayName": "Sensor chip temperature (mean)",
+      "unitCode": "degC",
+      "unitLabel": "°C",
+      "unitLabelHu": "°C",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values."
+    },
+    {
+      "machineName": "sensor_temperature_max",
+      "displayName": "Sensor chip temperature (maximum)",
+      "unitCode": "degC",
+      "unitLabel": "°C",
+      "unitLabelHu": "°C",
+      "aggregationType": "MAXIMUM",
+      "aggregationExplanation": "For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values."
+    },
+    {
+      "machineName": "shaft_rpm_mean",
+      "displayName": "Shaft speed (mean)",
+      "unitCode": "rpm",
+      "unitLabel": "RPM",
+      "unitLabelHu": "RPM",
+      "aggregationType": "WEIGHTED_MEAN",
+      "aggregationExplanation": "For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. A true zero RPM is a valid stopped-machine value. Missing data must not be converted to zero RPM."
+    }
+  ]
+}

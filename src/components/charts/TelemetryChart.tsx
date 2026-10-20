@@ -42,6 +42,8 @@ export interface TelemetrySeriesInput {
   label: string;
   points: TelemetryPoint[];
   bidirectional?: boolean;
+  /** Display label of the series' unit, exactly as the API returns it (`SensorDto.unitLabel`). Never derived from the metric name; omit when the Sensor has none. */
+  unitLabel?: string | null;
 }
 
 interface TelemetryChartProps {
@@ -52,6 +54,23 @@ interface TelemetryChartProps {
   showControlLimits?: boolean;
   title?: string;
   emptyLabel?: string;
+}
+
+/**
+ * The one unit label shared by every series, or undefined when the series differ (then the unit is only shown per series
+ * in the tooltip - two units must never be merged under one axis title).
+ */
+export function sharedUnitLabel(series: TelemetrySeriesInput[]): string | undefined {
+  const labels = new Set(series.map((s) => s.unitLabel).filter((l): l is string => !!l));
+  const everySeriesHasOne = series.every((s) => !!s.unitLabel);
+  return labels.size === 1 && everySeriesHasOne ? [...labels][0] : undefined;
+}
+
+/** The unit label of the series a dataset belongs to; derived datasets (limits, target) are named `<series label> UCL3` etc. */
+export function unitLabelOfDataset(series: TelemetrySeriesInput[], datasetLabel: string | undefined): string | undefined {
+  if (!datasetLabel) return undefined;
+  const owner = series.find((s) => datasetLabel === s.label) ?? series.find((s) => datasetLabel.startsWith(s.label + ' '));
+  return owner?.unitLabel || undefined;
 }
 
 function anomalyPointColor(point: TelemetryPoint, base: string): string {
@@ -70,7 +89,7 @@ function summarize(series: TelemetrySeriesInput[]): string {
     const criticalCount = points.filter((p) => (p.anomaly ?? Math.max(p.anomalyAbove ?? 0, p.anomalyBelow ?? 0)) === 2).length;
     const warningCount = points.filter((p) => (p.anomaly ?? Math.max(p.anomalyAbove ?? 0, p.anomalyBelow ?? 0)) === 1).length;
     const anomalyPart = criticalCount || warningCount ? `, ${criticalCount} critical / ${warningCount} warning point(s)` : '';
-    return `${s.label}: latest ${last.actual} at ${formatDateTime(last.measured)}${anomalyPart}`;
+    return `${s.label}: latest ${last.actual}${s.unitLabel ? ` ${s.unitLabel}` : ''} at ${formatDateTime(last.measured)}${anomalyPart}`;
   });
   return parts.join(' · ');
 }
@@ -143,6 +162,8 @@ export function TelemetryChart({ series, height = 320, mode = 'single', showCont
 
     const chartData: ChartData<'line'> = { labels, datasets };
 
+    const axisUnit = sharedUnitLabel(series);
+
     const chartOptions: ChartOptions<'line'> = {
       responsive: true,
       maintainAspectRatio: false,
@@ -150,9 +171,20 @@ export function TelemetryChart({ series, height = 320, mode = 'single', showCont
       plugins: {
         title: { display: !!title, text: title },
         legend: { position: 'top' },
-        tooltip: { mode: 'index', intersect: false },
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          callbacks: {
+            // The unit comes from the API metadata of the series, never from the metric name.
+            label(context) {
+              const unit = unitLabelOfDataset(series, context.dataset.label);
+              return `${context.dataset.label ?? ''}: ${context.formattedValue}${unit ? ` ${unit}` : ''}`;
+            },
+          },
+        },
       },
       scales: {
+        y: axisUnit ? { title: { display: true, text: axisUnit } } : {},
         x: {
           ticks: {
             maxRotation: 45,

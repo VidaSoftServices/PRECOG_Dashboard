@@ -112,7 +112,7 @@ function SensorLiveCard({ deviceId, sensor, applicationMode }: { deviceId: numbe
             </Text>
           </div>
           <TelemetryChart
-            series={[{ label: sensor.name || sensor.externalSensorId || 'Sensor', points: trailing.data ?? [], bidirectional: sensor.direction === 'bidirectional' }]}
+            series={[{ label: sensor.name || sensor.externalSensorId || 'Sensor', points: trailing.data ?? [], bidirectional: sensor.direction === 'bidirectional', unitLabel: sensor.unitLabel }]}
             height={160}
             mode="single"
           />

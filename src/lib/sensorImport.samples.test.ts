@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseSensorTable } from './sensorImport';
+import { CATALOG } from '@/test/sensorCatalog';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const sample = (name: string) => readFileSync(join(here, '..', '..', 'samples', name), 'utf-8');
@@ -12,7 +13,7 @@ const DEFAULTS = { direction: 'lowerisbetter' as const, rawScale: 'Seconds', raw
 
 describe('sample import files (samples/)', () => {
   it('the 1-point Vibration Duo sheet is exactly 163 valid, unique Sensors', () => {
-    const { rows, fileErrors } = parseSensorTable(sample('vibration-duo-1-point-163-sensors.csv'), DEFAULTS);
+    const { rows, fileErrors } = parseSensorTable(sample('vibration-duo-1-point-163-sensors.csv'), DEFAULTS, CATALOG);
     expect(fileErrors).toEqual([]);
     expect(rows).toHaveLength(163);
     expect(rows.flatMap((r) => r.errors)).toEqual([]);
@@ -21,7 +22,7 @@ describe('sample import files (samples/)', () => {
   });
 
   it('the 2-point sheet is exactly 326 valid, unique Sensors (point 1 then point 2)', () => {
-    const { rows, fileErrors } = parseSensorTable(sample('vibration-duo-2-points-326-sensors.csv'), DEFAULTS);
+    const { rows, fileErrors } = parseSensorTable(sample('vibration-duo-2-points-326-sensors.csv'), DEFAULTS, CATALOG);
     expect(fileErrors).toEqual([]);
     expect(rows).toHaveLength(326);
     expect(rows.flatMap((r) => r.errors)).toEqual([]);
@@ -31,7 +32,7 @@ describe('sample import files (samples/)', () => {
   });
 
   it('without defaults the sheets are refused, so scale and lookback are never silently invented', () => {
-    const { rows } = parseSensorTable(sample('vibration-duo-1-point-163-sensors.csv'), { ...DEFAULTS, rawScale: '', rawLookback: '' });
+    const { rows } = parseSensorTable(sample('vibration-duo-1-point-163-sensors.csv'), { ...DEFAULTS, rawScale: '', rawLookback: '' }, CATALOG);
     expect(rows.every((r) => r.errors.length > 0)).toBe(true);
   });
 });

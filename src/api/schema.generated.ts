@@ -1795,6 +1795,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/SensorMetadata": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the canonical Sensor unit / future-aggregation catalog and the known metrics' metadata.
+         * @description Read-only, identical for every Company. Lists the canonical unit codes (g, mm_s, mm, one, raw_energy, degC, rpm) with English and Hungarian labels, the future-aggregation types (EQUIVALENT_RMS, WEIGHTED_MEAN, MAXIMUM) with the unit codes each is valid for, and one entry per known metric with its exact unit, aggregation type and explanation. The aggregation type is METADATA ONLY: it records how a longer-period value would have to be formed to be mathematically valid; the platform does not aggregate anything from it. A Sensor's ExternalSensorId is "{machineName}_{point}" (e.g. "velocity_rms_x_eq_1"); creating or updating such a Sensor requires exactly the unit and aggregation type listed here. Readable by Company Admins and Readers; a DevicePrincipal is denied.
+         *
+         *     **Units and future aggregation**
+         *
+         *     Canonical unit codes. The stored and exchanged value is the CODE; the labels are display text only and are never accepted as input:
+         *     - `g` - label "g" (Hungarian "g"). Acceleration in standard gravity units (acceleration RMS metrics). Not converted to m/s2.
+         *     - `mm_s` - label "mm/s" (Hungarian "mm/s"). Vibration velocity in millimetres per second (velocity RMS metrics).
+         *     - `mm` - label "mm" (Hungarian "mm"). Vibration displacement in millimetres (displacement RMS metrics; the WTVB02 DRMS register divided by 1000).
+         *     - `one` - label "Unit" (Hungarian "Unit"). The general dimension for a metric that has none: a pure number such as acceleration kurtosis or crest factor, displayed as "Unit". It is never g.
+         *     - `raw_energy` - label "Relative spectrum energy" (Hungarian "Relatív spektrumenergia"). The WTVB02 relative spectrum-energy level (POINT order energy, AREA band energy, total spectrum energy). The manufacturer documents no reliable physical scaling, so it is NOT g2, g2/Hz, PSD, joule, watt or dB and is never converted to any of them.
+         *     - `degC` - label "°C" (Hungarian "°C"). Degrees Celsius: the WTVB02 internal sensor/chip temperature - not a bearing temperature.
+         *     - `rpm` - label "RPM" (Hungarian "RPM"). Shaft speed in revolutions per minute (external IR rotation input). A true 0 is a stopped machine; missing data is not 0.
+         *
+         *     Future-aggregation types. METADATA ONLY - they record how a longer-period value would have to be formed to be mathematically valid; the platform does not aggregate anything from them:
+         *     - `EQUIVALENT_RMS` (Equivalent RMS) - For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean. Reference formula (documentation only, nothing is calculated): sqrt( sum(value^2 * representedDuration) / sum(representedDuration) ). Valid for the unit codes: g, mm_s, mm.
+         *     - `WEIGHTED_MEAN` (Weighted mean) - For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. Reference formula (documentation only, nothing is calculated): sum(value * representedDuration) / sum(representedDuration). Valid for the unit codes: g, mm_s, mm, one, raw_energy, degC, rpm.
+         *     - `MAXIMUM` (Maximum) - For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values. Reference formula (documentation only, nothing is calculated): max(source maximum values). Valid for the unit codes: g, mm_s, mm, one, raw_energy, degC, rpm.
+         *
+         *     Known metrics (163 per measurement point, e.g. the Vibration_Duo KPIs). A Sensor whose ExternalSensorId is "{machineName}_{point}" (exact name, point = positive whole number) must carry exactly the unit and aggregation type below:
+         *     - 4 x rms: unit `g`, aggregation `EQUIVALENT_RMS` (e.g. `acceleration_rms_x_eq`)
+         *     - 4 x rms: unit `g`, aggregation `MAXIMUM` (e.g. `acceleration_rms_x_max`)
+         *     - 4 x rms: unit `mm_s`, aggregation `EQUIVALENT_RMS` (e.g. `velocity_rms_x_eq`)
+         *     - 4 x rms: unit `mm_s`, aggregation `MAXIMUM` (e.g. `velocity_rms_x_max`)
+         *     - 4 x rms: unit `mm`, aggregation `EQUIVALENT_RMS` (e.g. `displacement_rms_x_eq`)
+         *     - 4 x rms: unit `mm`, aggregation `MAXIMUM` (e.g. `displacement_rms_x_max`)
+         *     - 4 x kurtosis: unit `one`, aggregation `WEIGHTED_MEAN` (e.g. `acceleration_kurtosis_x_mean`)
+         *     - 4 x kurtosis: unit `one`, aggregation `MAXIMUM` (e.g. `acceleration_kurtosis_x_max`)
+         *     - 4 x crest_factor: unit `one`, aggregation `WEIGHTED_MEAN` (e.g. `crest_factor_x_mean`)
+         *     - 4 x crest_factor: unit `one`, aggregation `MAXIMUM` (e.g. `crest_factor_x_max`)
+         *     - 32 x order_energy: unit `raw_energy`, aggregation `WEIGHTED_MEAN` (e.g. `energy_0_25x_x_mean`)
+         *     - 32 x order_energy: unit `raw_energy`, aggregation `MAXIMUM` (e.g. `energy_0_25x_x_max`)
+         *     - 24 x band_energy: unit `raw_energy`, aggregation `WEIGHTED_MEAN` (e.g. `band_0_0_5x_x_mean`)
+         *     - 24 x band_energy: unit `raw_energy`, aggregation `MAXIMUM` (e.g. `band_0_0_5x_x_max`)
+         *     - 4 x spectrum_energy: unit `raw_energy`, aggregation `WEIGHTED_MEAN` (e.g. `spectrum_energy_x_mean`)
+         *     - 4 x spectrum_energy: unit `raw_energy`, aggregation `MAXIMUM` (e.g. `spectrum_energy_x_max`)
+         *     - 1 x temperature: unit `degC`, aggregation `WEIGHTED_MEAN` (e.g. `sensor_temperature_mean`)
+         *     - 1 x temperature: unit `degC`, aggregation `MAXIMUM` (e.g. `sensor_temperature_max`)
+         *     - 1 x rpm: unit `rpm`, aggregation `WEIGHTED_MEAN` (e.g. `shaft_rpm_mean`)
+         */
+        get: operations["SensorMetadata_GetCatalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/Devices/{deviceId}/Sensors": {
         parameters: {
             query?: never;
@@ -1805,12 +1862,88 @@ export interface paths {
         /**
          * List Sensors belonging to the given Device.
          * @description Read-only. Each Sensor carries its own Direction (lowerisbetter/higherisbetter/bidirectional); ApplicationMode is inherited from the parent Device and not repeated per Sensor.
+         *
+         *     **Units and future aggregation**
+         *
+         *     Canonical unit codes. The stored and exchanged value is the CODE; the labels are display text only and are never accepted as input:
+         *     - `g` - label "g" (Hungarian "g"). Acceleration in standard gravity units (acceleration RMS metrics). Not converted to m/s2.
+         *     - `mm_s` - label "mm/s" (Hungarian "mm/s"). Vibration velocity in millimetres per second (velocity RMS metrics).
+         *     - `mm` - label "mm" (Hungarian "mm"). Vibration displacement in millimetres (displacement RMS metrics; the WTVB02 DRMS register divided by 1000).
+         *     - `one` - label "Unit" (Hungarian "Unit"). The general dimension for a metric that has none: a pure number such as acceleration kurtosis or crest factor, displayed as "Unit". It is never g.
+         *     - `raw_energy` - label "Relative spectrum energy" (Hungarian "Relatív spektrumenergia"). The WTVB02 relative spectrum-energy level (POINT order energy, AREA band energy, total spectrum energy). The manufacturer documents no reliable physical scaling, so it is NOT g2, g2/Hz, PSD, joule, watt or dB and is never converted to any of them.
+         *     - `degC` - label "°C" (Hungarian "°C"). Degrees Celsius: the WTVB02 internal sensor/chip temperature - not a bearing temperature.
+         *     - `rpm` - label "RPM" (Hungarian "RPM"). Shaft speed in revolutions per minute (external IR rotation input). A true 0 is a stopped machine; missing data is not 0.
+         *
+         *     Future-aggregation types. METADATA ONLY - they record how a longer-period value would have to be formed to be mathematically valid; the platform does not aggregate anything from them:
+         *     - `EQUIVALENT_RMS` (Equivalent RMS) - For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean. Reference formula (documentation only, nothing is calculated): sqrt( sum(value^2 * representedDuration) / sum(representedDuration) ). Valid for the unit codes: g, mm_s, mm.
+         *     - `WEIGHTED_MEAN` (Weighted mean) - For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. Reference formula (documentation only, nothing is calculated): sum(value * representedDuration) / sum(representedDuration). Valid for the unit codes: g, mm_s, mm, one, raw_energy, degC, rpm.
+         *     - `MAXIMUM` (Maximum) - For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values. Reference formula (documentation only, nothing is calculated): max(source maximum values). Valid for the unit codes: g, mm_s, mm, one, raw_energy, degC, rpm.
+         *
+         *     Known metrics (163 per measurement point, e.g. the Vibration_Duo KPIs). A Sensor whose ExternalSensorId is "{machineName}_{point}" (exact name, point = positive whole number) must carry exactly the unit and aggregation type below:
+         *     - 4 x rms: unit `g`, aggregation `EQUIVALENT_RMS` (e.g. `acceleration_rms_x_eq`)
+         *     - 4 x rms: unit `g`, aggregation `MAXIMUM` (e.g. `acceleration_rms_x_max`)
+         *     - 4 x rms: unit `mm_s`, aggregation `EQUIVALENT_RMS` (e.g. `velocity_rms_x_eq`)
+         *     - 4 x rms: unit `mm_s`, aggregation `MAXIMUM` (e.g. `velocity_rms_x_max`)
+         *     - 4 x rms: unit `mm`, aggregation `EQUIVALENT_RMS` (e.g. `displacement_rms_x_eq`)
+         *     - 4 x rms: unit `mm`, aggregation `MAXIMUM` (e.g. `displacement_rms_x_max`)
+         *     - 4 x kurtosis: unit `one`, aggregation `WEIGHTED_MEAN` (e.g. `acceleration_kurtosis_x_mean`)
+         *     - 4 x kurtosis: unit `one`, aggregation `MAXIMUM` (e.g. `acceleration_kurtosis_x_max`)
+         *     - 4 x crest_factor: unit `one`, aggregation `WEIGHTED_MEAN` (e.g. `crest_factor_x_mean`)
+         *     - 4 x crest_factor: unit `one`, aggregation `MAXIMUM` (e.g. `crest_factor_x_max`)
+         *     - 32 x order_energy: unit `raw_energy`, aggregation `WEIGHTED_MEAN` (e.g. `energy_0_25x_x_mean`)
+         *     - 32 x order_energy: unit `raw_energy`, aggregation `MAXIMUM` (e.g. `energy_0_25x_x_max`)
+         *     - 24 x band_energy: unit `raw_energy`, aggregation `WEIGHTED_MEAN` (e.g. `band_0_0_5x_x_mean`)
+         *     - 24 x band_energy: unit `raw_energy`, aggregation `MAXIMUM` (e.g. `band_0_0_5x_x_max`)
+         *     - 4 x spectrum_energy: unit `raw_energy`, aggregation `WEIGHTED_MEAN` (e.g. `spectrum_energy_x_mean`)
+         *     - 4 x spectrum_energy: unit `raw_energy`, aggregation `MAXIMUM` (e.g. `spectrum_energy_x_max`)
+         *     - 1 x temperature: unit `degC`, aggregation `WEIGHTED_MEAN` (e.g. `sensor_temperature_mean`)
+         *     - 1 x temperature: unit `degC`, aggregation `MAXIMUM` (e.g. `sensor_temperature_max`)
+         *     - 1 x rpm: unit `rpm`, aggregation `WEIGHTED_MEAN` (e.g. `shaft_rpm_mean`)
          */
         get: operations["Sensors_GetSensors"];
         put?: never;
         /**
          * Create a Sensor under the given Device, together with its required raw/base aggregation policy. Requires Company Admin.
          * @description Enlarges the Device's complete all-Sensor feature schema, so this advances the Device's eligibility generation and creates/coalesces a retraining request.
+         *
+         *     **Validation.** unitCode, aggregationType and aggregationExplanation are validated, never corrected: an unknown code, a missing value for a known metric, a value that differs from the known metric's own, or a unit/type combination that is not valid (EQUIVALENT_RMS only for g, mm_s, mm) is rejected with 400 and one entry per offending field (unitCode / aggregationType / aggregationExplanation). A Sensor without aggregationType keeps free-text units.
+         *
+         *     **Units and future aggregation**
+         *
+         *     Canonical unit codes. The stored and exchanged value is the CODE; the labels are display text only and are never accepted as input:
+         *     - `g` - label "g" (Hungarian "g"). Acceleration in standard gravity units (acceleration RMS metrics). Not converted to m/s2.
+         *     - `mm_s` - label "mm/s" (Hungarian "mm/s"). Vibration velocity in millimetres per second (velocity RMS metrics).
+         *     - `mm` - label "mm" (Hungarian "mm"). Vibration displacement in millimetres (displacement RMS metrics; the WTVB02 DRMS register divided by 1000).
+         *     - `one` - label "Unit" (Hungarian "Unit"). The general dimension for a metric that has none: a pure number such as acceleration kurtosis or crest factor, displayed as "Unit". It is never g.
+         *     - `raw_energy` - label "Relative spectrum energy" (Hungarian "Relatív spektrumenergia"). The WTVB02 relative spectrum-energy level (POINT order energy, AREA band energy, total spectrum energy). The manufacturer documents no reliable physical scaling, so it is NOT g2, g2/Hz, PSD, joule, watt or dB and is never converted to any of them.
+         *     - `degC` - label "°C" (Hungarian "°C"). Degrees Celsius: the WTVB02 internal sensor/chip temperature - not a bearing temperature.
+         *     - `rpm` - label "RPM" (Hungarian "RPM"). Shaft speed in revolutions per minute (external IR rotation input). A true 0 is a stopped machine; missing data is not 0.
+         *
+         *     Future-aggregation types. METADATA ONLY - they record how a longer-period value would have to be formed to be mathematically valid; the platform does not aggregate anything from them:
+         *     - `EQUIVALENT_RMS` (Equivalent RMS) - For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean. Reference formula (documentation only, nothing is calculated): sqrt( sum(value^2 * representedDuration) / sum(representedDuration) ). Valid for the unit codes: g, mm_s, mm.
+         *     - `WEIGHTED_MEAN` (Weighted mean) - For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. Reference formula (documentation only, nothing is calculated): sum(value * representedDuration) / sum(representedDuration). Valid for the unit codes: g, mm_s, mm, one, raw_energy, degC, rpm.
+         *     - `MAXIMUM` (Maximum) - For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values. Reference formula (documentation only, nothing is calculated): max(source maximum values). Valid for the unit codes: g, mm_s, mm, one, raw_energy, degC, rpm.
+         *
+         *     Known metrics (163 per measurement point, e.g. the Vibration_Duo KPIs). A Sensor whose ExternalSensorId is "{machineName}_{point}" (exact name, point = positive whole number) must carry exactly the unit and aggregation type below:
+         *     - 4 x rms: unit `g`, aggregation `EQUIVALENT_RMS` (e.g. `acceleration_rms_x_eq`)
+         *     - 4 x rms: unit `g`, aggregation `MAXIMUM` (e.g. `acceleration_rms_x_max`)
+         *     - 4 x rms: unit `mm_s`, aggregation `EQUIVALENT_RMS` (e.g. `velocity_rms_x_eq`)
+         *     - 4 x rms: unit `mm_s`, aggregation `MAXIMUM` (e.g. `velocity_rms_x_max`)
+         *     - 4 x rms: unit `mm`, aggregation `EQUIVALENT_RMS` (e.g. `displacement_rms_x_eq`)
+         *     - 4 x rms: unit `mm`, aggregation `MAXIMUM` (e.g. `displacement_rms_x_max`)
+         *     - 4 x kurtosis: unit `one`, aggregation `WEIGHTED_MEAN` (e.g. `acceleration_kurtosis_x_mean`)
+         *     - 4 x kurtosis: unit `one`, aggregation `MAXIMUM` (e.g. `acceleration_kurtosis_x_max`)
+         *     - 4 x crest_factor: unit `one`, aggregation `WEIGHTED_MEAN` (e.g. `crest_factor_x_mean`)
+         *     - 4 x crest_factor: unit `one`, aggregation `MAXIMUM` (e.g. `crest_factor_x_max`)
+         *     - 32 x order_energy: unit `raw_energy`, aggregation `WEIGHTED_MEAN` (e.g. `energy_0_25x_x_mean`)
+         *     - 32 x order_energy: unit `raw_energy`, aggregation `MAXIMUM` (e.g. `energy_0_25x_x_max`)
+         *     - 24 x band_energy: unit `raw_energy`, aggregation `WEIGHTED_MEAN` (e.g. `band_0_0_5x_x_mean`)
+         *     - 24 x band_energy: unit `raw_energy`, aggregation `MAXIMUM` (e.g. `band_0_0_5x_x_max`)
+         *     - 4 x spectrum_energy: unit `raw_energy`, aggregation `WEIGHTED_MEAN` (e.g. `spectrum_energy_x_mean`)
+         *     - 4 x spectrum_energy: unit `raw_energy`, aggregation `MAXIMUM` (e.g. `spectrum_energy_x_max`)
+         *     - 1 x temperature: unit `degC`, aggregation `WEIGHTED_MEAN` (e.g. `sensor_temperature_mean`)
+         *     - 1 x temperature: unit `degC`, aggregation `MAXIMUM` (e.g. `sensor_temperature_max`)
+         *     - 1 x rpm: unit `rpm`, aggregation `WEIGHTED_MEAN` (e.g. `shaft_rpm_mean`)
          */
         post: operations["Sensors_CreateSensor"];
         delete?: never;
@@ -1829,11 +1962,87 @@ export interface paths {
         /**
          * Get one Sensor by its Device-scoped id.
          * @description Read-only. Returns 404 if sensorId does not exist on this Device or the caller lacks access to the Device.
+         *
+         *     **Units and future aggregation**
+         *
+         *     Canonical unit codes. The stored and exchanged value is the CODE; the labels are display text only and are never accepted as input:
+         *     - `g` - label "g" (Hungarian "g"). Acceleration in standard gravity units (acceleration RMS metrics). Not converted to m/s2.
+         *     - `mm_s` - label "mm/s" (Hungarian "mm/s"). Vibration velocity in millimetres per second (velocity RMS metrics).
+         *     - `mm` - label "mm" (Hungarian "mm"). Vibration displacement in millimetres (displacement RMS metrics; the WTVB02 DRMS register divided by 1000).
+         *     - `one` - label "Unit" (Hungarian "Unit"). The general dimension for a metric that has none: a pure number such as acceleration kurtosis or crest factor, displayed as "Unit". It is never g.
+         *     - `raw_energy` - label "Relative spectrum energy" (Hungarian "Relatív spektrumenergia"). The WTVB02 relative spectrum-energy level (POINT order energy, AREA band energy, total spectrum energy). The manufacturer documents no reliable physical scaling, so it is NOT g2, g2/Hz, PSD, joule, watt or dB and is never converted to any of them.
+         *     - `degC` - label "°C" (Hungarian "°C"). Degrees Celsius: the WTVB02 internal sensor/chip temperature - not a bearing temperature.
+         *     - `rpm` - label "RPM" (Hungarian "RPM"). Shaft speed in revolutions per minute (external IR rotation input). A true 0 is a stopped machine; missing data is not 0.
+         *
+         *     Future-aggregation types. METADATA ONLY - they record how a longer-period value would have to be formed to be mathematically valid; the platform does not aggregate anything from them:
+         *     - `EQUIVALENT_RMS` (Equivalent RMS) - For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean. Reference formula (documentation only, nothing is calculated): sqrt( sum(value^2 * representedDuration) / sum(representedDuration) ). Valid for the unit codes: g, mm_s, mm.
+         *     - `WEIGHTED_MEAN` (Weighted mean) - For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. Reference formula (documentation only, nothing is calculated): sum(value * representedDuration) / sum(representedDuration). Valid for the unit codes: g, mm_s, mm, one, raw_energy, degC, rpm.
+         *     - `MAXIMUM` (Maximum) - For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values. Reference formula (documentation only, nothing is calculated): max(source maximum values). Valid for the unit codes: g, mm_s, mm, one, raw_energy, degC, rpm.
+         *
+         *     Known metrics (163 per measurement point, e.g. the Vibration_Duo KPIs). A Sensor whose ExternalSensorId is "{machineName}_{point}" (exact name, point = positive whole number) must carry exactly the unit and aggregation type below:
+         *     - 4 x rms: unit `g`, aggregation `EQUIVALENT_RMS` (e.g. `acceleration_rms_x_eq`)
+         *     - 4 x rms: unit `g`, aggregation `MAXIMUM` (e.g. `acceleration_rms_x_max`)
+         *     - 4 x rms: unit `mm_s`, aggregation `EQUIVALENT_RMS` (e.g. `velocity_rms_x_eq`)
+         *     - 4 x rms: unit `mm_s`, aggregation `MAXIMUM` (e.g. `velocity_rms_x_max`)
+         *     - 4 x rms: unit `mm`, aggregation `EQUIVALENT_RMS` (e.g. `displacement_rms_x_eq`)
+         *     - 4 x rms: unit `mm`, aggregation `MAXIMUM` (e.g. `displacement_rms_x_max`)
+         *     - 4 x kurtosis: unit `one`, aggregation `WEIGHTED_MEAN` (e.g. `acceleration_kurtosis_x_mean`)
+         *     - 4 x kurtosis: unit `one`, aggregation `MAXIMUM` (e.g. `acceleration_kurtosis_x_max`)
+         *     - 4 x crest_factor: unit `one`, aggregation `WEIGHTED_MEAN` (e.g. `crest_factor_x_mean`)
+         *     - 4 x crest_factor: unit `one`, aggregation `MAXIMUM` (e.g. `crest_factor_x_max`)
+         *     - 32 x order_energy: unit `raw_energy`, aggregation `WEIGHTED_MEAN` (e.g. `energy_0_25x_x_mean`)
+         *     - 32 x order_energy: unit `raw_energy`, aggregation `MAXIMUM` (e.g. `energy_0_25x_x_max`)
+         *     - 24 x band_energy: unit `raw_energy`, aggregation `WEIGHTED_MEAN` (e.g. `band_0_0_5x_x_mean`)
+         *     - 24 x band_energy: unit `raw_energy`, aggregation `MAXIMUM` (e.g. `band_0_0_5x_x_max`)
+         *     - 4 x spectrum_energy: unit `raw_energy`, aggregation `WEIGHTED_MEAN` (e.g. `spectrum_energy_x_mean`)
+         *     - 4 x spectrum_energy: unit `raw_energy`, aggregation `MAXIMUM` (e.g. `spectrum_energy_x_max`)
+         *     - 1 x temperature: unit `degC`, aggregation `WEIGHTED_MEAN` (e.g. `sensor_temperature_mean`)
+         *     - 1 x temperature: unit `degC`, aggregation `MAXIMUM` (e.g. `sensor_temperature_max`)
+         *     - 1 x rpm: unit `rpm`, aggregation `WEIGHTED_MEAN` (e.g. `shaft_rpm_mean`)
          */
         get: operations["Sensors_GetSensor"];
         /**
          * Update permitted Sensor-level fields (Name, QuantityKind, UnitCode, Direction, Enabled). Lookback/Scale/MinIssueScore are updated per aggregation policy - see SensorAggregationPoliciesController. Requires Company Admin.
          * @description Changing Direction, Enabled, QuantityKind, or UnitCode advances the eligibility generation and creates/coalesces a retraining request for this Sensor's own Device plus any other Device whose approved knowledge share depends on this exact Sensor stream. Renaming (Name only) never does. Changing ProcessingEnabled (the per-Sensor calculation switch) never does either: it only decides whether new telemetry triggers analysis; the data is stored and trained on regardless. The change is audited.
+         *
+         *     **Validation.** unitCode, aggregationType and aggregationExplanation are validated, never corrected: an unknown code, a missing value for a known metric, a value that differs from the known metric's own, or a unit/type combination that is not valid (EQUIVALENT_RMS only for g, mm_s, mm) is rejected with 400 and one entry per offending field (unitCode / aggregationType / aggregationExplanation). A Sensor without aggregationType keeps free-text units.
+         *
+         *     **Units and future aggregation**
+         *
+         *     Canonical unit codes. The stored and exchanged value is the CODE; the labels are display text only and are never accepted as input:
+         *     - `g` - label "g" (Hungarian "g"). Acceleration in standard gravity units (acceleration RMS metrics). Not converted to m/s2.
+         *     - `mm_s` - label "mm/s" (Hungarian "mm/s"). Vibration velocity in millimetres per second (velocity RMS metrics).
+         *     - `mm` - label "mm" (Hungarian "mm"). Vibration displacement in millimetres (displacement RMS metrics; the WTVB02 DRMS register divided by 1000).
+         *     - `one` - label "Unit" (Hungarian "Unit"). The general dimension for a metric that has none: a pure number such as acceleration kurtosis or crest factor, displayed as "Unit". It is never g.
+         *     - `raw_energy` - label "Relative spectrum energy" (Hungarian "Relatív spektrumenergia"). The WTVB02 relative spectrum-energy level (POINT order energy, AREA band energy, total spectrum energy). The manufacturer documents no reliable physical scaling, so it is NOT g2, g2/Hz, PSD, joule, watt or dB and is never converted to any of them.
+         *     - `degC` - label "°C" (Hungarian "°C"). Degrees Celsius: the WTVB02 internal sensor/chip temperature - not a bearing temperature.
+         *     - `rpm` - label "RPM" (Hungarian "RPM"). Shaft speed in revolutions per minute (external IR rotation input). A true 0 is a stopped machine; missing data is not 0.
+         *
+         *     Future-aggregation types. METADATA ONLY - they record how a longer-period value would have to be formed to be mathematically valid; the platform does not aggregate anything from them:
+         *     - `EQUIVALENT_RMS` (Equivalent RMS) - For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean. Reference formula (documentation only, nothing is calculated): sqrt( sum(value^2 * representedDuration) / sum(representedDuration) ). Valid for the unit codes: g, mm_s, mm.
+         *     - `WEIGHTED_MEAN` (Weighted mean) - For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. Reference formula (documentation only, nothing is calculated): sum(value * representedDuration) / sum(representedDuration). Valid for the unit codes: g, mm_s, mm, one, raw_energy, degC, rpm.
+         *     - `MAXIMUM` (Maximum) - For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values. Reference formula (documentation only, nothing is calculated): max(source maximum values). Valid for the unit codes: g, mm_s, mm, one, raw_energy, degC, rpm.
+         *
+         *     Known metrics (163 per measurement point, e.g. the Vibration_Duo KPIs). A Sensor whose ExternalSensorId is "{machineName}_{point}" (exact name, point = positive whole number) must carry exactly the unit and aggregation type below:
+         *     - 4 x rms: unit `g`, aggregation `EQUIVALENT_RMS` (e.g. `acceleration_rms_x_eq`)
+         *     - 4 x rms: unit `g`, aggregation `MAXIMUM` (e.g. `acceleration_rms_x_max`)
+         *     - 4 x rms: unit `mm_s`, aggregation `EQUIVALENT_RMS` (e.g. `velocity_rms_x_eq`)
+         *     - 4 x rms: unit `mm_s`, aggregation `MAXIMUM` (e.g. `velocity_rms_x_max`)
+         *     - 4 x rms: unit `mm`, aggregation `EQUIVALENT_RMS` (e.g. `displacement_rms_x_eq`)
+         *     - 4 x rms: unit `mm`, aggregation `MAXIMUM` (e.g. `displacement_rms_x_max`)
+         *     - 4 x kurtosis: unit `one`, aggregation `WEIGHTED_MEAN` (e.g. `acceleration_kurtosis_x_mean`)
+         *     - 4 x kurtosis: unit `one`, aggregation `MAXIMUM` (e.g. `acceleration_kurtosis_x_max`)
+         *     - 4 x crest_factor: unit `one`, aggregation `WEIGHTED_MEAN` (e.g. `crest_factor_x_mean`)
+         *     - 4 x crest_factor: unit `one`, aggregation `MAXIMUM` (e.g. `crest_factor_x_max`)
+         *     - 32 x order_energy: unit `raw_energy`, aggregation `WEIGHTED_MEAN` (e.g. `energy_0_25x_x_mean`)
+         *     - 32 x order_energy: unit `raw_energy`, aggregation `MAXIMUM` (e.g. `energy_0_25x_x_max`)
+         *     - 24 x band_energy: unit `raw_energy`, aggregation `WEIGHTED_MEAN` (e.g. `band_0_0_5x_x_mean`)
+         *     - 24 x band_energy: unit `raw_energy`, aggregation `MAXIMUM` (e.g. `band_0_0_5x_x_max`)
+         *     - 4 x spectrum_energy: unit `raw_energy`, aggregation `WEIGHTED_MEAN` (e.g. `spectrum_energy_x_mean`)
+         *     - 4 x spectrum_energy: unit `raw_energy`, aggregation `MAXIMUM` (e.g. `spectrum_energy_x_max`)
+         *     - 1 x temperature: unit `degC`, aggregation `WEIGHTED_MEAN` (e.g. `sensor_temperature_mean`)
+         *     - 1 x temperature: unit `degC`, aggregation `MAXIMUM` (e.g. `sensor_temperature_max`)
+         *     - 1 x rpm: unit `rpm`, aggregation `WEIGHTED_MEAN` (e.g. `shaft_rpm_mean`)
          */
         put: operations["Sensors_UpdateSensor"];
         post?: never;
@@ -2473,8 +2682,39 @@ export interface components {
             name?: string | null;
             /** @description Optional normalized physical-quantity identifier (e.g. "temperature", "pressure"). */
             quantityKind?: string | null;
-            /** @description Optional normalized unit code (e.g. "degC", "bar"). */
+            /**
+             * @description Optional unit code. Required, and one of the canonical codes g, mm_s, mm, one, raw_energy, degC, rpm, when AggregationType
+             *     is given or when ExternalSensorId is a known metric (e.g. "velocity_rms_x_eq_1"; see GET /api/SensorMetadata) - in that case it must
+             *     equal the metric's own unit. Otherwise free text (e.g. "Cel", "bar").
+             *
+             *     Canonical unit codes. The stored and exchanged value is the CODE; the labels are display text only and are never accepted as input:
+             *     - `g` - label "g" (Hungarian "g"). Acceleration in standard gravity units (acceleration RMS metrics). Not converted to m/s2.
+             *     - `mm_s` - label "mm/s" (Hungarian "mm/s"). Vibration velocity in millimetres per second (velocity RMS metrics).
+             *     - `mm` - label "mm" (Hungarian "mm"). Vibration displacement in millimetres (displacement RMS metrics; the WTVB02 DRMS register divided by 1000).
+             *     - `one` - label "Unit" (Hungarian "Unit"). The general dimension for a metric that has none: a pure number such as acceleration kurtosis or crest factor, displayed as "Unit". It is never g.
+             *     - `raw_energy` - label "Relative spectrum energy" (Hungarian "Relatív spektrumenergia"). The WTVB02 relative spectrum-energy level (POINT order energy, AREA band energy, total spectrum energy). The manufacturer documents no reliable physical scaling, so it is NOT g2, g2/Hz, PSD, joule, watt or dB and is never converted to any of them.
+             *     - `degC` - label "°C" (Hungarian "°C"). Degrees Celsius: the WTVB02 internal sensor/chip temperature - not a bearing temperature.
+             *     - `rpm` - label "RPM" (Hungarian "RPM"). Shaft speed in revolutions per minute (external IR rotation input). A true 0 is a stopped machine; missing data is not 0.
+             */
             unitCode?: string | null;
+            /**
+             * @description Future-aggregation type: EQUIVALENT_RMS, WEIGHTED_MEAN or MAXIMUM (metadata only - nothing aggregates from it). Required when
+             *     ExternalSensorId is a known metric, where it must equal the metric's own type. EQUIVALENT_RMS is only valid with the units g, mm_s, mm.
+             *     Requires AggregationExplanation.
+             *
+             *     Future-aggregation types. METADATA ONLY - they record how a longer-period value would have to be formed to be mathematically valid; the platform does not aggregate anything from them:
+             *     - `EQUIVALENT_RMS` (Equivalent RMS) - For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean. Reference formula (documentation only, nothing is calculated): sqrt( sum(value^2 * representedDuration) / sum(representedDuration) ). Valid for the unit codes: g, mm_s, mm.
+             *     - `WEIGHTED_MEAN` (Weighted mean) - For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. Reference formula (documentation only, nothing is calculated): sum(value * representedDuration) / sum(representedDuration). Valid for the unit codes: g, mm_s, mm, one, raw_energy, degC, rpm.
+             *     - `MAXIMUM` (Maximum) - For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values. Reference formula (documentation only, nothing is calculated): max(source maximum values). Valid for the unit codes: g, mm_s, mm, one, raw_energy, degC, rpm.
+             * @enum {string|null}
+             */
+            aggregationType?: "EQUIVALENT_RMS" | "WEIGHTED_MEAN" | "MAXIMUM" | null;
+            /**
+             * @description Explanation of AggregationType, at most 1000 characters. Required together with AggregationType.
+             *
+             *     Free-form text, at most 1000 characters. For a known metric the catalog explanation (GET /api/SensorMetadata) is the expected text; the generic explanation of each type is listed on aggregationType.
+             */
+            aggregationExplanation?: string | null;
             /** @description "lowerisbetter", "higherisbetter", or "bidirectional". */
             direction: string | null;
             /** @description When true, this Sensor's measurements are stored in curves/bicurves instead of signals/bisignals. */
@@ -3467,6 +3707,72 @@ export interface components {
              */
             targetCategoryId: number;
         };
+        /** @description One future-aggregation type. Metadata only: no aggregation is executed by the platform from it. */
+        MetricAggregationTypeDto: {
+            /**
+             * @description Stable code: EQUIVALENT_RMS, WEIGHTED_MEAN or MAXIMUM.
+             *
+             *     Future-aggregation types. METADATA ONLY - they record how a longer-period value would have to be formed to be mathematically valid; the platform does not aggregate anything from them:
+             *     - `EQUIVALENT_RMS` (Equivalent RMS) - For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean. Reference formula (documentation only, nothing is calculated): sqrt( sum(value^2 * representedDuration) / sum(representedDuration) ). Valid for the unit codes: g, mm_s, mm.
+             *     - `WEIGHTED_MEAN` (Weighted mean) - For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. Reference formula (documentation only, nothing is calculated): sum(value * representedDuration) / sum(representedDuration). Valid for the unit codes: g, mm_s, mm, one, raw_energy, degC, rpm.
+             *     - `MAXIMUM` (Maximum) - For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values. Reference formula (documentation only, nothing is calculated): max(source maximum values). Valid for the unit codes: g, mm_s, mm, one, raw_energy, degC, rpm.
+             * @enum {string|null}
+             */
+            code?: "EQUIVALENT_RMS" | "WEIGHTED_MEAN" | "MAXIMUM" | null;
+            /** @description User-friendly name, e.g. "Equivalent RMS". */
+            label?: string | null;
+            /** @description The generic explanation of how a longer-period value would be formed, and what would be wrong to do. */
+            explanation?: string | null;
+            /** @description The unit codes this type is meaningful for. A combination outside this list is rejected (EQUIVALENT_RMS exists only for g, mm_s and mm). */
+            allowedUnitCodes?: string[] | null;
+        };
+        /**
+         * @description The metadata of one known five-second metric (the Vibration_Duo KPIs). MachineName is the metric name WITHOUT the
+         *     measurement-point suffix: a Sensor's ExternalSensorId is "{machineName}_{point}", e.g. "velocity_rms_x_eq_1".
+         */
+        MetricDefinitionDto: {
+            /** @description Exact metric machine name without the point suffix, e.g. "velocity_rms_x_eq". */
+            machineName?: string | null;
+            /** @description Display name, e.g. "Velocity RMS X (equivalent RMS)". */
+            displayName?: string | null;
+            /**
+             * @description Canonical unit code of the metric.
+             * @enum {string|null}
+             */
+            unitCode?: "g" | "mm_s" | "mm" | "one" | "raw_energy" | "degC" | "rpm" | null;
+            /** @description English display label of the unit. */
+            unitLabel?: string | null;
+            /** @description Hungarian display label of the unit. */
+            unitLabelHu?: string | null;
+            /**
+             * @description Future-aggregation type of the metric.
+             * @enum {string|null}
+             */
+            aggregationType?: "EQUIVALENT_RMS" | "WEIGHTED_MEAN" | "MAXIMUM" | null;
+            /** @description Explanation of the aggregation type for this metric, including what a longer-period value would and would not be. */
+            aggregationExplanation?: string | null;
+        };
+        /** @description One canonical unit a Sensor definition may use. */
+        MetricUnitDto: {
+            /**
+             * @description Stable machine-readable unit code stored in the Sensor's UnitCode: g, mm_s, mm, one, raw_energy, degC or rpm. Never a display label.
+             *
+             *     Canonical unit codes. The stored and exchanged value is the CODE; the labels are display text only and are never accepted as input:
+             *     - `g` - label "g" (Hungarian "g"). Acceleration in standard gravity units (acceleration RMS metrics). Not converted to m/s2.
+             *     - `mm_s` - label "mm/s" (Hungarian "mm/s"). Vibration velocity in millimetres per second (velocity RMS metrics).
+             *     - `mm` - label "mm" (Hungarian "mm"). Vibration displacement in millimetres (displacement RMS metrics; the WTVB02 DRMS register divided by 1000).
+             *     - `one` - label "Unit" (Hungarian "Unit"). The general dimension for a metric that has none: a pure number such as acceleration kurtosis or crest factor, displayed as "Unit". It is never g.
+             *     - `raw_energy` - label "Relative spectrum energy" (Hungarian "Relatív spektrumenergia"). The WTVB02 relative spectrum-energy level (POINT order energy, AREA band energy, total spectrum energy). The manufacturer documents no reliable physical scaling, so it is NOT g2, g2/Hz, PSD, joule, watt or dB and is never converted to any of them.
+             *     - `degC` - label "°C" (Hungarian "°C"). Degrees Celsius: the WTVB02 internal sensor/chip temperature - not a bearing temperature.
+             *     - `rpm` - label "RPM" (Hungarian "RPM"). Shaft speed in revolutions per minute (external IR rotation input). A true 0 is a stopped machine; missing data is not 0.
+             * @enum {string|null}
+             */
+            code?: "g" | "mm_s" | "mm" | "one" | "raw_energy" | "degC" | "rpm" | null;
+            /** @description English display label, e.g. "mm/s", "Relative spectrum energy", "°C". A metric without a dimension uses the general dimension: unit code "one" has the label "Unit". */
+            label?: string | null;
+            /** @description Hungarian display label, e.g. "Relatív spektrumenergia". */
+            labelHu?: string | null;
+        };
         ModelQueryRequest: {
             /**
              * Format: date-time
@@ -3770,8 +4076,41 @@ export interface components {
             name?: string | null;
             /** @description Read-only. Normalized physical-quantity identifier (e.g. "temperature", "pressure"), or null if not classified. */
             quantityKind?: string | null;
-            /** @description Read-only. Normalized unit code (e.g. "degC", "bar"), or null if not classified. */
+            /**
+             * @description Read-only. The unit code. For a Sensor with metric metadata (AggregationType set) it is one of the canonical codes
+             *     g, mm_s, mm, one, raw_energy, degC, rpm - see GET /api/SensorMetadata; for a legacy free-form Sensor it is free text
+             *     (e.g. "Cel", "bar"), or null if not classified.
+             *
+             *     Canonical unit codes. The stored and exchanged value is the CODE; the labels are display text only and are never accepted as input:
+             *     - `g` - label "g" (Hungarian "g"). Acceleration in standard gravity units (acceleration RMS metrics). Not converted to m/s2.
+             *     - `mm_s` - label "mm/s" (Hungarian "mm/s"). Vibration velocity in millimetres per second (velocity RMS metrics).
+             *     - `mm` - label "mm" (Hungarian "mm"). Vibration displacement in millimetres (displacement RMS metrics; the WTVB02 DRMS register divided by 1000).
+             *     - `one` - label "Unit" (Hungarian "Unit"). The general dimension for a metric that has none: a pure number such as acceleration kurtosis or crest factor, displayed as "Unit". It is never g.
+             *     - `raw_energy` - label "Relative spectrum energy" (Hungarian "Relatív spektrumenergia"). The WTVB02 relative spectrum-energy level (POINT order energy, AREA band energy, total spectrum energy). The manufacturer documents no reliable physical scaling, so it is NOT g2, g2/Hz, PSD, joule, watt or dB and is never converted to any of them.
+             *     - `degC` - label "°C" (Hungarian "°C"). Degrees Celsius: the WTVB02 internal sensor/chip temperature - not a bearing temperature.
+             *     - `rpm` - label "RPM" (Hungarian "RPM"). Shaft speed in revolutions per minute (external IR rotation input). A true 0 is a stopped machine; missing data is not 0.
+             */
             unitCode?: string | null;
+            /** @description Read-only. English display label of a canonical UnitCode (e.g. "mm/s", "Relative spectrum energy", "Unit" for a metric without a dimension), or null when UnitCode is not a canonical code. Resolved by the server; never derived from the metric name. */
+            unitLabel?: string | null;
+            /** @description Read-only. Hungarian display label of a canonical UnitCode (e.g. "Relatív spektrumenergia"), or null when UnitCode is not a canonical code. */
+            unitLabelHu?: string | null;
+            /**
+             * @description Read-only. How this Sensor's five-second value could be aggregated over a longer period in the future: EQUIVALENT_RMS, WEIGHTED_MEAN or MAXIMUM. Metadata only - nothing aggregates anything from it. Null for a Sensor without metric metadata.
+             *
+             *     Future-aggregation types. METADATA ONLY - they record how a longer-period value would have to be formed to be mathematically valid; the platform does not aggregate anything from them:
+             *     - `EQUIVALENT_RMS` (Equivalent RMS) - For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean. Reference formula (documentation only, nothing is calculated): sqrt( sum(value^2 * representedDuration) / sum(representedDuration) ). Valid for the unit codes: g, mm_s, mm.
+             *     - `WEIGHTED_MEAN` (Weighted mean) - For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. Reference formula (documentation only, nothing is calculated): sum(value * representedDuration) / sum(representedDuration). Valid for the unit codes: g, mm_s, mm, one, raw_energy, degC, rpm.
+             *     - `MAXIMUM` (Maximum) - For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values. Reference formula (documentation only, nothing is calculated): max(source maximum values). Valid for the unit codes: g, mm_s, mm, one, raw_energy, degC, rpm.
+             * @enum {string|null}
+             */
+            aggregationType?: "EQUIVALENT_RMS" | "WEIGHTED_MEAN" | "MAXIMUM" | null;
+            /**
+             * @description Read-only. Human-readable explanation of AggregationType, or null for a Sensor without metric metadata.
+             *
+             *     Free-form text, at most 1000 characters. For a known metric the catalog explanation (GET /api/SensorMetadata) is the expected text; the generic explanation of each type is listed on aggregationType.
+             */
+            aggregationExplanation?: string | null;
             /** @description Read-only. "lowerisbetter", "higherisbetter", or "bidirectional" - may differ between Sensors on the same Device. */
             direction?: string | null;
             /** @description Read-only. When true, this Sensor's measurements are stored in curves/bicurves instead of signals/bisignals. */
@@ -3819,6 +4158,15 @@ export interface components {
              * @description Read-only. Internal User id of the Admin who last switched maintenance mode on or off, or null if it has never been changed.
              */
             maintenanceSetByUserId?: number | null;
+        };
+        /** @description The complete unit and future-aggregation catalog: what a Sensor definition may use, and what the known metrics are. */
+        SensorMetadataCatalogDto: {
+            /** @description The canonical units. */
+            units?: components["schemas"]["MetricUnitDto"][] | null;
+            /** @description The future-aggregation types. */
+            aggregationTypes?: components["schemas"]["MetricAggregationTypeDto"][] | null;
+            /** @description Every known metric (163 per measurement point for the Vibration_Duo firmware), each with its exact unit and aggregation type. */
+            metrics?: components["schemas"]["MetricDefinitionDto"][] | null;
         };
         /** @description Request to enable or disable a Device's machine-access principal. */
         SetDevicePrincipalEnabledRequest: {
@@ -4269,8 +4617,35 @@ export interface components {
             name?: string | null;
             /** @description Set to update; omit/null to leave unchanged. */
             quantityKind?: string | null;
-            /** @description Set to update; omit/null to leave unchanged. */
+            /**
+             * @description Set to update; omit/null to leave unchanged. Same rules as on create: canonical code where the Sensor carries AggregationType or is a known metric.
+             *
+             *     Canonical unit codes. The stored and exchanged value is the CODE; the labels are display text only and are never accepted as input:
+             *     - `g` - label "g" (Hungarian "g"). Acceleration in standard gravity units (acceleration RMS metrics). Not converted to m/s2.
+             *     - `mm_s` - label "mm/s" (Hungarian "mm/s"). Vibration velocity in millimetres per second (velocity RMS metrics).
+             *     - `mm` - label "mm" (Hungarian "mm"). Vibration displacement in millimetres (displacement RMS metrics; the WTVB02 DRMS register divided by 1000).
+             *     - `one` - label "Unit" (Hungarian "Unit"). The general dimension for a metric that has none: a pure number such as acceleration kurtosis or crest factor, displayed as "Unit". It is never g.
+             *     - `raw_energy` - label "Relative spectrum energy" (Hungarian "Relatív spektrumenergia"). The WTVB02 relative spectrum-energy level (POINT order energy, AREA band energy, total spectrum energy). The manufacturer documents no reliable physical scaling, so it is NOT g2, g2/Hz, PSD, joule, watt or dB and is never converted to any of them.
+             *     - `degC` - label "°C" (Hungarian "°C"). Degrees Celsius: the WTVB02 internal sensor/chip temperature - not a bearing temperature.
+             *     - `rpm` - label "RPM" (Hungarian "RPM"). Shaft speed in revolutions per minute (external IR rotation input). A true 0 is a stopped machine; missing data is not 0.
+             */
             unitCode?: string | null;
+            /**
+             * @description Set to update the future-aggregation type (EQUIVALENT_RMS, WEIGHTED_MEAN, MAXIMUM); omit/null to leave unchanged. Validated together with the resulting UnitCode and AggregationExplanation. Not retraining-relevant.
+             *
+             *     Future-aggregation types. METADATA ONLY - they record how a longer-period value would have to be formed to be mathematically valid; the platform does not aggregate anything from them:
+             *     - `EQUIVALENT_RMS` (Equivalent RMS) - For a future longer-period aggregation, use a duration-weighted root mean square of the five-second RMS values. Do not use a simple arithmetic mean. Reference formula (documentation only, nothing is calculated): sqrt( sum(value^2 * representedDuration) / sum(representedDuration) ). Valid for the unit codes: g, mm_s, mm.
+             *     - `WEIGHTED_MEAN` (Weighted mean) - For a future longer-period aggregation, use the represented-duration-weighted mean of the five-second values. Reference formula (documentation only, nothing is calculated): sum(value * representedDuration) / sum(representedDuration). Valid for the unit codes: g, mm_s, mm, one, raw_energy, degC, rpm.
+             *     - `MAXIMUM` (Maximum) - For a future longer-period aggregation, use the highest five-second maximum in the selected period. Do not average maximum values. Reference formula (documentation only, nothing is calculated): max(source maximum values). Valid for the unit codes: g, mm_s, mm, one, raw_energy, degC, rpm.
+             * @enum {string|null}
+             */
+            aggregationType?: "EQUIVALENT_RMS" | "WEIGHTED_MEAN" | "MAXIMUM" | null;
+            /**
+             * @description Set to update the explanation of AggregationType; omit/null to leave unchanged. At most 1000 characters. Not retraining-relevant.
+             *
+             *     Free-form text, at most 1000 characters. For a known metric the catalog explanation (GET /api/SensorMetadata) is the expected text; the generic explanation of each type is listed on aggregationType.
+             */
+            aggregationExplanation?: string | null;
             /** @description Set to "lowerisbetter", "higherisbetter", or "bidirectional" to update; omit/null to leave unchanged. */
             direction?: string | null;
             /** @description Set to enable/disable the Sensor; omit/null to leave unchanged. */
@@ -4657,49 +5032,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 3,
                  *         "period": 1,
-                 *         "measured": "2026-10-13T07:57:11.157079Z",
+                 *         "measured": "2026-10-14T14:57:56.5035425Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 2,
-                 *         "measured": "2026-10-14T07:57:11.1571338Z",
+                 *         "measured": "2026-10-15T14:57:56.5035794Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 3,
-                 *         "measured": "2026-10-15T07:57:11.1571341Z",
+                 *         "measured": "2026-10-16T14:57:56.5035798Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 4,
-                 *         "measured": "2026-10-16T07:57:11.1571342Z",
+                 *         "measured": "2026-10-17T14:57:56.5035801Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 5,
-                 *         "measured": "2026-10-17T07:57:11.1571344Z",
+                 *         "measured": "2026-10-18T14:57:56.5035803Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 6,
-                 *         "measured": "2026-10-18T07:57:11.1571363Z",
+                 *         "measured": "2026-10-19T14:57:56.503581Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 1,
-                 *         "measured": "2026-10-13T07:57:11.1571365Z",
+                 *         "measured": "2026-10-14T14:57:56.5035813Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 2,
-                 *         "measured": "2026-10-14T07:57:11.1571366Z",
+                 *         "measured": "2026-10-15T14:57:56.5035815Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -4710,49 +5085,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 3,
                  *         "period": 1,
-                 *         "measured": "2026-10-13T07:57:11.157079Z",
+                 *         "measured": "2026-10-14T14:57:56.5035425Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 2,
-                 *         "measured": "2026-10-14T07:57:11.1571338Z",
+                 *         "measured": "2026-10-15T14:57:56.5035794Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 3,
-                 *         "measured": "2026-10-15T07:57:11.1571341Z",
+                 *         "measured": "2026-10-16T14:57:56.5035798Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 4,
-                 *         "measured": "2026-10-16T07:57:11.1571342Z",
+                 *         "measured": "2026-10-17T14:57:56.5035801Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 5,
-                 *         "measured": "2026-10-17T07:57:11.1571344Z",
+                 *         "measured": "2026-10-18T14:57:56.5035803Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 6,
-                 *         "measured": "2026-10-18T07:57:11.1571363Z",
+                 *         "measured": "2026-10-19T14:57:56.503581Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 1,
-                 *         "measured": "2026-10-13T07:57:11.1571365Z",
+                 *         "measured": "2026-10-14T14:57:56.5035813Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 2,
-                 *         "measured": "2026-10-14T07:57:11.1571366Z",
+                 *         "measured": "2026-10-15T14:57:56.5035815Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -4763,49 +5138,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 3,
                  *         "period": 1,
-                 *         "measured": "2026-10-13T07:57:11.157079Z",
+                 *         "measured": "2026-10-14T14:57:56.5035425Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 2,
-                 *         "measured": "2026-10-14T07:57:11.1571338Z",
+                 *         "measured": "2026-10-15T14:57:56.5035794Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 3,
-                 *         "measured": "2026-10-15T07:57:11.1571341Z",
+                 *         "measured": "2026-10-16T14:57:56.5035798Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 4,
-                 *         "measured": "2026-10-16T07:57:11.1571342Z",
+                 *         "measured": "2026-10-17T14:57:56.5035801Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 5,
-                 *         "measured": "2026-10-17T07:57:11.1571344Z",
+                 *         "measured": "2026-10-18T14:57:56.5035803Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 6,
-                 *         "measured": "2026-10-18T07:57:11.1571363Z",
+                 *         "measured": "2026-10-19T14:57:56.503581Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 1,
-                 *         "measured": "2026-10-13T07:57:11.1571365Z",
+                 *         "measured": "2026-10-14T14:57:56.5035813Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 2,
-                 *         "measured": "2026-10-14T07:57:11.1571366Z",
+                 *         "measured": "2026-10-15T14:57:56.5035815Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -5159,22 +5534,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-10-19T04:57:11.2021939Z",
+                 *             "measured": "2026-10-20T11:57:56.5484059Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-10-19T05:27:11.2022273Z",
+                 *             "measured": "2026-10-20T12:27:56.5484609Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-10-19T05:57:11.2022276Z",
+                 *             "measured": "2026-10-20T12:57:56.5484613Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-10-19T06:27:11.2022278Z",
+                 *             "measured": "2026-10-20T13:27:56.5484616Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -5185,22 +5560,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-10-19T06:57:11.2022509Z",
+                 *             "measured": "2026-10-20T13:57:56.5484848Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-10-19T07:12:11.2022512Z",
+                 *             "measured": "2026-10-20T14:12:56.5484852Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-10-19T07:27:11.2022526Z",
+                 *             "measured": "2026-10-20T14:27:56.5484866Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-10-19T07:42:11.2022528Z",
+                 *             "measured": "2026-10-20T14:42:56.5484868Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -5211,12 +5586,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-10-19T04:57:11.2022532Z",
+                 *             "measured": "2026-10-20T11:57:56.5484872Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-10-19T05:27:11.2022535Z",
+                 *             "measured": "2026-10-20T12:27:56.5484875Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -5232,22 +5607,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-10-19T04:57:11.2021939Z",
+                 *             "measured": "2026-10-20T11:57:56.5484059Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-10-19T05:27:11.2022273Z",
+                 *             "measured": "2026-10-20T12:27:56.5484609Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-10-19T05:57:11.2022276Z",
+                 *             "measured": "2026-10-20T12:57:56.5484613Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-10-19T06:27:11.2022278Z",
+                 *             "measured": "2026-10-20T13:27:56.5484616Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -5258,22 +5633,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-10-19T06:57:11.2022509Z",
+                 *             "measured": "2026-10-20T13:57:56.5484848Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-10-19T07:12:11.2022512Z",
+                 *             "measured": "2026-10-20T14:12:56.5484852Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-10-19T07:27:11.2022526Z",
+                 *             "measured": "2026-10-20T14:27:56.5484866Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-10-19T07:42:11.2022528Z",
+                 *             "measured": "2026-10-20T14:42:56.5484868Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -5284,12 +5659,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-10-19T04:57:11.2022532Z",
+                 *             "measured": "2026-10-20T11:57:56.5484872Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-10-19T05:27:11.2022535Z",
+                 *             "measured": "2026-10-20T12:27:56.5484875Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -5305,22 +5680,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-10-19T04:57:11.2021939Z",
+                 *             "measured": "2026-10-20T11:57:56.5484059Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-10-19T05:27:11.2022273Z",
+                 *             "measured": "2026-10-20T12:27:56.5484609Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-10-19T05:57:11.2022276Z",
+                 *             "measured": "2026-10-20T12:57:56.5484613Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-10-19T06:27:11.2022278Z",
+                 *             "measured": "2026-10-20T13:27:56.5484616Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -5331,22 +5706,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-10-19T06:57:11.2022509Z",
+                 *             "measured": "2026-10-20T13:57:56.5484848Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-10-19T07:12:11.2022512Z",
+                 *             "measured": "2026-10-20T14:12:56.5484852Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-10-19T07:27:11.2022526Z",
+                 *             "measured": "2026-10-20T14:27:56.5484866Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-10-19T07:42:11.2022528Z",
+                 *             "measured": "2026-10-20T14:42:56.5484868Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -5357,12 +5732,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-10-19T04:57:11.2022532Z",
+                 *             "measured": "2026-10-20T11:57:56.5484872Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-10-19T05:27:11.2022535Z",
+                 *             "measured": "2026-10-20T12:27:56.5484875Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -6227,49 +6602,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 1,
                  *         "period": 1,
-                 *         "measured": "2026-10-13T07:57:11.2433571Z",
+                 *         "measured": "2026-10-14T14:57:56.6073422Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 2,
-                 *         "measured": "2026-10-14T07:57:11.2433882Z",
+                 *         "measured": "2026-10-15T14:57:56.6073725Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 3,
-                 *         "measured": "2026-10-15T07:57:11.2433885Z",
+                 *         "measured": "2026-10-16T14:57:56.6073728Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 4,
-                 *         "measured": "2026-10-16T07:57:11.2433887Z",
+                 *         "measured": "2026-10-17T14:57:56.607373Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 5,
-                 *         "measured": "2026-10-17T07:57:11.243389Z",
+                 *         "measured": "2026-10-18T14:57:56.6073733Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 6,
-                 *         "measured": "2026-10-18T07:57:11.2433897Z",
+                 *         "measured": "2026-10-19T14:57:56.6073739Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 1,
-                 *         "measured": "2026-10-13T07:57:11.2433901Z",
+                 *         "measured": "2026-10-14T14:57:56.6073741Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 2,
-                 *         "measured": "2026-10-14T07:57:11.2433903Z",
+                 *         "measured": "2026-10-15T14:57:56.6073744Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -6280,49 +6655,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 1,
                  *         "period": 1,
-                 *         "measured": "2026-10-13T07:57:11.2433571Z",
+                 *         "measured": "2026-10-14T14:57:56.6073422Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 2,
-                 *         "measured": "2026-10-14T07:57:11.2433882Z",
+                 *         "measured": "2026-10-15T14:57:56.6073725Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 3,
-                 *         "measured": "2026-10-15T07:57:11.2433885Z",
+                 *         "measured": "2026-10-16T14:57:56.6073728Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 4,
-                 *         "measured": "2026-10-16T07:57:11.2433887Z",
+                 *         "measured": "2026-10-17T14:57:56.607373Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 5,
-                 *         "measured": "2026-10-17T07:57:11.243389Z",
+                 *         "measured": "2026-10-18T14:57:56.6073733Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 6,
-                 *         "measured": "2026-10-18T07:57:11.2433897Z",
+                 *         "measured": "2026-10-19T14:57:56.6073739Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 1,
-                 *         "measured": "2026-10-13T07:57:11.2433901Z",
+                 *         "measured": "2026-10-14T14:57:56.6073741Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 2,
-                 *         "measured": "2026-10-14T07:57:11.2433903Z",
+                 *         "measured": "2026-10-15T14:57:56.6073744Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -6333,49 +6708,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 1,
                  *         "period": 1,
-                 *         "measured": "2026-10-13T07:57:11.2433571Z",
+                 *         "measured": "2026-10-14T14:57:56.6073422Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 2,
-                 *         "measured": "2026-10-14T07:57:11.2433882Z",
+                 *         "measured": "2026-10-15T14:57:56.6073725Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 3,
-                 *         "measured": "2026-10-15T07:57:11.2433885Z",
+                 *         "measured": "2026-10-16T14:57:56.6073728Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 4,
-                 *         "measured": "2026-10-16T07:57:11.2433887Z",
+                 *         "measured": "2026-10-17T14:57:56.607373Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 5,
-                 *         "measured": "2026-10-17T07:57:11.243389Z",
+                 *         "measured": "2026-10-18T14:57:56.6073733Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 6,
-                 *         "measured": "2026-10-18T07:57:11.2433897Z",
+                 *         "measured": "2026-10-19T14:57:56.6073739Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 1,
-                 *         "measured": "2026-10-13T07:57:11.2433901Z",
+                 *         "measured": "2026-10-14T14:57:56.6073741Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 2,
-                 *         "measured": "2026-10-14T07:57:11.2433903Z",
+                 *         "measured": "2026-10-15T14:57:56.6073744Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -9939,22 +10314,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-10-19T04:57:11.35212Z",
+                 *             "measured": "2026-10-20T11:57:56.7036145Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-10-19T05:27:11.3521494Z",
+                 *             "measured": "2026-10-20T12:27:56.7036425Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-10-19T05:57:11.3521498Z",
+                 *             "measured": "2026-10-20T12:57:56.7036429Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-10-19T06:27:11.35215Z",
+                 *             "measured": "2026-10-20T13:27:56.7036432Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -9965,22 +10340,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-10-19T06:57:11.3521735Z",
+                 *             "measured": "2026-10-20T13:57:56.7036647Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-10-19T07:12:11.3521738Z",
+                 *             "measured": "2026-10-20T14:12:56.703665Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-10-19T07:27:11.3521741Z",
+                 *             "measured": "2026-10-20T14:27:56.7036653Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-10-19T07:42:11.3521743Z",
+                 *             "measured": "2026-10-20T14:42:56.7036656Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -9991,12 +10366,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-10-19T04:57:11.3521747Z",
+                 *             "measured": "2026-10-20T11:57:56.7036659Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-10-19T05:27:11.352175Z",
+                 *             "measured": "2026-10-20T12:27:56.7036663Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -10012,22 +10387,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-10-19T04:57:11.35212Z",
+                 *             "measured": "2026-10-20T11:57:56.7036145Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-10-19T05:27:11.3521494Z",
+                 *             "measured": "2026-10-20T12:27:56.7036425Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-10-19T05:57:11.3521498Z",
+                 *             "measured": "2026-10-20T12:57:56.7036429Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-10-19T06:27:11.35215Z",
+                 *             "measured": "2026-10-20T13:27:56.7036432Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -10038,22 +10413,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-10-19T06:57:11.3521735Z",
+                 *             "measured": "2026-10-20T13:57:56.7036647Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-10-19T07:12:11.3521738Z",
+                 *             "measured": "2026-10-20T14:12:56.703665Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-10-19T07:27:11.3521741Z",
+                 *             "measured": "2026-10-20T14:27:56.7036653Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-10-19T07:42:11.3521743Z",
+                 *             "measured": "2026-10-20T14:42:56.7036656Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -10064,12 +10439,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-10-19T04:57:11.3521747Z",
+                 *             "measured": "2026-10-20T11:57:56.7036659Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-10-19T05:27:11.352175Z",
+                 *             "measured": "2026-10-20T12:27:56.7036663Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -10085,22 +10460,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-10-19T04:57:11.35212Z",
+                 *             "measured": "2026-10-20T11:57:56.7036145Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-10-19T05:27:11.3521494Z",
+                 *             "measured": "2026-10-20T12:27:56.7036425Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-10-19T05:57:11.3521498Z",
+                 *             "measured": "2026-10-20T12:57:56.7036429Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-10-19T06:27:11.35215Z",
+                 *             "measured": "2026-10-20T13:27:56.7036432Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -10111,22 +10486,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-10-19T06:57:11.3521735Z",
+                 *             "measured": "2026-10-20T13:57:56.7036647Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-10-19T07:12:11.3521738Z",
+                 *             "measured": "2026-10-20T14:12:56.703665Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-10-19T07:27:11.3521741Z",
+                 *             "measured": "2026-10-20T14:27:56.7036653Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-10-19T07:42:11.3521743Z",
+                 *             "measured": "2026-10-20T14:42:56.7036656Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -10137,12 +10512,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-10-19T04:57:11.3521747Z",
+                 *             "measured": "2026-10-20T11:57:56.7036659Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-10-19T05:27:11.352175Z",
+                 *             "measured": "2026-10-20T12:27:56.7036663Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -10418,6 +10793,38 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SensorMetadata_GetCatalog: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The catalog. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["SensorMetadataCatalogDto"];
+                    "application/json": components["schemas"]["SensorMetadataCatalogDto"];
+                    "text/json": components["schemas"]["SensorMetadataCatalogDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

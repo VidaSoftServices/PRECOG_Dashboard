@@ -537,7 +537,7 @@ export function DeviceDetailPage() {
                   <br />
                   <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
                     {sensor.direction} {sensor.quantityKind ? `· ${sensor.quantityKind}` : ''}{' '}
-                    {sensor.unitCode ? `(${sensor.unitCode})` : ''}
+                    {sensor.unitLabel ?? sensor.unitCode ? `(${sensor.unitLabel ?? sensor.unitCode})` : ''}
                   </Text>
                 </div>
                 <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center' }}>

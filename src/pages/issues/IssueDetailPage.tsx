@@ -300,7 +300,7 @@ export function IssueDetailPage() {
             {periodChart.isError && <ErrorState error={periodChart.error} />}
             {periodChart.data && (
               <TelemetryChart
-                series={[{ label: primarySensor?.name || 'Sensor', points: periodChart.data, bidirectional: primarySensor?.direction === 'bidirectional' }]}
+                series={[{ label: primarySensor?.name || 'Sensor', points: periodChart.data, bidirectional: primarySensor?.direction === 'bidirectional', unitLabel: primarySensor?.unitLabel }]}
                 mode="single"
                 showControlLimits
                 height={280}

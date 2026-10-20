@@ -28,6 +28,7 @@ import { DateTimeField } from '@/components/DateTimeField';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useAppToast } from '@/components/ToastProvider';
 import { useSensor } from '@/api/hooks/sensors';
+import { MetricDefinitionCard } from './MetricDefinitionCard';
 import {
   useAggregationPolicies,
   useUpdateAggregationPolicy,
@@ -419,6 +420,8 @@ export function SensorPoliciesPage() {
         title={`${sensorQuery.data?.name || sensorQuery.data?.externalSensorId} · Sensor configuration`}
         description={`${sensorQuery.data?.direction ?? ''} ${sensorQuery.data?.quantityKind ? '· ' + sensorQuery.data.quantityKind : ''}`}
       />
+
+      {sensorQuery.data && <MetricDefinitionCard sensor={sensorQuery.data} />}
 
       <Body1Strong style={{ display: 'block', marginBottom: tokens.spacingVerticalS }}>Aggregation policies</Body1Strong>
       {isAdmin && <NewPolicyForm deviceId={dId} sensorId={sId} />}

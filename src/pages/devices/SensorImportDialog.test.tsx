@@ -7,6 +7,7 @@ import { SensorImportDialog } from './SensorImportDialog';
 import { AppToastProvider } from '@/components/ToastProvider';
 import * as authStore from '@/auth/authStore';
 import { fetchMock } from '@/test/mockFetch';
+import { CATALOG, CATALOG_DTO } from '@/test/sensorCatalog';
 
 interface Posted {
   url: string;
@@ -21,7 +22,8 @@ function mockApi(existing: { id: number; externalSensorId: string }[], failOn: (
     const request = input as Request;
     const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
-    if (request.method === 'GET') return json(existing);
+    // The unit / aggregation catalog comes from the API, like in production.
+    if (request.method === 'GET') return request.url.includes('/api/SensorMetadata') ? json(CATALOG_DTO) : json(existing);
     const body = (await request.clone().json()) as Record<string, unknown>;
     const failure = failOn(body);
     if (failure) return failure;
@@ -102,6 +104,80 @@ describe('SensorImportDialog', { timeout: 20_000 }, () => {
     await waitFor(() => expect(posted).toHaveLength(3));
     // empty cell -> dialog default (off); explicit cells win.
     expect(posted.map((p) => p.body.processingEnabled)).toEqual([false, true, false]);
+  });
+
+  /** A sheet line for a known metric with its exact catalog metadata. */
+  const knownLine = (machineName: string, overrides: { unitCode?: string; aggregationType?: string } = {}) => {
+    const m = CATALOG.metrics.find((x) => x.machineName === machineName)!;
+    const quote = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    return [`${machineName}_1`, quote(m.displayName), overrides.unitCode ?? m.unitCode, overrides.aggregationType ?? m.aggregationType, quote(m.aggregationExplanation)].join(',');
+  };
+  const KNOWN_HEADER = 'machineName,displayName,unitCode,aggregationType,aggregationExplanation';
+
+  it('lists the allowed unit codes and aggregation types from the API catalog', async () => {
+    mockApi([]);
+    renderDialog();
+
+    const allowed = await screen.findByTestId('allowed-values');
+    for (const unit of CATALOG.units) expect(allowed).toHaveTextContent(`${unit.code} (${unit.label})`);
+    for (const type of CATALOG.aggregationTypes) expect(allowed).toHaveTextContent(`${type.code} (${type.label})`);
+  });
+
+  it('shows the unit, aggregation type, explanation and validation state of every row in the preview', async () => {
+    mockApi([]);
+    const user = userEvent.setup();
+    renderDialog();
+    await screen.findByTestId('allowed-values');
+
+    paste([KNOWN_HEADER, knownLine('energy_1x_x_mean'), knownLine('velocity_rms_x_eq'), knownLine('shaft_rpm_mean')].join('\n'));
+    await setDefaults(user);
+
+    const preview = await screen.findByRole('table', { name: 'Preview of the first rows' });
+    // The label AND the stable code: raw_energy stays raw_energy.
+    expect(within(preview).getByText('Relative spectrum energy (raw_energy)')).toBeInTheDocument();
+    expect(within(preview).getByText('mm/s (mm_s)')).toBeInTheDocument();
+    expect(within(preview).getByText('RPM (rpm)')).toBeInTheDocument();
+    expect(within(preview).getAllByText('Weighted mean (WEIGHTED_MEAN)')).toHaveLength(2);
+    expect(within(preview).getByText('Equivalent RMS (EQUIVALENT_RMS)')).toBeInTheDocument();
+    expect(within(preview).getAllByText('OK')).toHaveLength(3);
+    // The explanation is shown (truncated in the cell, in full as its tooltip).
+    expect(within(preview).getAllByTitle(/Do not use a simple arithmetic mean/)).toHaveLength(1);
+  });
+
+  it('sends unit, aggregation type and explanation to the API exactly as imported', async () => {
+    const posted = mockApi([]);
+    const user = userEvent.setup();
+    renderDialog();
+    await screen.findByTestId('allowed-values');
+
+    paste([KNOWN_HEADER, knownLine('band_1_2x_total_max')].join('\n'));
+    await setDefaults(user);
+    await user.click(await screen.findByRole('button', { name: 'Import 1 Sensor(s)' }));
+
+    await waitFor(() => expect(posted).toHaveLength(1));
+    const metric = CATALOG.metrics.find((m) => m.machineName === 'band_1_2x_total_max')!;
+    expect(posted[0]!.body).toMatchObject({
+      externalSensorId: 'band_1_2x_total_max_1',
+      unitCode: 'raw_energy',
+      aggregationType: 'MAXIMUM',
+      aggregationExplanation: metric.aggregationExplanation,
+    });
+  });
+
+  it('blocks a known metric whose unit is missing or wrong and names the row and the field', async () => {
+    const posted = mockApi([]);
+    const user = userEvent.setup();
+    renderDialog();
+    await screen.findByTestId('allowed-values');
+
+    paste([KNOWN_HEADER, knownLine('velocity_rms_x_eq'), knownLine('energy_1x_x_mean', { unitCode: 'g' }), knownLine('shaft_rpm_mean', { aggregationType: '' })].join('\n'));
+    await setDefaults(user);
+
+    const problems = await screen.findByRole('list', { name: 'Rows with problems' });
+    expect(within(problems).getByText(/Line 3 \(energy_1x_x_mean_1\).*\[unitCode = "g"\]/)).toBeInTheDocument();
+    expect(within(problems).getByText(/Line 4 \(shaft_rpm_mean_1\).*\[aggregationType\]/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Import/ })).toBeDisabled();
+    expect(posted).toHaveLength(0);
   });
 
   it('sends isCurve for a periodic Device', async () => {
