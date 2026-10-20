@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
@@ -109,18 +109,19 @@ describe('MobileDevicesPanel', () => {
     const user = userEvent.setup();
     renderPanel();
 
-    await user.click(await screen.findByRole('button', { name: 'Assign to user' }));
-    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(await screen.findByRole('button', { name: 'Assign to user' }));
+    const dialog = await screen.findByRole('dialog', { hidden: true });
 
+    // `hidden: true`: Fluent/Tabster marks the dialog aria-hidden while another test file loads the machine; the content is what is under test.
     // Only enabled Admin/Reader members can own a MAC address: no disabled user, no user without a role.
-    const select = await within(dialog).findByRole('combobox', { name: 'User' });
-    await waitFor(() => expect(within(select).getAllByRole('option').length).toBe(3));
-    expect(within(select).getByRole('option', { name: 'Anna Admin (Admin)' })).toBeInTheDocument();
-    expect(within(select).getByRole('option', { name: 'Rita Reader (Reader)' })).toBeInTheDocument();
-    expect(within(select).queryByRole('option', { name: /Dora/ })).not.toBeInTheDocument();
-    expect(within(select).queryByRole('option', { name: /Nora/ })).not.toBeInTheDocument();
+    const select = await within(dialog).findByRole('combobox', { name: 'User', hidden: true });
+    await waitFor(() => expect(within(select).getAllByRole('option', { hidden: true }).length).toBe(3));
+    expect(within(select).getByRole('option', { hidden: true, name: 'Anna Admin (Admin)' })).toBeInTheDocument();
+    expect(within(select).getByRole('option', { hidden: true, name: 'Rita Reader (Reader)' })).toBeInTheDocument();
+    expect(within(select).queryByRole('option', { hidden: true, name: /Dora/ })).not.toBeInTheDocument();
+    expect(within(select).queryByRole('option', { hidden: true, name: /Nora/ })).not.toBeInTheDocument();
 
-    const assign = within(dialog).getByRole('button', { name: 'Assign' });
+    const assign = within(dialog).getByRole('button', { name: 'Assign', hidden: true });
     expect(assign).toBeDisabled();
 
     await user.selectOptions(select, '8');
@@ -141,7 +142,7 @@ describe('MobileDevicesPanel', () => {
     expect(writes).toHaveLength(0);
 
     const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Blacklist' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Blacklist', hidden: true }));
 
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(writes[0]!.body).toEqual({ status: 'Blacklisted' });

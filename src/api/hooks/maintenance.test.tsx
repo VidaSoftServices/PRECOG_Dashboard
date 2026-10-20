@@ -4,7 +4,7 @@ import { renderHook, waitFor, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
 import { useSetSensorMaintenance } from './maintenance';
-import { MaintenancePill } from '@/components/StatusPill';
+import { MaintenancePill, ProcessingOffPill } from '@/components/StatusPill';
 import * as authStore from '@/auth/authStore';
 import { fetchMock } from '@/test/mockFetch';
 
@@ -72,5 +72,25 @@ describe('MaintenancePill', () => {
   it.each([false, undefined])('renders nothing when maintenance mode is %s', (value) => {
     renderPill(value);
     expect(screen.queryByText('Maintenance')).not.toBeInTheDocument();
+  });
+});
+
+describe('ProcessingOffPill', () => {
+  function renderPill(processingEnabled: boolean | undefined) {
+    return render(
+      <FluentProvider theme={webLightTheme}>
+        <ProcessingOffPill processingEnabled={processingEnabled} />
+      </FluentProvider>,
+    );
+  }
+
+  it('shows a labelled badge only when calculation is switched off', () => {
+    renderPill(false);
+    expect(screen.getByText('Calculation off')).toBeInTheDocument();
+  });
+
+  it.each([true, undefined])('stays quiet when processingEnabled is %s (the default, calculating)', (value) => {
+    renderPill(value);
+    expect(screen.queryByText('Calculation off')).not.toBeInTheDocument();
   });
 });

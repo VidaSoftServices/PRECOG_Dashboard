@@ -2466,3 +2466,52 @@ now asserts there is no MAC field); a new DevicePrincipal-only
 deliberately not called from the dashboard. Rate-limit documentation was already
 aligned to the code (`LargeTelemetryRead` 240 per 120 s); the API's compiled
 default was brought in line with `appsettings.json` as well.
+
+## Bulk Sensor import
+
+Request: add 163 (on some Devices 326) Sensors to one Device without doing it by hand.
+The Sensor list came from the Vibration_Duo firmware project (`docs/KPI_LIST.md`:
+162 WTVB02 KPIs + `shaft_rpm_mean` per measuring point; External Sensor ID = KPI name +
+`_1`/`_2`).
+
+Built (dashboard only, no API change): `src/lib/sensorImport.ts` (parse/validate/template/ID map),
+`importSensors`/`useImportSensors` in `hooks/sensors.ts`, `pages/devices/SensorImportDialog.tsx`,
+an "Import Sensors" button on Device detail (Admin), `lib/downloadFile.ts`, and two sample sheets in
+`samples/`. Design and rules: CLAUDE.md "Bulk Sensor import".
+
+Decisions: sequential creation in sheet order (ids follow row order; one request in flight; no bulk
+endpoint exists and none was added); all-or-nothing validation before the first request; existing ids
+skipped so a re-run is a resume; raw scale/lookback never defaulted silently.
+
+Tests (new): `sensorImport.test.ts` (delimiters, quoting, BOM, header aliases, defaults, every
+validation, 326 rows, template round trip, ID map), `sensorImport.samples.test.ts` (both sample
+files = exactly 163 / 326 valid unique rows), `SensorImportDialog.test.tsx` (order, isCurve,
+blocked on problems, skip existing, partial failure). Test-infrastructure changes: `testTimeout`
+20 s in `vite.config.ts` and Testing Library `asyncUtilTimeout` 15 s in `src/test/setup.ts`; the
+`MobileDevicesPanel` dialog tests query with `hidden: true` because, when another test file loads
+the machine, Fluent/Tabster leaves the dialog surface `aria-hidden` (cause not tracked down - the
+content, not the ARIA state, is what those tests assert; worth a real-browser check).
+
+Verified locally: typecheck clean, lint 0 errors, vitest 168/168 (23 files), production build succeeds.
+Not verified: against the real API with 163/326 rows, or in a real browser.
+
+## Per-Sensor calculation switch
+
+Request: some Sensors should store and train on their data but not trigger calculation. Answer to
+the question "is every new Sensor value calculated?": yes, until now - the API ran its analysis for
+every Sensor in each accepted batch that was not in maintenance.
+
+Built (with the API change of the same name; see its TASK_IMPLEMENTATION.md): `schema.generated.ts`
+regenerated (`processingEnabled` on `SensorDto`/`CreateSensorRequest`/`UpdateSensorRequest`);
+`ProcessingOffPill`; an Admin "Calculate" `Switch` + `ProcessingDialog` on each Device-detail Sensor row
+(through `useUpdateSensor`); the bulk-import sheet gained a `processingEnabled` column and a
+"Calculation" default (also in the downloadable template). No retraining warning, because the API
+does not treat the switch as retraining-relevant. Re-enabling never scores the backlog (API side).
+
+Tests (new/extended): `sensorImport.test.ts` (column aliases, true/false words, default, invalid
+value), `SensorImportDialog.test.tsx` (default vs. column reaches the POST body), `maintenance.test.tsx`
+(`ProcessingOffPill`), `contract.test.ts` (field on the three DTOs).
+
+Verified locally: typecheck clean, lint 0 errors, vitest 185/185 (23 files), production build succeeds.
+Not verified against the real API (the analysis skip and the no-backlog rule have no automated runtime
+test on the API side either), and the Device-detail Switch/dialog has no component test of its own.

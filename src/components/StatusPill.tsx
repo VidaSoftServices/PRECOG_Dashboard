@@ -7,6 +7,7 @@ import {
   QuestionCircle16Regular,
   Circle16Regular,
   Wrench16Regular,
+  PauseCircle16Regular,
 } from '@fluentui/react-icons';
 import type { Freshness } from '@/lib/dateTime';
 
@@ -89,6 +90,21 @@ export function MaintenancePill({ maintenanceMode }: { maintenanceMode: boolean 
   return (
     <Badge appearance="filled" color="warning" icon={<Wrench16Regular />}>
       Maintenance
+    </Badge>
+  );
+}
+
+/**
+ * Shown for a Sensor whose calculation switch is off: its data is stored and
+ * used for model training, but new values trigger no analysis or Issue
+ * detection. Icon + text, never color alone. Renders nothing for a Sensor that
+ * is calculating (the default), so the common case stays quiet.
+ */
+export function ProcessingOffPill({ processingEnabled }: { processingEnabled: boolean | null | undefined }) {
+  if (processingEnabled !== false) return null;
+  return (
+    <Badge appearance="tint" color="informative" icon={<PauseCircle16Regular />}>
+      Calculation off
     </Badge>
   );
 }

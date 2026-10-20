@@ -28,6 +28,8 @@ Readers of one Company at a time. It supports:
   DevicePrincipal lifecycle, Locations/DeviceGroups/DeviceClasses reference
   data (including DeviceGroup membership).
 - Per-Sensor maintenance mode: any level sees it, Admins switch it.
+- Bulk Sensor import (Excel paste or CSV) for a Device with hundreds of Sensors.
+- Per-Sensor calculation switch: store and train on a Sensor's data without calculating from it.
 
 **The old dashboard is a product-reference prototype only.** It's useful for
 the workflows, visual ideas, live-monitoring instinct, and comparison
@@ -94,7 +96,7 @@ src/
     charts/TelemetryChart.tsx, palette.ts
     states/LoadingState.tsx, EmptyState.tsx, ErrorState.tsx, NotAuthorizedState.tsx
   lib/
-    dateTime.ts, macAddress.ts, pollIntervals.ts, useMediaQuery.ts, useNumberSearchParam.ts, usePageVisible.ts
+    dateTime.ts, downloadFile.ts, macAddress.ts, sensorImport.ts, pollIntervals.ts, useMediaQuery.ts, useNumberSearchParam.ts, usePageVisible.ts
   pages/
     one folder per domain, one file per route (see TASK_IMPLEMENTATION.md's route matrix)
   test/
@@ -715,6 +717,79 @@ actor attribution exists on the job (`actorType`) but this frontend never
 submits *as* a DevicePrincipal (backend explicitly excludes DevicePrincipal
 from Ollama submission — `ActorType != User` → 401). Output is always
 rendered as text (`resultText`), never raw HTML.
+
+## Per-Sensor calculation switch
+
+By default every accepted batch triggers calculation for each Sensor in it (the
+API's analysis pipeline: scoring, Issue detection, summaries). `SensorDto.processingEnabled`
+(default true) lets an Admin turn that off for one Sensor: its data is **still
+stored and still used to train the model** (training reads the stored values, not
+the analysis), but new values trigger no analysis and so no Issue from that Sensor.
+Meant for Sensors that should feed the model without ever raising an Issue of their own.
+
+- **Device detail, Sensor list**: an Admin sees a "Calculate" `Switch` per Sensor
+  (`ProcessingDialog` confirms either direction through `ConfirmDialog`; turning off is
+  destructive-styled); every level sees the "Calculation off" `ProcessingOffPill` (icon +
+  text) on a Sensor that is switched off. The pill renders nothing for a calculating
+  Sensor, so the common case stays quiet.
+- Changed with `PUT .../Sensors/{sensorId}` `{ processingEnabled }` through the existing
+  `useUpdateSensor`. The server audits it and does **not** treat it as retraining-relevant, so
+  the dashboard shows no retraining warning for it.
+- **Switching back on never scores the backlog.** The API starts calculating from the
+  switch-on moment and ignores data measured while it was off (otherwise one request would
+  score weeks of data and open Issues for old events). The confirm dialog says so. An Issue
+  already open when the switch is turned off is left as it is.
+- Distinct from maintenance mode (which also discards the data) and from `enabled`.
+- **Import**: the sheet has an optional `processingEnabled` column (true/false, 1/0, yes/no,
+  on/off, igen/nem), and the dialog has a "Calculation" default for rows that leave it empty -
+  so a 163-row sheet can mark only some Sensors as "store and train, don't calculate".
+
+## Bulk Sensor import
+
+A Device can have hundreds of Sensors (a dual-point vibration monitor publishes
+163 KPIs per measuring point, 326 in all), which cannot reasonably be added one
+dialog at a time. `DeviceDetailPage`'s **Import Sensors** button (Admin only)
+opens `SensorImportDialog.tsx`:
+
+- **Input**: paste cells copied from Excel (tab separated) or choose a `.csv`
+  (comma, semicolon - what a Hungarian Excel writes - or tab, detected from the
+  header). The first row is the header; column names are case-insensitive and
+  tolerate spaces/underscores (`External Sensor ID`, `external_sensor_id`).
+  Only `externalSensorId` is required. `name`, `direction`, `quantityKind`,
+  `unitCode`, `rawScale`, `rawLookback`, `rawMinIssueScore`, `processingEnabled` are optional; a
+  missing column or empty cell takes the **dialog's default** (direction,
+  scale, lookback, min issue score). Raw scale and raw lookback have no built-in
+  default (as in the single "Add Sensor" form) - they come from the sheet or the
+  defaults, never invented. "Download template" gives a ready CSV.
+- **Validation is all-or-nothing before the first request** (`src/lib/sensorImport.ts`,
+  pure and unit-tested): required/duplicate ids, direction, scale names, whole-number
+  lookback, min score range and the API's column lengths. Problem rows are listed by
+  sheet line; nothing is sent while any exists. Rows whose id already exists on the
+  Device are skipped, so re-running a sheet only adds what is missing. A cap of
+  1000 rows per import guards against a mistakenly pasted sheet.
+- **No new API**: each row is the same `POST /api/Devices/{deviceId}/Sensors` the
+  single form uses (so each Sensor still gets its raw/base policy and the same
+  server validation); `isCurve` follows the Device's mode, never the sheet.
+- **Sequential, in sheet order, by design** (`importSensors` in
+  `hooks/sensors.ts`): the API gives each new Sensor the next Device-scoped id, so
+  one-at-a-time creation makes the numeric ids follow the sheet's row order, keeps
+  the request rate trivial (one request in flight), and lets one failing row not
+  stop the rest. 429 waits the server's `Retry-After` and retries the row (4 times
+  at most); 401/403 stops the whole import; a 409 "already exists" is a skip; **Stop**
+  halts before the next row (created Sensors stay created). A progress bar shows
+  `done / total`.
+- **Download Sensor ID map**: after an import the dialog offers
+  `externalSensorId,sensorId,name` for every sheet row that exists on the Device -
+  the numeric ids a Device's firmware needs (its `sensor_map.h`), which otherwise
+  have to be read off `GET .../Sensors` by hand.
+- Ready-made sheets for the Vibration Duo device are in `samples/`
+  (`vibration-duo-1-point-163-sensors.csv`, `vibration-duo-2-points-326-sensors.csv`),
+  generated from that firmware's `docs/KPI_LIST.md`. Scale, lookback and min score
+  are deliberately empty in them (the dialog defaults supply those); direction is a
+  proposal (lower is better, shaft speed bidirectional) and units are UCUM where one
+  exists (`[g]`, `mm/s`, `mm`, `Cel`, `/min`) and empty for the sensor's own
+  energy units and the dimensionless kurtosis/crest factors. A test (`sensorImport.samples.test.ts`)
+  keeps both files importable.
 
 ## Mobile devices (MAC address registry)
 

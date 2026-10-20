@@ -111,6 +111,17 @@ describe('OpenAPI contract quality (static - reads schema.generated.ts, no live 
     expect(dtoBlock).toMatch(/maintenanceSince\?:/);
   });
 
+  it('the per-Sensor calculation switch is on SensorDto, and optional on create and update', () => {
+    const block = (name: string) => {
+      const start = schemaText.indexOf(`${name}: {`);
+      expect(start).toBeGreaterThan(-1);
+      return schemaText.slice(start, schemaText.indexOf('\n        };', start));
+    };
+    expect(block('SensorDto')).toMatch(/processingEnabled\?:\s*boolean;/);
+    expect(block('CreateSensorRequest')).toMatch(/processingEnabled\?:\s*boolean;/);
+    expect(block('UpdateSensorRequest')).toMatch(/processingEnabled\?:\s*boolean \| null;/);
+  });
+
   it('the MAC address registry routes this dashboard manages still exist', () => {
     for (const path of ['/api/MacAddresses', '/api/MacAddresses/{id}']) {
       expect(schemaText).toContain(`"${path}":`);

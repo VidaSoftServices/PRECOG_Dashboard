@@ -15,13 +15,14 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import { ShieldKeyhole24Regular, Settings24Regular, ChartMultiple24Regular, AddCircle24Regular, Edit24Regular, Wrench24Regular } from '@fluentui/react-icons';
+import { ShieldKeyhole24Regular, Settings24Regular, ChartMultiple24Regular, AddCircle24Regular, Edit24Regular, Wrench24Regular, TableArrowUp24Regular } from '@fluentui/react-icons';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
 import { EmptyState } from '@/components/states/EmptyState';
-import { EnabledPill, FreshnessPill, MaintenancePill } from '@/components/StatusPill';
+import { EnabledPill, FreshnessPill, MaintenancePill, ProcessingOffPill } from '@/components/StatusPill';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { SensorImportDialog } from './SensorImportDialog';
 import { useAppToast } from '@/components/ToastProvider';
 import { useDevice, useUpdateDevice, useDisableDevice } from '@/api/hooks/devices';
 import { useSensors, useCreateSensor, useUpdateSensor, type SensorDto } from '@/api/hooks/sensors';
@@ -240,6 +241,54 @@ function EditSensorDialog({
  * confirm dialog and says so. Ending it is harmless and uses the same dialog
  * only for consistency.
  */
+/**
+ * Switches one Sensor's calculation on or off (`Sensor.processingEnabled`).
+ * Off: its data is still stored and still trains the model, but new values
+ * trigger no analysis, Issue detection or summary. On: calculation starts from
+ * that moment and never goes back over data that arrived while it was off. The
+ * change never triggers retraining. Confirmed because turning it off silences
+ * Issue detection for that Sensor.
+ */
+function ProcessingDialog({
+  deviceId,
+  sensor,
+  open,
+  onClose,
+}: {
+  deviceId: number;
+  sensor: SensorDto;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const toast = useAppToast();
+  const updateSensor = useUpdateSensor(deviceId, sensor.id!);
+  const turningOff = sensor.processingEnabled !== false;
+  const label = sensor.name || sensor.externalSensorId;
+
+  return (
+    <ConfirmDialog
+      open={open}
+      title={turningOff ? `Stop calculating ${label}?` : `Resume calculating ${label}?`}
+      confirmLabel={turningOff ? 'Stop calculation' : 'Resume calculation'}
+      intent={turningOff ? 'destructive' : 'normal'}
+      busy={updateSensor.isPending}
+      onConfirm={async () => {
+        await updateSensor.mutateAsync({ processingEnabled: !turningOff });
+        toast.success(turningOff ? `Calculation stopped: ${label}` : `Calculation resumed: ${label}`);
+        onClose();
+      }}
+      onCancel={onClose}
+    >
+      <Text>
+        {turningOff
+          ? 'New values for this Sensor will still be stored and still be used to train the model, but they will no longer trigger any calculation - no analysis and no Issues will be raised from this Sensor. An Issue that is already open is left as it is.'
+          : 'New values for this Sensor will trigger calculation again from now on. Values that arrived while it was off are not calculated retroactively.'}
+      </Text>
+      {updateSensor.isError && <ErrorState error={updateSensor.error} />}
+    </ConfirmDialog>
+  );
+}
+
 function MaintenanceDialog({
   deviceId,
   sensor,
@@ -301,8 +350,10 @@ export function DeviceDetailPage() {
   const [nameDraft, setNameDraft] = useState('');
   const [disableConfirmOpen, setDisableConfirmOpen] = useState(false);
   const [addSensorOpen, setAddSensorOpen] = useState(false);
+  const [importSensorsOpen, setImportSensorsOpen] = useState(false);
   const [editingSensorId, setEditingSensorId] = useState<number | null>(null);
   const [maintenanceSensorId, setMaintenanceSensorId] = useState<number | null>(null);
+  const [processingSensorId, setProcessingSensorId] = useState<number | null>(null);
 
   if (deviceQuery.isLoading) return <LoadingState label="Loading device…" />;
   if (deviceQuery.isError) return <ErrorState error={deviceQuery.error} onRetry={() => deviceQuery.refetch()} />;
@@ -311,6 +362,7 @@ export function DeviceDetailPage() {
 
   const editingSensor = sensorsQuery.data?.find((s) => s.id === editingSensorId) ?? null;
   const maintenanceSensor = sensorsQuery.data?.find((s) => s.id === maintenanceSensorId) ?? null;
+  const processingSensor = sensorsQuery.data?.find((s) => s.id === processingSensorId) ?? null;
   const sensorsInMaintenance = (sensorsQuery.data ?? []).filter((s) => s.maintenanceMode).length;
 
   const startEdit = () => {
@@ -434,6 +486,11 @@ export function DeviceDetailPage() {
                 Add Sensor
               </Button>
             )}
+            {isAdmin && (
+              <Button icon={<TableArrowUp24Regular />} onClick={() => setImportSensorsOpen(true)}>
+                Import Sensors
+              </Button>
+            )}
             <Button icon={<ChartMultiple24Regular />} onClick={() => navigate(`/analytics?deviceId=${id}`)}>
               Analyze
             </Button>
@@ -449,9 +506,14 @@ export function DeviceDetailPage() {
           description={isAdmin ? 'Add a Sensor to start collecting telemetry from this Device.' : 'This Device has no Sensors yet.'}
           action={
             isAdmin && (
-              <Button icon={<AddCircle24Regular />} onClick={() => setAddSensorOpen(true)}>
-                Add Sensor
-              </Button>
+              <>
+                <Button icon={<AddCircle24Regular />} onClick={() => setAddSensorOpen(true)}>
+                  Add Sensor
+                </Button>{' '}
+                <Button icon={<TableArrowUp24Regular />} onClick={() => setImportSensorsOpen(true)}>
+                  Import Sensors
+                </Button>
+              </>
             )
           }
         />
@@ -480,7 +542,16 @@ export function DeviceDetailPage() {
                 </div>
                 <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center' }}>
                   <MaintenancePill maintenanceMode={sensor.maintenanceMode} />
+                  <ProcessingOffPill processingEnabled={sensor.processingEnabled} />
                   <EnabledPill enabled={sensor.enabled} />
+                  {isAdmin && (
+                    <Switch
+                      aria-label={`Calculation for ${sensor.name || sensor.externalSensorId}`}
+                      label="Calculate"
+                      checked={sensor.processingEnabled !== false}
+                      onChange={() => setProcessingSensorId(sensor.id!)}
+                    />
+                  )}
                   {isAdmin && (
                     <Button size="small" icon={<Wrench24Regular />} onClick={() => setMaintenanceSensorId(sensor.id!)}>
                       {sensor.maintenanceMode ? 'End maintenance' : 'Maintenance'}
@@ -545,6 +616,15 @@ export function DeviceDetailPage() {
         />
       )}
 
+      {isAdmin && importSensorsOpen && (
+        <SensorImportDialog
+          deviceId={id}
+          applicationMode={device.applicationMode}
+          open={importSensorsOpen}
+          onClose={() => setImportSensorsOpen(false)}
+        />
+      )}
+
       {isAdmin && editingSensor && (
         <EditSensorDialog
           key={editingSensor.id}
@@ -552,6 +632,16 @@ export function DeviceDetailPage() {
           sensor={editingSensor}
           open={editingSensorId !== null}
           onClose={() => setEditingSensorId(null)}
+        />
+      )}
+
+      {isAdmin && processingSensor && (
+        <ProcessingDialog
+          key={`${processingSensor.id}-${processingSensor.processingEnabled}`}
+          deviceId={id}
+          sensor={processingSensor}
+          open={processingSensorId !== null}
+          onClose={() => setProcessingSensorId(null)}
         />
       )}
 

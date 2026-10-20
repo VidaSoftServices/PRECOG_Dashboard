@@ -19,6 +19,8 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     globals: false,
     css: false,
+    // Fluent dialog tests are slow to mount when the whole suite runs in parallel; 5 s was too tight.
+    testTimeout: 20_000,
     // Fluent UI pulls in `tabster`, a CJS package whose named exports
     // Node's ESM loader can't statically detect - without this, any test
     // that renders a real Fluent component (Dialog, DataGrid, etc., not

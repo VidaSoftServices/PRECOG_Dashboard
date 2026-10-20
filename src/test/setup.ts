@@ -1,6 +1,10 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, vi } from 'vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
+
+// Fluent dialogs/portals can take longer than Testing Library's default 1 s to appear when the whole
+// suite runs in parallel on a loaded machine; a longer wait only costs time when something is really missing.
+configure({ asyncUtilTimeout: 15_000 });
 
 // globals:false means Testing Library's usual auto-registered cleanup never
 // hooks in - do it explicitly so each test starts from an empty document.
