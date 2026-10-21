@@ -24,6 +24,7 @@ import { EnabledPill, FreshnessPill, MaintenancePill, ProcessingOffPill } from '
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SensorImportDialog } from './SensorImportDialog';
 import { SensorTypeInput } from '@/components/SensorTypeInput';
+import { ExportSensorMapButton } from './ExportSensorMapButton';
 import { DeleteDeviceDataDialog, DeleteDeviceDialog } from './DeleteDeviceDialog';
 import { useAppToast } from '@/components/ToastProvider';
 import { useDevice, useUpdateDevice, useDisableDevice } from '@/api/hooks/devices';
@@ -507,6 +508,7 @@ export function DeviceDetailPage() {
                 Import Sensors
               </Button>
             )}
+            {isAdmin && <ExportSensorMapButton device={device} sensors={sensorsQuery.data ?? []} />}
             <Button icon={<ChartMultiple24Regular />} onClick={() => navigate(`/analytics?deviceId=${id}`)}>
               Analyze
             </Button>

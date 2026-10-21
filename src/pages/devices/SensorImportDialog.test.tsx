@@ -100,7 +100,7 @@ describe('SensorImportDialog', { timeout: 20_000 }, () => {
 
     paste('externalSensorId,processingEnabled\na_1,\nb_1,true\nc_1,false');
     await setDefaults(user);
-    await user.selectOptions(within(screen.getByRole('dialog')).getByRole('combobox', { name: 'Calculation' }), 'off');
+    await user.selectOptions(within(screen.getByRole('dialog')).getByRole('combobox', { name: 'Calculate' }), 'off');
     await user.click(await screen.findByRole('button', { name: 'Import 3 Sensor(s)' }));
 
     await waitFor(() => expect(posted).toHaveLength(3));
@@ -108,24 +108,24 @@ describe('SensorImportDialog', { timeout: 20_000 }, () => {
     expect(posted.map((p) => p.body.processingEnabled)).toEqual([false, true, false]);
   });
 
-  /** A sheet line for a known metric with its exact catalog metadata. */
-  const knownLine = (machineName: string, overrides: { unitCode?: string; aggregationType?: string } = {}) => {
+  /** A sheet line for a known metric with its exact catalog unit (or an overridden one). */
+  const knownLine = (machineName: string, overrides: { unitCode?: string } = {}) => {
     const m = CATALOG.metrics.find((x) => x.machineName === machineName)!;
     const quote = (v: string) => `"${v.replace(/"/g, '""')}"`;
-    return [`${machineName}_1`, quote(m.displayName), overrides.unitCode ?? m.unitCode, overrides.aggregationType ?? m.aggregationType, quote(m.aggregationExplanation)].join(',');
+    return [`${machineName}_1`, quote(m.displayName), overrides.unitCode ?? m.unitCode].join(',');
   };
-  const KNOWN_HEADER = 'machineName,displayName,unitCode,aggregationType,aggregationExplanation';
+  const KNOWN_HEADER = 'sensorName,displayName,unitCode';
 
-  it('lists the allowed unit codes and aggregation types from the API catalog', async () => {
+  it('lists the allowed unit codes from the API catalog - and no aggregation types', async () => {
     mockApi([]);
     renderDialog();
 
     const allowed = await screen.findByTestId('allowed-values');
     for (const unit of CATALOG.units) expect(allowed).toHaveTextContent(`${unit.code} (${unit.label})`);
-    for (const type of CATALOG.aggregationTypes) expect(allowed).toHaveTextContent(`${type.code} (${type.label})`);
+    expect(allowed.textContent ?? '').not.toMatch(/aggregation/i);
   });
 
-  it('shows the unit, aggregation type, explanation and validation state of every row in the preview', async () => {
+  it('shows the unit and validation state of every row in the preview - and no aggregation columns', async () => {
     mockApi([]);
     const user = userEvent.setup();
     renderDialog();
@@ -139,14 +139,14 @@ describe('SensorImportDialog', { timeout: 20_000 }, () => {
     expect(within(preview).getByText('Relative spectrum energy (raw_energy)')).toBeInTheDocument();
     expect(within(preview).getByText('mm/s (mm_s)')).toBeInTheDocument();
     expect(within(preview).getByText('RPM (rpm)')).toBeInTheDocument();
-    expect(within(preview).getAllByText('Weighted mean (WEIGHTED_MEAN)')).toHaveLength(2);
-    expect(within(preview).getByText('Equivalent RMS (EQUIVALENT_RMS)')).toBeInTheDocument();
     expect(within(preview).getAllByText('OK')).toHaveLength(3);
-    // The explanation is shown (truncated in the cell, in full as its tooltip).
-    expect(within(preview).getAllByTitle(/Do not use a simple arithmetic mean/)).toHaveLength(1);
+    // Columns: the Sensor name and the Calculate switch are named as in the template; there is no aggregation column.
+    expect(within(preview).getByRole('columnheader', { name: 'Sensor name' })).toBeInTheDocument();
+    expect(within(preview).getByRole('columnheader', { name: 'Calculate' })).toBeInTheDocument();
+    expect(preview.textContent ?? '').not.toMatch(/aggregation|Explanation/i);
   });
 
-  it('sends unit, aggregation type and explanation to the API exactly as imported', async () => {
+  it('sends the unit to the API exactly as imported - and no aggregation fields', async () => {
     const posted = mockApi([]);
     const user = userEvent.setup();
     renderDialog();
@@ -157,13 +157,9 @@ describe('SensorImportDialog', { timeout: 20_000 }, () => {
     await user.click(await screen.findByRole('button', { name: 'Import 1 Sensor(s)' }));
 
     await waitFor(() => expect(posted).toHaveLength(1));
-    const metric = CATALOG.metrics.find((m) => m.machineName === 'band_1_2x_total_max')!;
-    expect(posted[0]!.body).toMatchObject({
-      externalSensorId: 'band_1_2x_total_max_1',
-      unitCode: 'raw_energy',
-      aggregationType: 'MAXIMUM',
-      aggregationExplanation: metric.aggregationExplanation,
-    });
+    expect(posted[0]!.body).toMatchObject({ externalSensorId: 'band_1_2x_total_max_1', unitCode: 'raw_energy' });
+    expect(posted[0]!.body).not.toHaveProperty('aggregationType');
+    expect(posted[0]!.body).not.toHaveProperty('aggregationExplanation');
   });
 
   it('blocks a known metric whose unit is missing or wrong and names the row and the field', async () => {
@@ -172,12 +168,12 @@ describe('SensorImportDialog', { timeout: 20_000 }, () => {
     renderDialog();
     await screen.findByTestId('allowed-values');
 
-    paste([KNOWN_HEADER, knownLine('velocity_rms_x_eq'), knownLine('energy_1x_x_mean', { unitCode: 'g' }), knownLine('shaft_rpm_mean', { aggregationType: '' })].join('\n'));
+    paste([KNOWN_HEADER, knownLine('velocity_rms_x_eq'), knownLine('energy_1x_x_mean', { unitCode: 'g' }), knownLine('shaft_rpm_mean', { unitCode: '' })].join('\n'));
     await setDefaults(user);
 
     const problems = await screen.findByRole('list', { name: 'Rows with problems' });
     expect(within(problems).getByText(/Line 3 \(energy_1x_x_mean_1\).*\[unitCode = "g"\]/)).toBeInTheDocument();
-    expect(within(problems).getByText(/Line 4 \(shaft_rpm_mean_1\).*\[aggregationType\]/)).toBeInTheDocument();
+    expect(within(problems).getByText(/Line 4 \(shaft_rpm_mean_1\).*\[unitCode\]/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Import/ })).toBeDisabled();
     expect(posted).toHaveLength(0);
   });
@@ -315,7 +311,7 @@ describe('SensorImportDialog', { timeout: 20_000 }, () => {
     expect(posted).toHaveLength(0);
   });
 
-  it('skips Sensors that already exist on the Device', async () => {
+  it('creates a new Sensor and leaves an existing one with no filled cells untouched', async () => {
     const posted = mockApi([{ id: 1, externalSensorId: 'old_1' }]);
     const user = userEvent.setup();
     renderDialog();
@@ -323,11 +319,82 @@ describe('SensorImportDialog', { timeout: 20_000 }, () => {
     paste('externalSensorId\nold_1\nnew_1');
     await setDefaults(user);
 
-    expect(await screen.findByText(/1 already exist and are skipped/)).toBeInTheDocument();
+    expect(await screen.findByText(/1 already exist and are updated/)).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Import 2 Sensor(s)' }));
+
+    expect(await screen.findByText(/1 created, 1 already up to date/)).toBeInTheDocument();
+    expect(posted).toHaveLength(1);
+    expect(posted[0]!.body.externalSensorId).toBe('new_1');
+  });
+
+  /** An existing Sensor with a raw policy and an effective setpoint; records every write as `METHOD path body`. */
+  function mockExisting(effective: Record<string, unknown> | null) {
+    const writes: { method: string; path: string; body: Record<string, unknown> }[] = [];
+    const sensor = { id: 7, externalSensorId: 'old_1', name: 'Old', direction: 'lowerisbetter', processingEnabled: true };
+    fetchMock().mockImplementation(async (input: RequestInfo | URL) => {
+      const request = input as Request;
+      const path = new URL(request.url).pathname;
+      const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+      if (request.method === 'GET') {
+        if (path.includes('/api/SensorMetadata')) return json(CATALOG_DTO);
+        if (path.endsWith('/AggregationPolicies')) return json([{ id: 9, timeScale: 'native', aggregationFunction: 'raw', scale: 'Seconds', lookback: 100, minIssueScore: 1 }]);
+        if (path.endsWith('/Setpoints/Effective')) return effective ? json(effective) : new Response(JSON.stringify('No setpoint'), { status: 404, headers: { 'content-type': 'application/json' } });
+        return json([sensor]);
+      }
+      writes.push({ method: request.method, path, body: (await request.clone().json()) as Record<string, unknown> });
+      return json({ id: 1 }, request.method === 'POST' ? 201 : 200);
+    });
+    return writes;
+  }
+
+  it('updates an existing Sensor with only the filled cells: Sensor, raw policy and a new setpoint interval', async () => {
+    const writes = mockExisting({ id: 3, validFrom: '2026-01-01T00:00:00Z', target: 5, tolerance: 1 });
+    const user = userEvent.setup();
+    renderDialog();
+
+    paste('sensorName\tdisplayName\trawLookback\ttarget\nold_1\tNew name\t200\t7');
+    expect(await screen.findByText(/1 already exist and are updated/)).toBeInTheDocument();
     await user.click(await screen.findByRole('button', { name: 'Import 1 Sensor(s)' }));
 
-    await waitFor(() => expect(posted).toHaveLength(1));
-    expect(posted[0]!.body.externalSensorId).toBe('new_1');
+    expect(await screen.findByText(/0 created, 1 updated/)).toBeInTheDocument();
+    expect(writes.map((w) => `${w.method} ${w.path.replace('/api/Devices/4/Sensors/7', '')}`)).toEqual(['PUT ', 'PUT /AggregationPolicies/9', 'POST /Setpoints']);
+    expect(writes[0]!.body).toEqual({ name: 'New name' });
+    expect(writes[1]!.body).toEqual({ lookback: 200 });
+    // The new target replaces the old one; the tolerance the sheet left empty is carried over so the interval is complete.
+    expect(writes[2]!.body).toMatchObject({ target: 7, tolerance: 1 });
+    expect(within(screen.getByRole('list', { name: 'Updated Sensors' })).getByText(/target 5 -> 7/)).toBeInTheDocument();
+  });
+
+  it('a tolerance-only row keeps the current target and writes a new setpoint with the new tolerance', async () => {
+    const writes = mockExisting({ id: 3, validFrom: '2026-01-01T00:00:00Z', target: 5, tolerance: 1 });
+    const user = userEvent.setup();
+    renderDialog();
+
+    paste('sensorName\ttolerance\nold_1\t2');
+    await user.click(await screen.findByRole('button', { name: 'Import 1 Sensor(s)' }));
+
+    expect(await screen.findByText(/0 created, 1 updated/)).toBeInTheDocument();
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({ method: 'POST', body: { target: 5, tolerance: 2 } });
+  });
+
+  it('writes nothing when the sheet already matches, and refuses a tolerance for a Sensor that has no target', async () => {
+    let writes = mockExisting({ id: 3, validFrom: '2026-01-01T00:00:00Z', target: 5, tolerance: 1 });
+    const user = userEvent.setup();
+    const first = renderDialog();
+    paste('sensorName\trawLookback\ttarget\nold_1\t100\t5');
+    await user.click(await screen.findByRole('button', { name: 'Import 1 Sensor(s)' }));
+    expect(await screen.findByText(/1 already up to date/)).toBeInTheDocument();
+    expect(writes).toHaveLength(0);
+    first.unmount();
+
+    writes = mockExisting(null);
+    renderDialog();
+    paste('sensorName\ttolerance\nold_1\t2');
+    await user.click(await screen.findByRole('button', { name: 'Import 1 Sensor(s)' }));
+    expect(await screen.findByText(/0 created, 1 failed/)).toBeInTheDocument();
+    expect(writes).toHaveLength(0);
+    expect(within(screen.getByRole('list', { name: 'Failed rows' })).getByText(/no target yet/)).toBeInTheDocument();
   });
 
   it('reports a failed row, still creates the rest, and lists the failure with its line', async () => {

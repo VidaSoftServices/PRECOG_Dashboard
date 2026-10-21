@@ -162,7 +162,7 @@ describe('processingEnabled column', () => {
     ['igen', true],
     ['On', true],
   ])('reads "%s" as %s, under any of the accepted header names', (word, expected) => {
-    for (const header of ['processingEnabled', 'Processing', 'data_processing', 'Calculation']) {
+    for (const header of ['Calculate', 'processingEnabled', 'Processing', 'data_processing', 'Calculation']) {
       const { rows } = parseSensorTable(`externalSensorId,${header}\na,${word}`, DEFAULTS, CATALOG);
       expect(rows[0]!.processingEnabled).toBe(expected);
       expect(rows[0]!.errors).toEqual([]);
@@ -171,7 +171,7 @@ describe('processingEnabled column', () => {
 
   it('flags a value that is neither true nor false instead of guessing', () => {
     const { rows } = parseSensorTable('externalSensorId,processingEnabled\na,maybe', DEFAULTS, CATALOG);
-    expect(rows[0]!.errors.join(' ')).toMatch(/processingEnabled "maybe"/);
+    expect(rows[0]!.errors.join(' ')).toMatch(/Calculate "maybe"/);
   });
 });
 

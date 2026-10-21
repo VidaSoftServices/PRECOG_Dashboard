@@ -758,8 +758,8 @@ opens `SensorImportDialog.tsx`:
   Only the Sensor-id column is required: the template calls it `sensorName` (the Sensor's
   `externalSensorId`; `externalSensorId` and `machineName` are accepted as aliases). Optional: `displayName`
   (the Sensor's name; alias `name`), `direction`, `sensorType` (the Sensor's `sensorType`; alias `sensorType`),
-  `unitCode`, `aggregationType`, `aggregationExplanation`, `rawScale`, `rawLookback`, `rawMinIssueScore`,
-  `processingEnabled` and the setpoint columns below; a
+  `unitCode`, `rawScale`, `rawLookback`, `rawMinIssueScore`,
+  `Calculate` (the Sensor's `processingEnabled`) and the setpoint columns below; for a **new** Sensor a
   missing column or empty cell takes the **dialog's default** (direction,
   scale, lookback, min issue score). Raw scale and raw lookback have no built-in
   default (as in the single "Add Sensor" form) - they come from the sheet or the
@@ -774,26 +774,46 @@ opens `SensorImportDialog.tsx`:
   bidirectional one needs `targetAbove` and/or `targetBelow`, and a tolerance needs the target of its own side;
   a tolerance is never negative; the columns of the other direction are rejected (named by field); a decimal
   comma (`0,5`) is read as 0.5. A row without any value gets no setpoint and its Sensor is stored but **not
-  analysed** until one is added on its Policies page (no default is invented). Rows skipped because the Sensor
-  already exists get no setpoint (their configuration is not this import's to change). If a setpoint cannot be
+  analysed** until one is added on its Policies page (no default is invented). If a setpoint cannot be
   saved the Sensor stays created and the dialog lists it ("Setpoints not saved"); 429 waits `Retry-After`,
   401/403 stops the import.
+- **A `sensorName` that already exists is UPDATED, not skipped** (`row.exists`, `existing` map of
+  `importSensors`; the preview's Action column says New / Update). Only the **filled cells** are applied: an
+  empty cell never overwrites, and the dialog's defaults are **not** applied to an existing Sensor (so scale,
+  lookback and unit are not required for it). Three independent steps, each only when a value actually differs
+  from what the API holds: (1) `PUT .../Sensors/{sensorId}` with the changed `name` / `sensorType` /
+  `unitCode` / `direction` / `processingEnabled`; (2) the **raw/base aggregation policy**
+  (`timeScale native` + `raw`; `GET .../AggregationPolicies`, then `PUT .../AggregationPolicies/{policyId}`)
+  with the changed `rawScale` / `rawLookback` / `rawMinIssueScore`; (3) the **setpoint**: when a target or
+  tolerance cell is filled the importer reads the setpoint effective now
+  (`GET .../Setpoints/Effective`, 404 = none), merges the filled values over it (`mergeSetpoint`, pure and
+  tested: a row with only a `tolerance` keeps the current target, the empty cells are carried over so the new
+  interval is complete, only the columns of the Sensor's direction count) and records the result as a **new
+  open-ended interval from the moment of the import** (`POST .../Setpoints`); the API ends the previous open
+  interval at that instant, so history is kept and there is no overlap. Equal values write nothing
+  ("already up to date"); a tolerance for a Sensor that has no target yet fails that row's setpoint with a
+  clear message (the Sensor/policy steps that did apply stay applied). Because the current setpoint is only known
+  when the import runs, the parser does not require a target for an existing Sensor's row (it does for a new
+  one). The result lists every changed value ("rawLookback 100 -> 200", "target 5 -> 7"). Raw
+  Lookback/Scale and `SensorType`/`UnitCode`/`Direction`/`Enabled` changes schedule retraining **on the server**,
+  exactly as the same edits on the Policies page / Sensor dialog would; the import adds no warning of its own.
+  Re-running a sheet is idempotent.
 - **Validation is all-or-nothing before the first request** (`src/lib/sensorImport.ts`,
   pure and unit-tested): required/duplicate ids, direction, scale names, whole-number
   lookback, min score range and the API's column lengths. Problem rows are listed by
-  sheet line; nothing is sent while any exists. Rows whose id already exists on the
-  Device are skipped, so re-running a sheet only adds what is missing. A cap of
+  sheet line; nothing is sent while any exists. A cap of
   1000 rows per import guards against a mistakenly pasted sheet.
-- **No new API**: each row is the same `POST /api/Devices/{deviceId}/Sensors` the
+- **No new API**: a new row is the same `POST /api/Devices/{deviceId}/Sensors` the
   single form uses (so each Sensor still gets its raw/base policy and the same
-  server validation); `isCurve` follows the Device's mode, never the sheet.
+  server validation); an existing one uses the same `PUT` Sensor / `PUT` policy / `POST` setpoint calls as the
+  Device and Policies pages. `isCurve` follows the Device's mode, never the sheet.
 - **Sequential, in sheet order, by design** (`importSensors` in
   `hooks/sensors.ts`): the API gives each new Sensor the next Device-scoped id, so
   one-at-a-time creation makes the numeric ids follow the sheet's row order, keeps
   the request rate trivial (one request in flight), and lets one failing row not
   stop the rest. 429 waits the server's `Retry-After` and retries the row (4 times
-  at most); 401/403 stops the whole import; a 409 "already exists" is a skip; **Stop**
-  halts before the next row (created Sensors stay created). A progress bar shows
+  at most); 401/403 stops the whole import; a 409 "already exists" on create is a skip; **Stop**
+  halts before the next row (what was done stays done). A progress bar shows
   `done / total`.
 - **Download Sensor ID map**: after an import the dialog offers
   `externalSensorId,sensorId,name` for every sheet row that exists on the Device -
@@ -1168,6 +1188,9 @@ the capability exists, the docs describing it are wrong):
 
 ## Sensor unit and aggregation metadata
 
+> **Superseded in part:** the aggregation type and explanation described in this section were **removed** from the import, the Policies tab and the API/DB - see "Aggregation type / explanation removed". The unit part (catalog from `GET /api/SensorMetadata`, exact-unit validation of known metrics, unit labels, chart units) stays.
+
+
 The API owns a catalog of units, aggregation types and the 163 Vibration_Duo metrics (`GET /api/SensorMetadata`, `useSensorMetadata` in `src/api/hooks/sensorMetadata.ts`). **That catalog is the only source of unit/aggregation knowledge in this app.** No file maps a metric name or family to a unit, and none contains a unit code or aggregation type as a string literal - `src/test/noHardcodedMetadata.test.ts` fails if one appears. The aggregation type is metadata only; nothing here aggregates anything.
 
 - **Display**: `SensorDto` carries `unitCode`, `unitLabel`, `unitLabelHu`, `aggregationType`, `aggregationExplanation`. `MetricDefinitionCard` (Sensor Policies page) shows display name, machine name, unit label with its code, aggregation type with its code, and the explanation; a Sensor that is a known metric but lacks the metadata gets a visible error (nothing guessed), an ordinary Sensor a plain notice. The Device detail Sensor row shows `unitLabel`. The general dimension of a metric without one (kurtosis, crest factor) is the unit `one`, labelled **"Unit"** by the API; energy metrics are "Relative spectrum energy" (`raw_energy`).
@@ -1209,3 +1232,18 @@ Next to "Delete device..." the Edit card's Danger zone has **Delete all data...*
 - **System log** - the diagnostic log (`GET /api/Logs/System`): time, level (icon + text badge, never colour alone), application, device/sensor, message, and an expandable "Details" (request id, trace id, IP, user, properties). Filters: From/To, level (and above), application, device/sensor/user id, message contains. Without a From the API searches the last 7 days, and a search window may not exceed 31 days; the API's explanation is shown if it refuses.
 
 Both show the **newest 30 entries by default**, filters apply only on **Apply filters** (Reset clears them), and **Load 30 more** pages on (`useInfiniteQuery`, `skip` pages; the API caps paging at 5000 skipped entries, which the page says). Filter-to-query translation is the pure, tested `src/lib/logFilters.ts` (empty fields are omitted, local date-times become UTC instants, ids must be whole numbers). Entries of other Companies and company-less system entries never reach the page (the API filters them).
+
+## Aggregation type / explanation removed; import column names
+
+- **Removed**: `aggregationType` / `aggregationExplanation` are no longer in the Sensor import (template, parsing, validation, preview, the request sent to `POST .../Sensors`), the "Data sets" workbook (the `aggregationType` sheet and the two columns of "Known metrics"), the sample CSVs, or the Policies tab's Metric definition card. An old sheet that still has the two columns gets them reported as "ignored column(s)" and nothing is sent. The API and database dropped them too (see the API docs and `DB_SensorAggregationMetadata_Remove.sql`); long-term aggregation is set up per Sensor through the aggregation policies. `src/test/noHardcodedMetadata.test.ts` fails if the names reappear in application code.
+- **What stays**: the unit catalog (`useSensorMetadata`: units + 163 known metrics with their unit), exact-unit validation of a known metric, unit labels on the Sensor list and charts, one template example row per catalog unit.
+- **Policies tab card**: the label "Machine name" is now **"Sensor name"** (the Sensor's `externalSensorId`); the card shows display name, Sensor name and unit only. The import preview's column is "Sensor name" too.
+- **Calculate**: the import column for the per-Sensor calculation switch is now **`Calculate`** (true/false, 1/0, yes/no, on/off, igen/nem; accepted aliases: `processingEnabled`, `Processing`, `Calculation`), the dialog's default field and the preview column are labelled "Calculate", the Data sets sheet is "Calculate", and a bad value is reported on `Calculate`. The API field is still `processingEnabled`.
+
+## Ready-made Vibration_Duo sheet (326 Sensors)
+
+The ready-made Vibration_Duo sheet (it was generated once and handed over as a download; it is **not kept in `samples/`**) is the complete, ready-to-import sheet of the Vibration_Duo Device in the template's format: all 326 Sensors, generated from the firmware's own KPI list (`lib/precog_core/kpi_slots.inc`) and cross-checked against the API catalog (names, units, order). Order: measurement point 1 (the 162 KPIs, then `shaft_rpm_mean_1`), then point 2. Display name `{point}# {Display name}` (for example `1# Acceleration RMS X (equivalent RMS)`); direction `lowerisbetter`; sensorType `vibration` (RMS, kurtosis, crest, energy, band, spectrum), `temperature`, `rotation` (shaft speed); unit from the catalog; rawScale `Years`, rawLookback `100`, rawMinIssueScore `5`; Calculate `TRUE` except the two shaft-speed Sensors (`FALSE`); no setpoints. It needs no dialog defaults. The importer accepts it as it is (tested while generating it). Because the importer creates Sensors one by one in sheet order, an empty Device gets SensorIds 1..326 in the same order - the firmware's `include/sensor_map.h` uses exactly these (verify with "Download Sensor ID map" after the import).
+
+## Export sensor_map (Device page)
+
+Next to "Import Sensors" (Admin only) the Sensor list header has **Export sensor_map** (`ExportSensorMapButton.tsx`, `src/lib/sensorMap.ts`): it downloads `sensor_map-device-{id}.txt` containing exactly the text of the Vibration_Duo firmware's `include/sensor_map.h`, built in the browser from the Sensors that exist on the Device right now. One `#define PRECOG_SENSOR_ID_{EXTERNAL_SENSOR_ID_UPPERCASE} {id}   /* {externalSensorId} */` per firmware channel, in ascending id order, with the numeric Device-scoped id exactly as the API reported it (nothing is renumbered or guessed). A firmware channel is a catalog metric (`{machineName}_{point}`, from `GET /api/SensorMetadata`) of measurement point 1 or 2; any other Sensor (a custom tag, point 3, a name that only looks like one) is not a channel and is only listed in a comment ("Skipped"). A channel that has no Sensor is left out (the firmware's `sensor_map_defaults.h` keeps it 0 = unmapped) and counted/listed in the header ("No Sensor yet"). The file also carries the Device name, the generation time and the reminder that ids change when Sensors are deleted and re-created. The button is disabled while the catalog is loading or when the Device has no Sensors. Ids are not secret and nothing is sent anywhere. Tests: `sensorMap.test.ts` (326-channel round trip, real ids with gaps, missing and skipped Sensors), `ExportSensorMapButton.test.tsx`; checked in a real Chromium (download name and content).

@@ -4,23 +4,16 @@ import { CATALOG, CATALOG_DTO } from '@/test/sensorCatalog';
 
 const DEFAULTS: ImportDefaults = { direction: 'lowerisbetter', rawScale: 'Seconds', rawLookback: '60', rawMinIssueScore: '1', processingEnabled: true };
 
-const HEADER = 'machineName,displayName,unitCode,aggregationType,aggregationExplanation';
+const HEADER = 'machineName,displayName,unitCode';
 
 function csvField(v: string): string {
   return /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
-/** One sheet line for a catalog metric, optionally with overridden cells. */
-function line(machineName: string, overrides: Partial<Record<'unitCode' | 'aggregationType' | 'aggregationExplanation', string>> = {}, point = 1): string {
+/** One sheet line for a catalog metric, optionally with an overridden unit. */
+function line(machineName: string, overrides: { unitCode?: string } = {}, point = 1): string {
   const m = CATALOG.metrics.find((x) => x.machineName === machineName)!;
-  const cells = [
-    `${machineName}_${point}`,
-    m.displayName,
-    overrides.unitCode ?? m.unitCode,
-    overrides.aggregationType ?? m.aggregationType,
-    overrides.aggregationExplanation ?? m.aggregationExplanation,
-  ];
-  return cells.map(csvField).join(',');
+  return [`${machineName}_${point}`, m.displayName, overrides.unitCode ?? m.unitCode].map(csvField).join(',');
 }
 
 function parse(...lines: string[]) {
@@ -28,11 +21,11 @@ function parse(...lines: string[]) {
 }
 
 describe('the test catalog is the full API catalog', () => {
-  it('has 7 units, 3 aggregation types and the 163 metrics', () => {
+  it('has the 7 units and the 163 metrics - and no aggregation data at all', () => {
     expect(CATALOG.units.map((u) => u.code)).toEqual(['g', 'mm_s', 'mm', 'one', 'raw_energy', 'degC', 'rpm']);
-    expect(CATALOG.aggregationTypes.map((a) => a.code)).toEqual(['EQUIVALENT_RMS', 'WEIGHTED_MEAN', 'MAXIMUM']);
     expect(CATALOG.metrics).toHaveLength(163);
     expect(new Set(CATALOG.metrics.map((m) => m.machineName)).size).toBe(163);
+    expect(JSON.stringify(CATALOG_DTO)).not.toMatch(/aggregation/i);
   });
 
   it('toImportCatalog refuses an incomplete response instead of guessing', () => {
@@ -41,8 +34,8 @@ describe('the test catalog is the full API catalog', () => {
   });
 });
 
-describe('valid metadata import', () => {
-  it('accepts every known metric of both measurement points with its own metadata', () => {
+describe('valid unit import', () => {
+  it('accepts every known metric of both measurement points with its own unit', () => {
     for (const point of [1, 2]) {
       const { rows, fileErrors } = parse(...CATALOG.metrics.map((m) => line(m.machineName, {}, point)));
       expect(fileErrors).toEqual([]);
@@ -52,8 +45,6 @@ describe('valid metadata import', () => {
       rows.forEach((r, i) => {
         const m = CATALOG.metrics[i]!;
         expect(r.unitCode).toBe(m.unitCode);
-        expect(r.aggregationType).toBe(m.aggregationType);
-        expect(r.aggregationExplanation).toBe(m.aggregationExplanation);
         expect(r.knownMetric).toBe(m.machineName);
       });
     }
@@ -70,14 +61,22 @@ describe('valid metadata import', () => {
     expect(rows.flatMap((r) => r.errors)).toEqual([]);
   });
 
-  it('lets an ordinary Sensor (not a known metric) be imported without any of the metadata', () => {
-    const { rows } = parseSensorTable('externalSensorId,unitCode\nmy_pressure,bar', DEFAULTS, CATALOG);
-    expect(rows[0]).toMatchObject({ unitCode: 'bar', aggregationType: '', errors: [] });
+  it('lets an ordinary Sensor (not a known metric) be imported with any free-text unit, or none', () => {
+    const { rows } = parseSensorTable('externalSensorId,unitCode\nmy_pressure,bar\nmy_other,', DEFAULTS, CATALOG);
+    expect(rows[0]).toMatchObject({ unitCode: 'bar', errors: [] });
+    expect(rows[1]).toMatchObject({ unitCode: '', errors: [] });
   });
 
-  it('lets an ordinary Sensor carry valid metadata too', () => {
-    const { rows } = parseSensorTable('machineName,unitCode,aggregationType,aggregationExplanation\nmy_vibration,mm_s,MAXIMUM,highest', DEFAULTS, CATALOG);
+  it('has no aggregation columns: an old sheet that still has them gets them reported as ignored, and nothing is sent', () => {
+    const { rows, ignoredColumns } = parseSensorTable(
+      'machineName,unitCode,aggregationType,aggregationExplanation\nvelocity_rms_x_eq_1,mm_s,EQUIVALENT_RMS,some text',
+      DEFAULTS,
+      CATALOG,
+    );
+    expect(ignoredColumns).toEqual(['aggregationType', 'aggregationExplanation']);
     expect(rows[0]!.errors).toEqual([]);
+    expect(Object.keys(rows[0]!)).not.toContain('aggregationType');
+    expect(Object.keys(rows[0]!)).not.toContain('aggregationExplanation');
   });
 
   it('refuses to validate anything while the catalog is not available', () => {
@@ -87,23 +86,12 @@ describe('valid metadata import', () => {
   });
 });
 
-describe('invalid metadata is rejected - with the row and the field', () => {
+describe('invalid unit of a known metric is rejected - with the row and the field', () => {
   it('missing unitCode', () => {
     const { rows } = parse(line('velocity_rms_x_eq', { unitCode: '' }));
     expect(rows[0]!.issues).toEqual([expect.objectContaining({ field: 'unitCode', value: '' })]);
     expect(rows[0]!.line).toBe(2);
-    expect(rows[0]!.issues[0]!.message).toMatch(/required.*mm_s/);
-  });
-
-  it('missing aggregationType', () => {
-    const { rows } = parse(line('velocity_rms_x_eq', { aggregationType: '' }));
-    expect(rows[0]!.issues.map((i) => i.field)).toEqual(['aggregationType']);
-    expect(rows[0]!.issues[0]!.message).toMatch(/required.*EQUIVALENT_RMS/);
-  });
-
-  it('missing aggregationExplanation', () => {
-    const { rows } = parse(line('velocity_rms_x_eq', { aggregationExplanation: '' }));
-    expect(rows[0]!.issues.map((i) => i.field)).toEqual(['aggregationExplanation']);
+    expect(rows[0]!.issues[0]!.message).toMatch(/required/);
   });
 
   it.each(['g2', 'g²', 'g2/Hz', 'mm/s', 'MM_S', 'Cel'])('unknown unitCode "%s" is rejected, never corrected', (unit) => {
@@ -115,13 +103,6 @@ describe('invalid metadata is rejected - with the row and the field', () => {
     expect(rows[0]!.unitCode).toBe(unit);
   });
 
-  it.each(['AVG', 'equivalent_rms', 'Equivalent RMS'])('unknown aggregationType "%s" is rejected', (type) => {
-    const { rows } = parse(line('velocity_rms_x_eq', { aggregationType: type }));
-    const issue = rows[0]!.issues.find((i) => i.field === 'aggregationType')!;
-    expect(issue.message).toMatch(/Unknown aggregationType/);
-    expect(issue.value).toBe(type);
-  });
-
   it('an energy metric given the unit g (or no unit) is rejected - a missing energy unit is not guessed', () => {
     const asG = parse(line('band_1_2x_x_mean', { unitCode: 'g' }));
     expect(asG.rows[0]!.issues.find((i) => i.field === 'unitCode')!.message).toMatch(/raw_energy/);
@@ -131,38 +112,15 @@ describe('invalid metadata is rejected - with the row and the field', () => {
     expect(missing.rows[0]!.unitCode).toBe('');
   });
 
-  it('an invalid unit / aggregation combination is rejected', () => {
-    const { rows } = parseSensorTable('machineName,unitCode,aggregationType,aggregationExplanation\ntag,raw_energy,EQUIVALENT_RMS,x', DEFAULTS, CATALOG);
-    expect(rows[0]!.issues).toEqual([expect.objectContaining({ field: 'aggregationType', message: expect.stringContaining('not valid for unitCode') })]);
-  });
-
-  it('a known metric with the wrong (but individually valid) unit or type is rejected', () => {
+  it('a known metric with a valid but wrong unit is rejected', () => {
     const wrongUnit = parse(line('velocity_rms_x_eq', { unitCode: 'g' }));
     expect(wrongUnit.rows[0]!.issues.find((i) => i.field === 'unitCode')!.message).toMatch(/whose unitCode is 'mm_s'/);
-
-    const wrongType = parse(line('velocity_rms_x_eq', { aggregationType: 'WEIGHTED_MEAN' }));
-    expect(wrongType.rows[0]!.issues.find((i) => i.field === 'aggregationType')!.message).toMatch(/whose aggregationType is 'EQUIVALENT_RMS'/);
   });
 
   it('a duplicate machine name is rejected on the second row', () => {
     const { rows } = parse(line('shaft_rpm_mean'), line('shaft_rpm_mean'));
     expect(rows[0]!.errors).toEqual([]);
     expect(rows[1]!.issues).toEqual([expect.objectContaining({ field: 'externalSensorId', message: expect.stringContaining('repeated (first on line 2)') })]);
-  });
-
-  it('every problem of a row is reported at once, each naming its field', () => {
-    const { rows } = parse(line('velocity_rms_x_eq', { unitCode: 'g2', aggregationType: 'AVG', aggregationExplanation: '' }));
-    expect(rows[0]!.issues.map((i) => i.field).sort()).toEqual(['aggregationExplanation', 'aggregationType', 'unitCode']);
-  });
-
-  it('an explanation without a type is rejected for an ordinary Sensor', () => {
-    const { rows } = parseSensorTable('machineName,aggregationExplanation\ntag,orphan', DEFAULTS, CATALOG);
-    expect(rows[0]!.issues.map((i) => i.field)).toEqual(['aggregationType']);
-  });
-
-  it('an over-long explanation is rejected', () => {
-    const { rows } = parse(line('velocity_rms_x_eq', { aggregationExplanation: 'x'.repeat(1001) }));
-    expect(rows[0]!.issues.some((i) => i.field === 'aggregationExplanation' && /longer than 1000/.test(i.message))).toBe(true);
   });
 });
 
@@ -177,36 +135,37 @@ describe('known-metric matching', () => {
 });
 
 describe('template and round trip', () => {
-  it('the template lists the metadata columns and its example rows are valid and equal to the catalog', () => {
+  it('the template lists the unit column - and no aggregation columns - and its example rows are valid and equal to the catalog', () => {
     const csv = buildTemplateCsv(CATALOG);
     const header = csv.replace(/^\uFEFF/, '').split('\r\n')[0]!.split(',');
-    for (const column of ['sensorName', 'displayName', 'unitCode', 'aggregationType', 'aggregationExplanation']) expect(header).toContain(column);
+    for (const column of ['sensorName', 'displayName', 'unitCode']) expect(header).toContain(column);
+    expect(header.join(',')).not.toMatch(/aggregation/i);
     expect(header).toEqual([...TEMPLATE_HEADERS]);
 
-    const { rows, fileErrors } = parseSensorTable(csv, { ...DEFAULTS, rawScale: '', rawLookback: '' }, CATALOG);
+    const { rows, fileErrors, ignoredColumns } = parseSensorTable(csv, { ...DEFAULTS, rawScale: '', rawLookback: '' }, CATALOG);
     expect(fileErrors).toEqual([]);
-    expect(rows.length).toBeGreaterThanOrEqual(4);
+    expect(ignoredColumns).toEqual([]);
+    // One example per distinct unit of the catalog.
+    expect(rows).toHaveLength(CATALOG.units.length);
     expect(rows.flatMap((r) => r.errors)).toEqual([]);
     for (const r of rows) {
       const m = findKnownMetric(CATALOG, r.externalSensorId)!;
       expect(m).toBeDefined();
-      expect([r.unitCode, r.aggregationType, r.aggregationExplanation]).toEqual([m.unitCode, m.aggregationType, m.aggregationExplanation]);
+      expect(r.unitCode).toBe(m.unitCode);
     }
   });
 
-  it('a catalog -> CSV -> import round trip keeps unit, aggregation type and explanation exactly, for all 163 metrics', () => {
+  it('a catalog -> CSV -> import round trip keeps the unit exactly, for all 163 metrics', () => {
     const csv = [HEADER, ...CATALOG.metrics.map((m) => line(m.machineName))].join('\r\n');
     const { rows } = parseSensorTable(csv, DEFAULTS, CATALOG);
-    expect(rows.map((r) => [r.unitCode, r.aggregationType, r.aggregationExplanation])).toEqual(
-      CATALOG.metrics.map((m) => [m.unitCode, m.aggregationType, m.aggregationExplanation]),
-    );
+    expect(rows.map((r) => r.unitCode)).toEqual(CATALOG.metrics.map((m) => m.unitCode));
   });
 
   it('also survives a semicolon-separated re-save', () => {
-    const rows163 = CATALOG.metrics.map((m) => [`${m.machineName}_1`, m.displayName, m.unitCode, m.aggregationType, m.aggregationExplanation].map((c) => (/[;"\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(';'));
-    const { rows } = parseSensorTable(['machineName;displayName;unitCode;aggregationType;aggregationExplanation', ...rows163].join('\n'), DEFAULTS, CATALOG);
+    const rows163 = CATALOG.metrics.map((m) => [`${m.machineName}_1`, m.displayName, m.unitCode].map((c) => (/[;"\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(';'));
+    const { rows } = parseSensorTable(['machineName;displayName;unitCode', ...rows163].join('\n'), DEFAULTS, CATALOG);
     expect(rows.flatMap((r) => r.errors)).toEqual([]);
-    expect(rows.map((r) => r.aggregationExplanation)).toEqual(CATALOG.metrics.map((m) => m.aggregationExplanation));
+    expect(rows.map((r) => r.unitCode)).toEqual(CATALOG.metrics.map((m) => m.unitCode));
   });
 });
 
@@ -230,15 +189,6 @@ describe('what the catalog says about the Vibration_Duo families (from the API, 
         expect(labelOf(m.unitCode)).not.toBe('g');
       }
     }
-  });
-
-  it('every metric has an explanation, and the three aggregation types carry the required warnings', () => {
-    expect(CATALOG.metrics.every((m) => m.aggregationExplanation.length > 0)).toBe(true);
-    const text = (name: string) => CATALOG.metrics.find((m) => m.machineName === name)!.aggregationExplanation;
-    expect(text('velocity_rms_x_eq')).toMatch(/Do not use a simple arithmetic mean/);
-    expect(text('velocity_rms_x_max')).toMatch(/Do not average maximum values/);
-    expect(text('band_1_2x_x_mean')).toMatch(/represented-duration-weighted mean/);
-    expect(text('band_1_2x_x_mean')).toMatch(/not be accumulated physical energy/);
   });
 
   it('the DTO fixture is the same data the importer sees', () => {

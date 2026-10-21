@@ -33,6 +33,7 @@ import {
   parseSensorTable,
   toImportCatalog,
   type ImportCatalog,
+  type ExistingSensorInfo,
   type ImportDefaults,
   type ParsedSensorRow,
   type SensorDirection,
@@ -53,7 +54,7 @@ const useStyles = makeStyles({
   muted: { color: tokens.colorNeutralForeground3 },
 });
 
-/** The allowed unitCode and aggregationType values, listed from the API catalog next to the template. */
+/** The allowed unitCode values, listed from the API catalog next to the template. */
 function AllowedValues({ catalog }: { catalog: ImportCatalog }) {
   const styles = useStyles();
   return (
@@ -62,10 +63,7 @@ function AllowedValues({ catalog }: { catalog: ImportCatalog }) {
         <b>unitCode</b> (stable code, not the label): {catalog.units.map((u) => `${u.code} (${u.label})`).join(', ')}.
       </Text>
       <Text size={200} block>
-        <b>aggregationType</b> (future aggregation, metadata only): {catalog.aggregationTypes.map((a) => `${a.code} (${a.label})`).join(', ')}.
-      </Text>
-      <Text size={200} block>
-        A Sensor named like a known metric (machine name + point number) must carry exactly that metric&apos;s unitCode, aggregationType and an aggregationExplanation; other columns are optional.
+        A Sensor named like a known metric (machine name + point number) must carry exactly that metric&apos;s unitCode; other columns are optional.
       </Text>
     </div>
   );
@@ -76,12 +74,6 @@ function unitText(catalog: ImportCatalog | undefined, code: string): string {
   if (!code) return '';
   const unit = catalog?.units.find((u) => u.code === code);
   return unit ? `${unit.label} (${code})` : code;
-}
-
-function typeText(catalog: ImportCatalog | undefined, code: string): string {
-  if (!code) return '';
-  const type = catalog?.aggregationTypes.find((a) => a.code === code);
-  return type ? `${type.label} (${code})` : code;
 }
 
 /** "target 5 ± 0.5" / "above 5 ± 1, below 3 ± 1": the row's setpoint as it will be recorded; '' when the row has none. */
@@ -143,16 +135,27 @@ export function SensorImportDialog({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const running = importer.isPending;
-  const parsed = useMemo(() => parseSensorTable(text, defaults, catalog), [text, defaults, catalog]);
 
-  const existingIds = useMemo(
-    () => new Set((sensorsQuery.data ?? []).map((s) => (s.externalSensorId ?? '').toLowerCase())),
+  // The Sensors already on the Device: a row for one of them updates it (only the filled cells) instead of creating one.
+  const existingSensors = useMemo(
+    () => new Map((sensorsQuery.data ?? []).map((s) => [(s.externalSensorId ?? '').toLowerCase(), s])),
     [sensorsQuery.data],
   );
-  const alreadyThere = parsed.rows.filter((r) => existingIds.has(r.externalSensorId.toLowerCase()));
-  const toCreate = parsed.rows.filter((r) => r.errors.length === 0 && !existingIds.has(r.externalSensorId.toLowerCase()));
+  const existingInfo = useMemo(
+    () =>
+      new Map<string, ExistingSensorInfo>(
+        [...existingSensors].map(([key, s]) => [key, { direction: (DIRECTIONS as readonly string[]).includes(s.direction ?? '') ? (s.direction as SensorDirection) : 'lowerisbetter' }]),
+      ),
+    [existingSensors],
+  );
+
+  const parsed = useMemo(() => parseSensorTable(text, defaults, catalog, existingInfo), [text, defaults, catalog, existingInfo]);
+
   const withProblems = parsed.rows.filter((r) => r.errors.length > 0);
-  const canImport = !running && parsed.fileErrors.length === 0 && withProblems.length === 0 && toCreate.length > 0;
+  const toCreate = parsed.rows.filter((r) => r.errors.length === 0 && !r.exists);
+  const toUpdate = parsed.rows.filter((r) => r.errors.length === 0 && r.exists);
+  const toApply = parsed.rows.filter((r) => r.errors.length === 0);
+  const canImport = !running && parsed.fileErrors.length === 0 && withProblems.length === 0 && toApply.length > 0;
 
   const setDefault = <K extends keyof ImportDefaults>(key: K, value: ImportDefaults[K]) => setDefaults((d) => ({ ...d, [key]: value }));
 
@@ -175,10 +178,11 @@ export function SensorImportDialog({
     const controller = new AbortController();
     abortRef.current = controller;
     setOutcomes(null);
-    setProgress({ done: 0, total: toCreate.length });
+    setProgress({ done: 0, total: toApply.length });
     importer.mutate(
       {
-        rows: toCreate,
+        rows: toApply,
+        existing: existingSensors,
         isCurve: applicationMode === 'periodic',
         signal: controller.signal,
         onProgress: (done, total) => setProgress({ done, total }),
@@ -187,10 +191,12 @@ export function SensorImportDialog({
         onSuccess: (result) => {
           setOutcomes(result);
           const created = result.filter((o) => o.status === 'created').length;
+          const updated = result.filter((o) => o.status === 'updated').length;
           const failed = result.filter((o) => o.status === 'failed').length;
-          if (controller.signal.aborted) toast.info(`Import stopped: ${created} Sensor(s) created.`);
-          else if (failed > 0) toast.error(`${created} Sensor(s) created, ${failed} failed.`);
-          else toast.success(`${created} Sensor(s) created.`);
+          const summary = `${created} Sensor(s) created, ${updated} updated`;
+          if (controller.signal.aborted) toast.info(`Import stopped: ${summary}.`);
+          else if (failed > 0) toast.error(`${summary}, ${failed} failed.`);
+          else toast.success(`${summary}.`);
         },
       },
     );
@@ -207,6 +213,8 @@ export function SensorImportDialog({
   };
 
   const created = outcomes?.filter((o) => o.status === 'created').length ?? 0;
+  const updated = outcomes?.filter((o) => o.status === 'updated') ?? [];
+  const unchanged = outcomes?.filter((o) => o.status === 'unchanged').length ?? 0;
   const skipped = outcomes?.filter((o) => o.status === 'skipped').length ?? 0;
   const failed = outcomes?.filter((o) => o.status === 'failed') ?? [];
   const setpointsSaved = outcomes?.filter((o) => o.setpoint === 'created').length ?? 0;
@@ -220,9 +228,11 @@ export function SensorImportDialog({
           <DialogContent className={styles.content}>
             <Text size={200} className={styles.muted}>
               Paste the cells you copied from Excel, or choose a .csv file. The first row is the header; only{' '}
-              <b>sensorName</b> (the Sensor's externalSensorId) is required, every other column is optional and falls back to the defaults below. Sensors are created in
-              sheet order, so their numeric ids follow the rows. Optional <b>target</b>/<b>tolerance</b> columns (bidirectional Sensors: <b>targetAbove</b>,{' '}
-              <b>targetBelow</b>, <b>toleranceAbove</b>, <b>toleranceBelow</b>) are recorded as each new Sensor&apos;s first setpoint, effective from the moment of the import; a Sensor
+              <b>sensorName</b> (the Sensor's externalSensorId) is required, every other column is optional and falls back to the defaults below. A new Sensor is created in
+              sheet order, so numeric ids follow the rows. <b>A Sensor whose sensorName already exists is updated instead</b>: only the cells you fill are applied (an empty cell
+              never overwrites, and the defaults below are not applied to it). Optional <b>target</b>/<b>tolerance</b> columns (bidirectional Sensors: <b>targetAbove</b>,{' '}
+              <b>targetBelow</b>, <b>toleranceAbove</b>, <b>toleranceBelow</b>) are recorded as the Sensor&apos;s setpoint, effective from the moment of the import - for an existing Sensor
+              a changed target or tolerance starts a new setpoint interval (the previous one ends there, history is kept) that keeps the values you left empty; a Sensor
               without a setpoint is stored but not analysed.
             </Text>
 
@@ -303,7 +313,7 @@ export function SensorImportDialog({
               <Field label="Raw lookback">
                 <Input type="number" min="1" value={defaults.rawLookback} onChange={(_, d) => setDefault('rawLookback', d.value)} disabled={running} />
               </Field>
-              <Field label="Calculation" hint="Off: data is stored and trained on, nothing is calculated.">
+              <Field label="Calculate" hint="Off: data is stored and trained on, nothing is calculated.">
                 <Select
                   value={defaults.processingEnabled ? 'on' : 'off'}
                   onChange={(_, d) => setDefault('processingEnabled', d.value === 'on')}
@@ -333,7 +343,7 @@ export function SensorImportDialog({
               <>
                 <Text role="status">
                   {parsed.rows.length} row(s): <b>{toCreate.length}</b> will be created
-                  {alreadyThere.length > 0 && <>, {alreadyThere.length} already exist and are skipped</>}
+                  {toUpdate.length > 0 && <>, {toUpdate.length} already exist and are updated (only the filled cells)</>}
                   {withProblems.length > 0 && (
                     <>
                       , <b>{withProblems.length} have problems</b> - fix them to import
@@ -356,7 +366,7 @@ export function SensorImportDialog({
                 <table className={styles.preview} aria-label="Preview of the first rows">
                   <thead>
                     <tr>
-                      {['Line', 'Machine name', 'Display name', 'Unit', 'Aggregation type', 'Explanation', 'Calc', 'Setpoint', 'Validation'].map((h) => (
+                      {['Line', 'Action', 'Sensor name', 'Display name', 'Unit', 'Calculate', 'Setpoint', 'Validation'].map((h) => (
                         <th key={h} className={styles.cell}>
                           {h}
                         </th>
@@ -367,14 +377,11 @@ export function SensorImportDialog({
                     {parsed.rows.slice(0, PREVIEW_ROWS).map((r) => (
                       <tr key={r.line}>
                         <td className={styles.cell}>{r.line}</td>
+                        <td className={styles.cell}>{r.exists ? 'Update' : 'New'}</td>
                         <td className={styles.cell}>{r.externalSensorId}</td>
                         <td className={styles.cell}>{r.name}</td>
                         <td className={styles.cell}>{unitText(catalog, r.unitCode)}</td>
-                        <td className={styles.cell}>{typeText(catalog, r.aggregationType)}</td>
-                        <td className={styles.cell} title={r.aggregationExplanation}>
-                          {r.aggregationExplanation.length > 70 ? `${r.aggregationExplanation.slice(0, 70)}…` : r.aggregationExplanation}
-                        </td>
-                        <td className={styles.cell}>{r.processingEnabled ? 'on' : 'off'}</td>
+                        <td className={styles.cell}>{r.exists && !r.provided.processingEnabled ? '—' : r.processingEnabled ? 'on' : 'off'}</td>
                         <td className={styles.cell}>{setpointText(r.setpoint) || '—'}</td>
                         <td className={styles.cell}>{r.errors.length === 0 ? 'OK' : `Error (${r.issues.map((i) => i.field).join(', ')})`}</td>
                       </tr>
@@ -393,7 +400,7 @@ export function SensorImportDialog({
               <div role="status" aria-live="polite">
                 <ProgressBar value={progress.total === 0 ? 0 : progress.done / progress.total} />
                 <Text size={200}>
-                  Creating Sensors… {progress.done} / {progress.total}
+                  Importing Sensors… {progress.done} / {progress.total}
                 </Text>
               </div>
             )}
@@ -402,13 +409,26 @@ export function SensorImportDialog({
               <div role="status">
                 <MessageBar intent={failed.length > 0 ? 'warning' : 'success'}>
                   <MessageBarBody>
-                    {created} created{skipped > 0 && `, ${skipped} already existed`}
+                    {created} created
+                    {updated.length > 0 && `, ${updated.length} updated`}
+                    {unchanged > 0 && `, ${unchanged} already up to date`}
+                    {skipped > 0 && `, ${skipped} already existed`}
                     {failed.length > 0 && `, ${failed.length} failed`}.
                     {setpointsSaved > 0 && ` ${setpointsSaved} setpoint(s) recorded, effective from the import.`}
                     {setpointsFailed.length > 0 && ` ${setpointsFailed.length} setpoint(s) could not be saved - those Sensors exist but are not analysed until a setpoint is added on their Policies page.`}
                     {abortRef.current?.signal.aborted && ' The import was stopped before the end.'}
                   </MessageBarBody>
                 </MessageBar>
+                {updated.length > 0 && (
+                  <ul className={styles.problems} aria-label="Updated Sensors">
+                    {updated.slice(0, MAX_LISTED).map((o) => (
+                      <li key={o.line}>
+                        Line {o.line} ({o.externalSensorId}): {(o.changes ?? []).join('; ')}
+                      </li>
+                    ))}
+                    {updated.length > MAX_LISTED && <li>…and {updated.length - MAX_LISTED} more.</li>}
+                  </ul>
+                )}
                 {failed.length > 0 && (
                   <ul className={styles.problems} aria-label="Failed rows">
                     {failed.slice(0, MAX_LISTED).map((o) => (
@@ -428,14 +448,14 @@ export function SensorImportDialog({
                   </ul>
                 )}
                 <Text size={200} className={styles.muted}>
-                  To retry, press Import again - rows that already exist are skipped.
+                  To retry, press Import again - a Sensor that is already up to date is left as it is.
                 </Text>
               </div>
             )}
             {importer.isError && <ErrorState error={importer.error} />}
           </DialogContent>
           <DialogActions>
-            <Button appearance="secondary" icon={<ArrowDownload24Regular />} onClick={downloadIdMap} disabled={running || !(outcomes && created + skipped > 0)}>
+            <Button appearance="secondary" icon={<ArrowDownload24Regular />} onClick={downloadIdMap} disabled={running || !(outcomes && created + skipped + updated.length + unchanged > 0)}>
               Download Sensor ID map
             </Button>
             {running ? (
@@ -448,7 +468,7 @@ export function SensorImportDialog({
               </Button>
             )}
             <Button appearance="primary" onClick={start} disabled={!canImport}>
-              {toCreate.length > 0 ? `Import ${toCreate.length} Sensor(s)` : 'Import'}
+              {toApply.length > 0 ? `Import ${toApply.length} Sensor(s)` : 'Import'}
             </Button>
           </DialogActions>
         </DialogBody>

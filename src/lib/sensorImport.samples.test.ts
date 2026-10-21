@@ -12,6 +12,15 @@ const sample = (name: string) => readFileSync(join(here, '..', '..', 'samples', 
 const DEFAULTS = { direction: 'lowerisbetter' as const, rawScale: 'Seconds', rawLookback: '60', rawMinIssueScore: '1', processingEnabled: true };
 
 describe('sample import files (samples/)', () => {
+  it('the sample sheets carry the unit and no aggregation columns', () => {
+    for (const name of ['vibration-duo-1-point-163-sensors.csv', 'vibration-duo-2-points-326-sensors.csv']) {
+      const header = sample(name).replace(/^\uFEFF/, '').split(/\r?\n/)[0]!.split(',');
+      expect(header).toContain('unitCode');
+      expect(header.join(',')).not.toMatch(/aggregation/i);
+      expect(header.slice(0, 2)).toEqual(['sensorName', 'displayName']);
+    }
+  });
+
   it('the 1-point Vibration Duo sheet is exactly 163 valid, unique Sensors', () => {
     const { rows, fileErrors } = parseSensorTable(sample('vibration-duo-1-point-163-sensors.csv'), DEFAULTS, CATALOG);
     expect(fileErrors).toEqual([]);
@@ -19,6 +28,8 @@ describe('sample import files (samples/)', () => {
     expect(rows.flatMap((r) => r.errors)).toEqual([]);
     expect(rows.every((r) => r.externalSensorId.endsWith('_1'))).toBe(true);
     expect(new Set(rows.map((r) => r.externalSensorId)).size).toBe(163);
+    // Every row carries exactly its catalog metric's unit.
+    rows.forEach((r, i) => expect(r.unitCode).toBe(CATALOG.metrics[i]!.unitCode));
   });
 
   it('the 2-point sheet is exactly 326 valid, unique Sensors (point 1 then point 2)', () => {

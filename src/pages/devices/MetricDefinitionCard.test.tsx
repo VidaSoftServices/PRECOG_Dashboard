@@ -20,8 +20,6 @@ function sensorFor(machineName: string, overrides: Partial<SensorDto> = {}): Sen
     unitCode: m.unitCode,
     unitLabel: unit.label,
     unitLabelHu: unit.labelHu,
-    aggregationType: m.aggregationType as SensorDto['aggregationType'],
-    aggregationExplanation: m.aggregationExplanation,
     ...overrides,
   };
 }
@@ -46,40 +44,32 @@ describe('MetricDefinitionCard', () => {
     authStore.clearSession();
   });
 
-  it('shows display name, machine name, unit label with its code, aggregation type and explanation - equivalent RMS', async () => {
+  it('shows the display name, the Sensor name, and the unit label with its code', async () => {
     renderCard(sensorFor('velocity_rms_x_eq'));
 
     expect(screen.getByText('Velocity RMS X (equivalent RMS)')).toBeInTheDocument();
+    expect(screen.getByText('Sensor name')).toBeInTheDocument(); // not "Machine name"
+    expect(screen.queryByText('Machine name')).not.toBeInTheDocument();
     expect(screen.getByText('velocity_rms_x_eq_1')).toBeInTheDocument();
     expect(screen.getByText(/^mm\/s/)).toBeInTheDocument();
     expect(screen.getByText('(unit code: mm_s)')).toBeInTheDocument();
-    // The aggregation type's friendly label comes from the API catalog.
-    expect(await screen.findByText('Equivalent RMS')).toBeInTheDocument();
-    expect(screen.getByText('(EQUIVALENT_RMS)')).toBeInTheDocument();
-    expect(screen.getByText(/duration-weighted root mean square/)).toBeInTheDocument();
-    expect(screen.getByText(/Do not use a simple arithmetic mean/)).toBeInTheDocument();
   });
 
-  it('maximum: explains that maximums are not averaged', async () => {
-    renderCard(sensorFor('acceleration_rms_total_max'));
-    expect(await screen.findByText('Maximum')).toBeInTheDocument();
-    expect(screen.getByText(/highest five-second maximum/)).toBeInTheDocument();
-    expect(screen.getByText(/Do not average maximum values/)).toBeInTheDocument();
+  it('has no aggregation information at all', async () => {
+    const { container } = renderCard(sensorFor('velocity_rms_x_eq'));
+    await new Promise((r) => setTimeout(r, 50)); // let the catalog load
+    expect(container.textContent ?? '').not.toMatch(/aggregation|Equivalent RMS|WEIGHTED_MEAN|EQUIVALENT_RMS|Explanation/);
   });
 
   it('relative spectrum energy is shown as such, with raw_energy as the technical code - never g', async () => {
     renderCard(sensorFor('energy_2x_total_mean'));
-    expect(await screen.findByText('Weighted mean')).toBeInTheDocument();
     expect(screen.getByText(/^Relative spectrum energy/)).toBeInTheDocument();
     expect(screen.getByText('(unit code: raw_energy)')).toBeInTheDocument();
-    expect(screen.getByText(/represented-duration-weighted mean/)).toBeInTheDocument();
-    expect(screen.getByText(/not be accumulated physical energy/)).toBeInTheDocument();
     expect(screen.queryByText(/unit code: g\)/)).not.toBeInTheDocument();
   });
 
   it('a metric without a dimension shows the general dimension "Unit", not g', async () => {
     renderCard(sensorFor('crest_factor_x_mean'));
-    expect(await screen.findByText('Weighted mean')).toBeInTheDocument();
     // The row label "Unit" plus the value "Unit" (the general dimension).
     expect(screen.getAllByText('Unit')).toHaveLength(2);
     expect(screen.getByText('(unit code: one)')).toBeInTheDocument();
@@ -87,33 +77,30 @@ describe('MetricDefinitionCard', () => {
 
   it('temperature shows °C and RPM shows RPM', async () => {
     const { unmount } = renderCard(sensorFor('sensor_temperature_mean'));
-    expect(await screen.findByText(/^°C/)).toBeInTheDocument();
+    expect(screen.getByText(/^°C/)).toBeInTheDocument();
     unmount();
 
     renderCard(sensorFor('shaft_rpm_mean'));
-    expect(await screen.findByText(/^RPM/)).toBeInTheDocument();
-    expect(screen.getByText(/true zero RPM is a valid stopped-machine value/)).toBeInTheDocument();
+    expect(screen.getByText(/^RPM/)).toBeInTheDocument();
   });
 
-  it('states that the aggregation is metadata only', async () => {
-    renderCard(sensorFor('shaft_rpm_mean'));
-    expect(screen.getByText(/metadata only: nothing is aggregated from it/)).toBeInTheDocument();
-  });
+  it('a known metric whose unit is missing is a visible administrative error - nothing is guessed', async () => {
+    renderCard(sensorFor('velocity_rms_x_eq', { unitCode: null, unitLabel: null, unitLabelHu: null }));
 
-  it('a known metric whose metadata is missing is a visible administrative error - nothing is guessed', async () => {
-    renderCard(sensorFor('velocity_rms_x_eq', { unitCode: null, unitLabel: null, unitLabelHu: null, aggregationType: null, aggregationExplanation: null }));
-
-    const alert = await screen.findByText(/known metric "velocity_rms_x_eq" but its unit or aggregation metadata is missing/);
-    expect(alert).toHaveTextContent('expected unit code mm_s, aggregation type EQUIVALENT_RMS');
-    // No invented unit or aggregation in the value cells.
+    const alert = await screen.findByText(/known metric "velocity_rms_x_eq" but its unit is missing/);
+    expect(alert).toHaveTextContent('expected unit code mm_s');
+    // No invented unit in the value cell.
     expect(screen.queryByText('mm/s')).not.toBeInTheDocument();
-    expect(screen.queryByText('Equivalent RMS')).not.toBeInTheDocument();
   });
 
-  it('an ordinary Sensor without metadata just says so', async () => {
+  it('an ordinary Sensor without a unit just says so', async () => {
+    renderCard({ id: 9, deviceId: 1, externalSensorId: 'my_custom_tag', name: 'Custom' });
+    expect(await screen.findByText('This Sensor has no unit.')).toBeInTheDocument();
+  });
+
+  it('an ordinary Sensor shows its free-text unit as it is, without an invented label', async () => {
     renderCard({ id: 9, deviceId: 1, externalSensorId: 'my_custom_tag', name: 'Custom', unitCode: 'bar' });
-    expect(await screen.findByText('This Sensor has no unit / aggregation metadata.')).toBeInTheDocument();
-    // Its free-text unit is shown as it is, without an invented label.
     expect(screen.getByText(/^bar/)).toBeInTheDocument();
+    expect(screen.queryByText('This Sensor has no unit.')).not.toBeInTheDocument();
   });
 });

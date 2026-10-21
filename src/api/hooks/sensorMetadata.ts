@@ -5,7 +5,6 @@ import type { components } from '@/api/schema.generated';
 
 export type SensorMetadataCatalog = components['schemas']['SensorMetadataCatalogDto'];
 export type MetricUnit = components['schemas']['MetricUnitDto'];
-export type MetricAggregationType = components['schemas']['MetricAggregationTypeDto'];
 export type MetricDefinition = components['schemas']['MetricDefinitionDto'];
 
 /**

@@ -11,7 +11,7 @@ const firstColumn = (name: string) => sheet(name).rows.slice(1).map((r) => r[0])
 
 describe('the "Data sets" workbook', () => {
   it('has one sheet per selectable field plus an overview', () => {
-    expect(sheets.map((s) => s.name)).toEqual(['Overview', 'direction', 'rawScale', 'processingEnabled', 'unitCode', 'aggregationType', 'Known metrics']);
+    expect(sheets.map((s) => s.name)).toEqual(['Overview', 'direction', 'rawScale', 'Calculate', 'unitCode', 'Known metrics']);
     expect(DATA_SETS_FILE_NAME).toBe('sensor-import-data-sets.xlsx');
   });
 
@@ -23,7 +23,7 @@ describe('the "Data sets" workbook', () => {
   it('lists exactly the values the importer accepts for direction, scale and the calculation switch', () => {
     expect(firstColumn('direction')).toEqual([...DIRECTIONS]);
     expect(firstColumn('rawScale')).toEqual([...SCALES]);
-    expect(firstColumn('processingEnabled')).toEqual([...TRUE_WORDS, ...FALSE_WORDS]);
+    expect(firstColumn('Calculate')).toEqual([...TRUE_WORDS, ...FALSE_WORDS]);
 
     // ...and the importer really takes each of them.
     for (const direction of firstColumn('direction')) {
@@ -33,45 +33,31 @@ describe('the "Data sets" workbook', () => {
     for (const scale of firstColumn('rawScale')) {
       expect(parseSensorTable(`sensorName,rawScale\nx_1,${scale}`, DEFAULTS, CATALOG).rows[0]!.issues.filter((i) => i.field === 'rawScale')).toEqual([]);
     }
-    for (const word of firstColumn('processingEnabled')) {
-      expect(parseSensorTable(`sensorName,processingEnabled\nx_1,${word}`, DEFAULTS, CATALOG).rows[0]!.issues.filter((i) => i.field === 'processingEnabled')).toEqual([]);
+    for (const word of firstColumn('Calculate')) {
+      expect(parseSensorTable(`sensorName,Calculate\nx_1,${word}`, DEFAULTS, CATALOG).rows[0]!.issues.filter((i) => i.field === 'Calculate')).toEqual([]);
     }
   });
 
-  it('takes the units and aggregation types from the API catalog, with their labels and explanations', () => {
+  it('takes the units from the API catalog, with their labels - and has no aggregation sheet any more', () => {
     expect(firstColumn('unitCode')).toEqual(CATALOG.units.map((u) => u.code));
     expect(sheet('unitCode').rows).toContainEqual(['one', 'Unit', 'Unit']);
     expect(sheet('unitCode').rows).toContainEqual(['raw_energy', 'Relative spectrum energy', expect.stringContaining('spektrum')]);
-
-    expect(firstColumn('aggregationType')).toEqual(CATALOG.aggregationTypes.map((a) => a.code));
-    for (const type of CATALOG.aggregationTypes) {
-      const row = sheet('aggregationType').rows.find((r) => r[0] === type.code)!;
-      expect(row[1]).toBe(type.label);
-      expect(row[2]).toBe(type.allowedUnitCodes.length > 0 ? type.allowedUnitCodes.join(', ') : 'any unit');
-      expect(String(row[3]).length).toBeGreaterThan(20);
-    }
-    expect(sheet('aggregationType').rows.find((r) => r[0] === 'EQUIVALENT_RMS')![2]).toBe('g, mm_s, mm');
+    expect(sheets.some((s) => /aggregation/i.test(s.name))).toBe(false);
+    expect(JSON.stringify(sheets)).not.toMatch(/aggregation/i);
   });
 
-  it('lists all 163 known metrics with exact unit, label, aggregation and explanation', () => {
+  it('lists all 163 known metrics with their exact unit and its label', () => {
     const rows = sheet('Known metrics').rows.slice(1);
     expect(rows).toHaveLength(163);
     expect(new Set(rows.map((r) => r[0])).size).toBe(163);
     for (const metric of CATALOG.metrics) {
-      expect(rows).toContainEqual([
-        metric.machineName,
-        metric.displayName,
-        metric.unitCode,
-        CATALOG.units.find((u) => u.code === metric.unitCode)!.label,
-        metric.aggregationType,
-        metric.aggregationExplanation,
-      ]);
+      expect(rows).toContainEqual([metric.machineName, metric.displayName, metric.unitCode, CATALOG.units.find((u) => u.code === metric.unitCode)!.label]);
     }
   });
 
   it('every known metric row, used as the workbook says (machine name + _1), imports without a problem', () => {
-    const lines = sheet('Known metrics').rows.slice(1).map((r) => [`${r[0]}_1`, r[2], r[4], `"${String(r[5]).replace(/"/g, '""')}"`].join(','));
-    const { rows, fileErrors } = parseSensorTable(['sensorName,unitCode,aggregationType,aggregationExplanation', ...lines].join('\n'), DEFAULTS, CATALOG);
+    const lines = sheet('Known metrics').rows.slice(1).map((r) => [`${r[0]}_1`, r[2]].join(','));
+    const { rows, fileErrors } = parseSensorTable(['sensorName,unitCode', ...lines].join('\n'), DEFAULTS, CATALOG);
     expect(fileErrors).toEqual([]);
     expect(rows.filter((r) => r.errors.length > 0)).toEqual([]);
   });

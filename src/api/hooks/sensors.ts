@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, apiClient, unwrap } from '@/api/client';
-import type { ParsedSensorRow } from '@/lib/sensorImport';
+import { SETPOINT_COLUMNS, mergeSetpoint, type ParsedSensorRow, type SetpointColumn } from '@/lib/sensorImport';
 import { queryKeys } from '@/api/queryKeys';
-import type { CreateSetpointRequest } from '@/api/hooks/setpoints';
+import type { CreateSetpointRequest, SetpointDto } from '@/api/hooks/setpoints';
+import type { SensorAggregationPolicyDto, UpdateAggregationPolicyRequest } from '@/api/hooks/aggregationPolicies';
 import type { components } from '@/api/schema.generated';
 
 export type SensorDto = components['schemas']['SensorDto'];
@@ -76,18 +77,26 @@ export interface SensorImportOutcome {
   /** Line in the pasted sheet (header = 1), so a failure can be found in Excel. */
   line: number;
   externalSensorId: string;
-  status: 'created' | 'skipped' | 'failed';
-  /** Device-scoped numeric id the API assigned - present for `created`. */
+  /**
+   * created: a new Sensor. updated: a Sensor that already existed had at least one value changed. unchanged: it existed and the
+   * sheet's values already matched. skipped: the API said "already exists" on create. failed: see `message`.
+   */
+  status: 'created' | 'updated' | 'unchanged' | 'skipped' | 'failed';
+  /** Device-scoped numeric id - for `created` the one the API assigned, for an existing Sensor its own. */
   sensorId?: number;
   message?: string;
-  /** Only for a row that carried target/tolerance: whether its first Setpoint was recorded. A failed Setpoint leaves the Sensor created. */
-  setpoint?: 'created' | 'failed';
+  /** Human-readable list of what an existing Sensor had changed (`updated`), e.g. "rawLookback 100 -> 200". */
+  changes?: string[];
+  /** Only for a row that carried target/tolerance: whether a Setpoint was recorded ('unchanged' = the values were already current). A failed Setpoint leaves the Sensor as it is. */
+  setpoint?: 'created' | 'unchanged' | 'failed';
   setpointMessage?: string;
 }
 
 interface ImportSensorsArgs {
   deviceId: number;
   rows: ParsedSensorRow[];
+  /** The Sensors already on the Device, keyed by lower-case externalSensorId - rows for these are updates (only the filled cells), not creates. */
+  existing?: ReadonlyMap<string, SensorDto>;
   /** Curve vs. signal storage follows the Device's own mode and is never a free choice (see NewSensorDialog). */
   isCurve: boolean;
   /** When the Setpoints of rows with target/tolerance become effective - the moment of the import. Defaults to now, read once per run. */
@@ -110,35 +119,201 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 
 const MAX_RATE_LIMIT_RETRIES = 4;
 
-/** Records a Sensor's first Setpoint; 429 waits the server's Retry-After like the Sensor call. `stop`: the whole import must end (401/403, or the user stopped it). */
-async function saveSetpoint(
-  deviceId: number,
-  sensorId: number,
-  body: CreateSetpointRequest,
-  signal?: AbortSignal,
-): Promise<{ ok: true } | { ok: false; message: string; stop: boolean }> {
-  for (let attempt = 0; ; attempt += 1) {
+type Failed = { ok: false; message: string; status: number; stop: boolean };
+type Attempt<T> = { ok: true; value: T } | Failed;
+
+/**
+ * Runs one request, waiting the server's Retry-After (default 5 s, at most 60 s) on 429 and retrying it, at most 4 times.
+ * `stop`: the whole import must end (401/403, or the user pressed Stop).
+ */
+async function attempt<T>(call: () => Promise<T>, signal?: AbortSignal): Promise<Attempt<T>> {
+  for (let tries = 0; ; tries += 1) {
     try {
-      unwrap(await apiClient.POST('/api/Devices/{deviceId}/Sensors/{sensorId}/Setpoints', { params: { path: { deviceId, sensorId } }, body, signal }));
-      return { ok: true };
+      return { ok: true, value: await call() };
     } catch (error) {
-      if (signal?.aborted) return { ok: false, message: 'The import was stopped before the setpoint was saved.', stop: true };
+      if (signal?.aborted) return { ok: false, message: 'The import was stopped.', status: 0, stop: true };
       const status = error instanceof ApiError ? error.status : 0;
-      if (status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
+      if (status === 429 && tries < MAX_RATE_LIMIT_RETRIES) {
         try {
           await sleep(Math.min((error as ApiError).retryAfterSeconds ?? 5, 60) * 1000, signal);
         } catch {
-          return { ok: false, message: 'The import was stopped before the setpoint was saved.', stop: true };
+          return { ok: false, message: 'The import was stopped.', status: 0, stop: true };
         }
         continue;
       }
-      return { ok: false, message: error instanceof Error ? error.message : 'Request failed.', stop: status === 401 || status === 403 };
+      return { ok: false, message: error instanceof Error ? error.message : 'Request failed.', status, stop: status === 401 || status === 403 };
     }
   }
 }
 
+/** Records a Setpoint (a new open-ended interval; the API ends the Sensor's previous open one where it begins). */
+function saveSetpoint(deviceId: number, sensorId: number, body: CreateSetpointRequest, signal?: AbortSignal) {
+  return attempt(
+    async () => unwrap(await apiClient.POST('/api/Devices/{deviceId}/Sensors/{sensorId}/Setpoints', { params: { path: { deviceId, sensorId } }, body, signal })),
+    signal,
+  );
+}
+
+/** The Setpoint effective now, `undefined` when there is none (the API's 404). */
+function currentSetpoint(deviceId: number, sensorId: number, signal?: AbortSignal): Promise<Attempt<SetpointDto | undefined>> {
+  return attempt(async () => {
+    try {
+      return unwrap(await apiClient.GET('/api/Devices/{deviceId}/Sensors/{sensorId}/Setpoints/Effective', { params: { path: { deviceId, sensorId } }, signal }));
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) return undefined;
+      throw error;
+    }
+  }, signal);
+}
+
+const same = (a: string | null | undefined, b: string) => (a ?? '').toLowerCase() === b.toLowerCase();
+
 /**
- * Creates the given Sensors one after another, in sheet order.
+ * Updates a Sensor that already exists with the cells the sheet filled - an empty cell never overwrites. Three independent
+ * steps, each only when something differs: the Sensor itself (name, type, unit, direction, calculation switch), its raw/base
+ * aggregation policy (scale, lookback, min issue score) and its setpoint (a new interval from now; see mergeSetpoint).
+ */
+async function updateExisting(
+  deviceId: number,
+  sensor: SensorDto,
+  row: ParsedSensorRow,
+  validFrom: string,
+  signal?: AbortSignal,
+): Promise<{ outcome: SensorImportOutcome; stop: boolean }> {
+  const sensorId = sensor.id!;
+  const outcome: SensorImportOutcome = { line: row.line, externalSensorId: row.externalSensorId, status: 'unchanged', sensorId };
+  const changes: string[] = [];
+  const failures: string[] = [];
+  let stop = false;
+  const fail = (what: string, r: Failed) => {
+    failures.push(`${what}: ${r.message}`);
+    if (r.stop) stop = true;
+  };
+  const finish = () => {
+    if (changes.length > 0) outcome.changes = changes;
+    if (failures.length > 0) {
+      outcome.status = 'failed';
+      outcome.message = failures.join(' ');
+    } else if (changes.length > 0) {
+      outcome.status = 'updated';
+    }
+    return { outcome, stop };
+  };
+
+  // 1. The Sensor itself.
+  const sensorBody: UpdateSensorRequest = {};
+  const sensorChanges: string[] = [];
+  const p = row.provided;
+  if (p.name && row.name !== (sensor.name ?? '')) {
+    sensorBody.name = row.name;
+    sensorChanges.push(`name "${sensor.name ?? ''}" -> "${row.name}"`);
+  }
+  if (p.sensorType && !same(sensor.sensorType, row.sensorType)) {
+    sensorBody.sensorType = row.sensorType;
+    sensorChanges.push(`sensorType ${sensor.sensorType ?? '-'} -> ${row.sensorType}`);
+  }
+  if (p.unitCode && !same(sensor.unitCode, row.unitCode)) {
+    sensorBody.unitCode = row.unitCode;
+    sensorChanges.push(`unitCode ${sensor.unitCode ?? '-'} -> ${row.unitCode}`);
+  }
+  if (p.direction && !same(sensor.direction, row.direction)) {
+    sensorBody.direction = row.direction;
+    sensorChanges.push(`direction ${sensor.direction ?? '-'} -> ${row.direction}`);
+  }
+  if (p.processingEnabled && row.processingEnabled !== (sensor.processingEnabled ?? true)) {
+    sensorBody.processingEnabled = row.processingEnabled;
+    sensorChanges.push(`Calculate ${sensor.processingEnabled ?? true} -> ${row.processingEnabled}`);
+  }
+  if (sensorChanges.length > 0) {
+    const r = await attempt(
+      async () => unwrap(await apiClient.PUT('/api/Devices/{deviceId}/Sensors/{sensorId}', { params: { path: { deviceId, sensorId } }, body: sensorBody, signal })),
+      signal,
+    );
+    if (r.ok) changes.push(...sensorChanges);
+    else fail('Sensor', r);
+  }
+  if (stop) return finish();
+
+  // 2. The raw/base aggregation policy.
+  if (p.rawScale || p.rawLookback || p.rawMinIssueScore) {
+    const list = await attempt(
+      async () => unwrap(await apiClient.GET('/api/Devices/{deviceId}/Sensors/{sensorId}/AggregationPolicies', { params: { path: { deviceId, sensorId } }, signal })),
+      signal,
+    );
+    if (!list.ok) {
+      fail('Policy', list);
+    } else {
+      const raw: SensorAggregationPolicyDto | undefined = list.value.find((x) => x.timeScale === 'native' && x.aggregationFunction === 'raw');
+      if (!raw?.id) {
+        failures.push('Policy: the Sensor has no raw/base aggregation policy to update.');
+      } else {
+        const body: UpdateAggregationPolicyRequest = {};
+        const policyChanges: string[] = [];
+        if (p.rawScale && !same(raw.scale, row.rawScale)) {
+          body.scale = row.rawScale;
+          policyChanges.push(`rawScale ${raw.scale ?? '-'} -> ${row.rawScale}`);
+        }
+        if (p.rawLookback && raw.lookback !== row.rawLookback) {
+          body.lookback = row.rawLookback;
+          policyChanges.push(`rawLookback ${raw.lookback} -> ${row.rawLookback}`);
+        }
+        if (p.rawMinIssueScore && raw.minIssueScore !== row.rawMinIssueScore) {
+          body.minIssueScore = row.rawMinIssueScore;
+          policyChanges.push(`rawMinIssueScore ${raw.minIssueScore} -> ${row.rawMinIssueScore}`);
+        }
+        if (policyChanges.length > 0) {
+          const r = await attempt(
+            async () => unwrap(await apiClient.PUT('/api/Devices/{deviceId}/Sensors/{sensorId}/AggregationPolicies/{policyId}', { params: { path: { deviceId, sensorId, policyId: raw.id! } }, body, signal })),
+            signal,
+          );
+          if (r.ok) changes.push(...policyChanges);
+          else fail('Policy', r);
+        }
+      }
+    }
+  }
+  if (stop) return finish();
+
+  // 3. The setpoint: a new interval from now carrying the merged values.
+  const wanted = row.setpoint;
+  if (wanted) {
+    const effective = await currentSetpoint(deviceId, sensorId, signal);
+    if (!effective.ok) {
+      outcome.setpoint = 'failed';
+      outcome.setpointMessage = effective.message;
+      fail('Setpoint', effective);
+    } else {
+      const current = effective.value;
+      // The direction the setpoint is read against: the one in the sheet if it was given, else the Sensor's own (the parser used the same).
+      const direction = row.direction;
+      const merge = mergeSetpoint(current, wanted, direction);
+      if (merge.kind === 'unchanged') {
+        outcome.setpoint = 'unchanged';
+      } else if (merge.kind === 'invalid') {
+        outcome.setpoint = 'failed';
+        outcome.setpointMessage = merge.message;
+        failures.push(`Setpoint: ${merge.message}`);
+      } else {
+        const saved = await saveSetpoint(deviceId, sensorId, { validFrom, ...merge.values }, signal);
+        if (saved.ok) {
+          outcome.setpoint = 'created';
+          const changed = SETPOINT_COLUMNS.filter((c: SetpointColumn) => wanted[c] !== undefined && wanted[c] !== (current?.[c] ?? undefined));
+          changes.push(...changed.map((c: SetpointColumn) => `${c} ${current?.[c] ?? '-'} -> ${wanted[c]}`));
+        } else {
+          outcome.setpoint = 'failed';
+          outcome.setpointMessage = saved.message;
+          fail('Setpoint', saved);
+        }
+      }
+    }
+  }
+
+  return finish();
+}
+
+/**
+ * Applies the sheet to the Device, one row after another, in sheet order: a Sensor that does not exist yet is created, one
+ * that already exists (see `existing`) is updated with only the cells the sheet filled.
  *
  * Strictly sequential on purpose: the API assigns each new Sensor the next
  * Device-scoped id, so creating them one at a time makes the numeric ids follow
@@ -147,25 +322,37 @@ async function saveSetpoint(
  * failure on one row never prevents the rest.
  *
  * - 429: waits the server's Retry-After (default 5 s, at most 60 s) and retries
- *   the same row, at most 4 times.
- * - 409 "already exists": reported as `skipped`, so re-running the same sheet
- *   after a partial failure only creates what is missing.
+ *   the same request, at most 4 times.
+ * - 409 "already exists" on create: reported as `skipped` (the Sensor appeared
+ *   meanwhile), so re-running the same sheet is harmless.
  * - 401/403: stops the whole import - every following row would fail the same way.
- * - Aborting (the dialog's Cancel) stops before the next row; rows already
- *   created stay created.
+ * - Aborting (the dialog's Stop) stops before the next row; what was already
+ *   done stays done.
  */
-export async function importSensors({ deviceId, rows, isCurve, setpointValidFrom, signal, onProgress }: ImportSensorsArgs): Promise<SensorImportOutcome[]> {
+export async function importSensors({ deviceId, rows, existing, isCurve, setpointValidFrom, signal, onProgress }: ImportSensorsArgs): Promise<SensorImportOutcome[]> {
   const outcomes: SensorImportOutcome[] = [];
   // One instant for the whole run: every imported Setpoint is effective from the moment of the import.
   const validFrom = setpointValidFrom ?? new Date().toISOString();
 
+  const report = (outcome: SensorImportOutcome) => {
+    outcomes.push(outcome);
+    onProgress?.(outcomes.length, rows.length, outcome);
+  };
+
   for (const row of rows) {
     if (signal?.aborted) break;
 
-    let outcome: SensorImportOutcome | undefined;
-    for (let attempt = 0; attempt <= MAX_RATE_LIMIT_RETRIES && !outcome; attempt += 1) {
-      try {
-        const created = unwrap(
+    const sensor = row.exists ? existing?.get(row.externalSensorId.toLowerCase()) : undefined;
+    if (sensor?.id !== undefined) {
+      const { outcome, stop } = await updateExisting(deviceId, sensor, row, validFrom, signal);
+      report(outcome);
+      if (stop) return outcomes;
+      continue;
+    }
+
+    const created = await attempt(
+      async () =>
+        unwrap(
           await apiClient.POST('/api/Devices/{deviceId}/Sensors', {
             params: { path: { deviceId } },
             body: {
@@ -174,8 +361,6 @@ export async function importSensors({ deviceId, rows, isCurve, setpointValidFrom
               direction: row.direction,
               sensorType: row.sensorType || undefined,
               unitCode: row.unitCode || undefined,
-              aggregationType: row.aggregationType ? (row.aggregationType as CreateSensorRequest['aggregationType']) : undefined,
-              aggregationExplanation: row.aggregationType ? row.aggregationExplanation : undefined,
               isCurve,
               rawScale: row.rawScale,
               rawLookback: row.rawLookback,
@@ -184,40 +369,26 @@ export async function importSensors({ deviceId, rows, isCurve, setpointValidFrom
             },
             signal,
           }),
-        );
-        outcome = { line: row.line, externalSensorId: row.externalSensorId, status: 'created', sensorId: created.id };
-      } catch (error) {
-        if (signal?.aborted) return outcomes;
-        const status = error instanceof ApiError ? error.status : 0;
-        if (status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
-          const waitSeconds = Math.min((error as ApiError).retryAfterSeconds ?? 5, 60);
-          try {
-            await sleep(waitSeconds * 1000, signal);
-          } catch {
-            return outcomes;
-          }
-          continue;
-        }
-        const message = error instanceof Error ? error.message : 'Request failed.';
-        if (status === 409 && /already exists/i.test(message)) {
-          outcome = { line: row.line, externalSensorId: row.externalSensorId, status: 'skipped', message };
-        } else {
-          outcome = { line: row.line, externalSensorId: row.externalSensorId, status: 'failed', message };
-          if (status === 401 || status === 403) {
-            outcomes.push(outcome);
-            onProgress?.(outcomes.length, rows.length, outcome);
-            return outcomes;
-          }
-        }
+        ),
+      signal,
+    );
+
+    if (!created.ok) {
+      if (signal?.aborted) return outcomes;
+      if (created.status === 409 && /already exists/i.test(created.message)) {
+        report({ line: row.line, externalSensorId: row.externalSensorId, status: 'skipped', message: created.message });
+        continue;
       }
+      report({ line: row.line, externalSensorId: row.externalSensorId, status: 'failed', message: created.message });
+      if (created.stop) return outcomes;
+      continue;
     }
 
-    if (!outcome) break;
+    const outcome: SensorImportOutcome = { line: row.line, externalSensorId: row.externalSensorId, status: 'created', sensorId: created.value.id };
 
-    // The row's target/tolerance become the new Sensor's first Setpoint, effective from the import. Skipped (already
-    // existing) Sensors are never touched: their configuration is not this import's to change.
+    // The row's target/tolerance become the new Sensor's first Setpoint, effective from the import.
     let stop = false;
-    if (outcome.status === 'created' && outcome.sensorId !== undefined && row.setpoint) {
+    if (outcome.sensorId !== undefined && row.setpoint) {
       const saved = await saveSetpoint(deviceId, outcome.sensorId, { validFrom, ...row.setpoint }, signal);
       outcome.setpoint = saved.ok ? 'created' : 'failed';
       if (!saved.ok) {
@@ -225,13 +396,8 @@ export async function importSensors({ deviceId, rows, isCurve, setpointValidFrom
         stop = saved.stop;
       }
     }
-
-    outcomes.push(outcome);
-    if (stop) {
-      onProgress?.(outcomes.length, rows.length, outcome);
-      return outcomes;
-    }
-    onProgress?.(outcomes.length, rows.length, outcome);
+    report(outcome);
+    if (stop) return outcomes;
   }
 
   return outcomes;

@@ -18,21 +18,27 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-describe('no hard-coded unit or aggregation mapping in the dashboard', () => {
+describe('no hard-coded unit mapping in the dashboard, and no aggregation metadata at all', () => {
   const files = sourceFiles(src);
 
   it('scans the real application sources', () => {
     expect(files.length).toBeGreaterThan(50);
   });
 
-  it('contains no unit code or aggregation type as a string literal', () => {
-    const literal = /['"`](mm_s|raw_energy|degC|rpm|one|EQUIVALENT_RMS|WEIGHTED_MEAN|MAXIMUM)['"`]/;
+  it('contains no unit code as a string literal', () => {
+    const literal = /['"`](mm_s|raw_energy|degC|rpm|one)['"`]/;
     const offenders = files.filter((f) => literal.test(readFileSync(f, 'utf-8'))).map((f) => relative(src, f));
     expect(offenders).toEqual([]);
   });
 
-  it('does not map a metric name to a unit or an aggregation anywhere', () => {
-    // A family prefix next to a unit / aggregation literal would be the signature of such a mapping.
+  it('has no trace of the removed aggregation type / explanation fields', () => {
+    const removed = /(aggregationType|aggregationExplanation|EQUIVALENT_RMS|WEIGHTED_MEAN|MetricAggregationType)/;
+    const offenders = files.filter((f) => removed.test(readFileSync(f, 'utf-8'))).map((f) => relative(src, f));
+    expect(offenders).toEqual([]);
+  });
+
+  it('does not map a metric name to a unit anywhere', () => {
+    // A family prefix next to a unit literal would be the signature of such a mapping.
     const familyNames = /(acceleration_rms|velocity_rms|displacement_rms|kurtosis|crest_factor|spectrum_energy|sensor_temperature|shaft_rpm)/;
     const offenders = files.filter((f) => familyNames.test(readFileSync(f, 'utf-8'))).map((f) => relative(src, f));
     expect(offenders).toEqual([]);

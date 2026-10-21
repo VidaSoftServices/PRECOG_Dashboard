@@ -18,9 +18,10 @@
  * `toleranceBelow`) are validated here and recorded by the import as the new Sensor's first Setpoint, effective from
  * the moment of the import.
  *
- * Unit and future-aggregation metadata (`unitCode`, `aggregationType`, `aggregationExplanation`) is validated
- * against the catalog the API publishes (GET /api/SensorMetadata, passed in as `ImportCatalog`) - this file contains
- * no mapping from a metric name to a unit or an aggregation type of its own, and never corrects or guesses a value.
+ * The unit of a known metric (`unitCode`) is validated against the catalog the API publishes (GET /api/SensorMetadata,
+ * passed in as `ImportCatalog`) - this file contains no mapping from a metric name to a unit of its own, and never
+ * corrects or guesses a value. (The sheet has no aggregation columns: long-term aggregation is set up per Sensor on its
+ * Policies page.)
  */
 
 /** Byte-order mark Excel puts in front of a UTF-8 file (and needs in front of ours to pick the right encoding). */
@@ -39,8 +40,6 @@ export const TEMPLATE_COLUMNS = [
   'direction',
   'sensorType',
   'unitCode',
-  'aggregationType',
-  'aggregationExplanation',
   'rawScale',
   'rawLookback',
   'rawMinIssueScore',
@@ -60,19 +59,17 @@ export type SetpointColumn = (typeof SETPOINT_COLUMNS)[number];
 /** Target/tolerance values of one row; only the fields the sheet filled are present. */
 export type SetpointValues = Partial<Record<SetpointColumn, number>>;
 
-/** Header row of the downloadable template. (A header may end in "(optional)" - `target (optional)` is the `target` column. The `sensorName` column holds the Sensor's externalSensorId, `displayName` its name; `externalSensorId`, `machineName`, `name` and the former `quantityKind` / `quantity` headers are accepted as aliases.) */
+/** Header row of the downloadable template. (`Calculate` is the Sensor's processingEnabled switch; A header may end in "(optional)" - `target (optional)` is the `target` column. The `sensorName` column holds the Sensor's externalSensorId, `displayName` its name; `externalSensorId`, `machineName`, `name` and the former `quantityKind` / `quantity` headers are accepted as aliases.) */
 export const TEMPLATE_HEADERS = [
   'sensorName',
   'displayName',
   'direction',
   'sensorType',
   'unitCode',
-  'aggregationType',
-  'aggregationExplanation',
   'rawScale',
   'rawLookback',
   'rawMinIssueScore',
-  'processingEnabled',
+  'Calculate',
   'target (optional)',
   'tolerance (optional)',
   'targetAbove (optional)',
@@ -82,13 +79,12 @@ export const TEMPLATE_HEADERS = [
 ] as const;
 
 /**
- * The part of the API's unit / aggregation catalog the importer needs (see `useSensorMetadata`). Everything the import
- * knows about units, aggregation types and the known metrics comes from here.
+ * The part of the API's unit catalog the importer needs (see `useSensorMetadata`). Everything the import knows about
+ * units and the known metrics comes from here.
  */
 export interface ImportCatalog {
   units: { code: string; label: string; labelHu?: string }[];
-  aggregationTypes: { code: string; label: string; allowedUnitCodes: string[]; explanation?: string }[];
-  metrics: { machineName: string; displayName: string; unitCode: string; aggregationType: string; aggregationExplanation: string }[];
+  metrics: { machineName: string; displayName: string; unitCode: string }[];
 }
 
 /** One problem in one cell: which field, the offending value, and what is expected. */
@@ -103,17 +99,13 @@ type Opt<T> = T | null | undefined;
 
 export function toImportCatalog(api: Opt<{
   units?: Opt<{ code?: Opt<string>; label?: Opt<string>; labelHu?: Opt<string> }[]>;
-  aggregationTypes?: Opt<{ code?: Opt<string>; label?: Opt<string>; allowedUnitCodes?: Opt<string[]>; explanation?: Opt<string> }[]>;
-  metrics?: Opt<{ machineName?: Opt<string>; displayName?: Opt<string>; unitCode?: Opt<string>; aggregationType?: Opt<string>; aggregationExplanation?: Opt<string> }[]>;
+  metrics?: Opt<{ machineName?: Opt<string>; displayName?: Opt<string>; unitCode?: Opt<string> }[]>;
 }>): ImportCatalog | undefined {
-  if (!api?.units || !api.aggregationTypes || !api.metrics) return undefined;
+  if (!api?.units || !api.metrics) return undefined;
   return {
     units: api.units.flatMap((u) => (u.code ? [{ code: u.code, label: u.label ?? u.code, ...(u.labelHu ? { labelHu: u.labelHu } : {}) }] : [])),
-    aggregationTypes: api.aggregationTypes.flatMap((a) => (a.code ? [{ code: a.code, label: a.label ?? a.code, allowedUnitCodes: a.allowedUnitCodes ?? [], ...(a.explanation ? { explanation: a.explanation } : {}) }] : [])),
     metrics: api.metrics.flatMap((m) =>
-      m.machineName && m.unitCode && m.aggregationType
-        ? [{ machineName: m.machineName, displayName: m.displayName ?? m.machineName, unitCode: m.unitCode, aggregationType: m.aggregationType, aggregationExplanation: m.aggregationExplanation ?? '' }]
-        : [],
+      m.machineName && m.unitCode ? [{ machineName: m.machineName, displayName: m.displayName ?? m.machineName, unitCode: m.unitCode }] : [],
     ),
   };
 }
@@ -128,52 +120,22 @@ export function findKnownMetric(catalog: ImportCatalog, externalSensorId: string
 }
 
 /**
- * Validates the unit / future-aggregation metadata of one row - the same rules the API enforces (so a bad sheet is
- * caught before the first request), driven entirely by the catalog. Reports, never corrects.
+ * Validates the unit of one row: only a Sensor that IS a known metric (exact machine name + point number) is judged - it
+ * must carry exactly that metric's unit, a canonical code from the catalog. Any other Sensor keeps a free-text unit
+ * untouched. The same rule the API enforces (so a bad sheet is caught before the first request). Reports, never corrects.
  */
-export function validateMetadata(
-  externalSensorId: string,
-  unitCode: string,
-  aggregationType: string,
-  aggregationExplanation: string,
-  catalog: ImportCatalog,
-): ImportIssue[] {
-  const issues: ImportIssue[] = [];
+export function validateMetadata(externalSensorId: string, unitCode: string, catalog: ImportCatalog): ImportIssue[] {
   const known = externalSensorId ? findKnownMetric(catalog, externalSensorId) : undefined;
-  if (!known && aggregationType === '') {
-    if (aggregationExplanation !== '') {
-      issues.push({ field: 'aggregationType', value: '', message: 'aggregationType is required when an aggregationExplanation is given.' });
-    }
-    return issues;
-  }
+  if (!known) return [];
 
+  const issues: ImportIssue[] = [];
   const unitCodes = catalog.units.map((u) => u.code).join(', ');
-  const typeCodes = catalog.aggregationTypes.map((a) => a.code).join(', ');
   const unit = catalog.units.find((u) => u.code === unitCode);
-  const type = catalog.aggregationTypes.find((a) => a.code === aggregationType);
 
   if (unitCode === '') issues.push({ field: 'unitCode', value: '', message: `unitCode is required. Expected one of: ${unitCodes}.` });
   else if (!unit) issues.push({ field: 'unitCode', value: unitCode, message: `Unknown unitCode. Expected one of: ${unitCodes}.` });
-
-  if (aggregationType === '') issues.push({ field: 'aggregationType', value: '', message: `aggregationType is required. Expected one of: ${typeCodes}.` });
-  else if (!type) issues.push({ field: 'aggregationType', value: aggregationType, message: `Unknown aggregationType. Expected one of: ${typeCodes}.` });
-
-  if (type && unit && !type.allowedUnitCodes.includes(unitCode)) {
-    issues.push({ field: 'aggregationType', value: aggregationType, message: `${type.code} is not valid for unitCode '${unitCode}'. It is only valid for: ${type.allowedUnitCodes.join(', ')}.` });
-  }
-
-  if (aggregationExplanation === '') issues.push({ field: 'aggregationExplanation', value: '', message: 'aggregationExplanation is required.' });
-  else if (aggregationExplanation.length > MAX_EXPLANATION_LENGTH) {
-    issues.push({ field: 'aggregationExplanation', value: '', message: `aggregationExplanation is longer than ${MAX_EXPLANATION_LENGTH} characters.` });
-  }
-
-  if (known) {
-    if (unit && unitCode !== known.unitCode) {
-      issues.push({ field: 'unitCode', value: unitCode, message: `'${externalSensorId}' is the known metric '${known.machineName}', whose unitCode is '${known.unitCode}'.` });
-    }
-    if (type && aggregationType !== known.aggregationType) {
-      issues.push({ field: 'aggregationType', value: aggregationType, message: `'${externalSensorId}' is the known metric '${known.machineName}', whose aggregationType is '${known.aggregationType}'.` });
-    }
+  else if (unitCode !== known.unitCode) {
+    issues.push({ field: 'unitCode', value: unitCode, message: `'${externalSensorId}' is the known metric '${known.machineName}', whose unitCode is '${known.unitCode}'.` });
   }
   return issues;
 }
@@ -183,9 +145,6 @@ export function validateMetadata(
 const COLUMN_LABEL: Partial<Record<Column, string>> = { externalSensorId: 'sensorName', name: 'displayName' };
 
 export const MAX_LENGTH: Partial<Record<Column, number>> = { externalSensorId: 100, name: 200, sensorType: 100, unitCode: 20 };
-
-/** Same limit as the API's aggregationExplanation column. */
-export const MAX_EXPLANATION_LENGTH = 1000;
 
 /** Hard cap on one import, so a mistakenly pasted sheet cannot fire thousands of requests. */
 export const MAX_IMPORT_ROWS = 1000;
@@ -199,17 +158,35 @@ export interface ImportDefaults {
   processingEnabled: boolean;
 }
 
+/** Which cells of a row were actually filled. For a Sensor that already exists only these are applied; an empty cell never overwrites. */
+export interface ProvidedFields {
+  name: boolean;
+  direction: boolean;
+  sensorType: boolean;
+  unitCode: boolean;
+  rawScale: boolean;
+  rawLookback: boolean;
+  rawMinIssueScore: boolean;
+  processingEnabled: boolean;
+}
+
+/** What the parser needs to know about a Sensor that already exists on the Device (key: its externalSensorId, lower-case). */
+export interface ExistingSensorInfo {
+  direction: SensorDirection;
+}
+
 export interface ParsedSensorRow {
   /** 1-based line number in the pasted text, header included - what the user sees in Excel. */
   line: number;
+  /** True when a Sensor with this sensorName already exists on the Device: the row UPDATES it (only the filled cells) instead of creating one. */
+  exists: boolean;
+  /** Which cells were filled (see {@link ProvidedFields}). */
+  provided: ProvidedFields;
   externalSensorId: string;
   name: string;
   direction: SensorDirection;
   sensorType: string;
   unitCode: string;
-  /** EQUIVALENT_RMS, WEIGHTED_MEAN or MAXIMUM, or '' when the row carries none (allowed only for a Sensor that is not a known metric). */
-  aggregationType: string;
-  aggregationExplanation: string;
   /** The catalog's own machine name when this row names a known metric (for example one of the catalog's `_eq` RMS metrics), otherwise undefined. */
   knownMetric?: string;
   rawScale: string;
@@ -250,8 +227,6 @@ const COLUMN_ALIASES: Record<string, Column> = {
   displayname: 'name',
   machinename: 'externalSensorId',
   sensorname: 'externalSensorId',
-  aggregationtype: 'aggregationType',
-  aggregationexplanation: 'aggregationExplanation',
   direction: 'direction',
   sensortype: 'sensorType',
   quantitykind: 'sensorType',
@@ -293,6 +268,11 @@ function readSetpoint(
   cell: (column: SetpointColumn) => string,
   direction: SensorDirection | null,
   fail: (field: string, value: string, message: string) => void,
+  /**
+   * False for a Sensor that already exists: its current setpoint may already carry the target (a row with only a tolerance
+   * then changes just the tolerance), which is only known when the import runs, so the "needs a target" rules are applied there.
+   */
+  requireTarget = true,
 ): SetpointValues | undefined {
   const values: SetpointValues = {};
   let anyFilled = false;
@@ -322,6 +302,8 @@ function readSetpoint(
       delete values[column];
     }
   }
+
+  if (!requireTarget) return values;
 
   if (bidirectional) {
     if (values.targetAbove === undefined && values.targetBelow === undefined) fail('targetAbove', '', 'A bidirectional Sensor needs targetAbove and/or targetBelow when a setpoint is given.');
@@ -408,7 +390,17 @@ function parseScale(raw: string): string | null {
   return SCALES.find((s) => s.toLowerCase() === key) ?? null;
 }
 
-export function parseSensorTable(text: string, defaults: ImportDefaults, catalog: ImportCatalog | undefined): ParseResult {
+/**
+ * Parses and validates the sheet. `existing` lists the Sensors already on the Device (key: externalSensorId, lower-case): a row
+ * for one of them is an UPDATE - only the cells that are filled count (an empty cell leaves the current value alone, the dialog's
+ * defaults apply to new Sensors only), so scale / lookback / unit are not required for it.
+ */
+export function parseSensorTable(
+  text: string,
+  defaults: ImportDefaults,
+  catalog: ImportCatalog | undefined,
+  existing: ReadonlyMap<string, ExistingSensorInfo> = new Map(),
+): ParseResult {
   const fileErrors: string[] = [];
   const trimmed = text.startsWith(BOM) ? text.slice(1) : text;
   if (trimmed.trim() === '') return { rows: [], fileErrors: [], ignoredColumns: [] };
@@ -462,21 +454,35 @@ export function parseSensorTable(text: string, defaults: ImportDefaults, catalog
       else seen.set(externalSensorId.toLowerCase(), line);
     }
 
-    const directionRaw = cell(cells, 'direction') || defaults.direction;
-    const direction = parseDirection(directionRaw);
+    const current = externalSensorId === '' ? undefined : existing.get(externalSensorId.toLowerCase());
+    const exists = current !== undefined;
+    const provided: ProvidedFields = {
+      name: cell(cells, 'name') !== '',
+      direction: cell(cells, 'direction') !== '',
+      sensorType: cell(cells, 'sensorType') !== '',
+      unitCode: cell(cells, 'unitCode') !== '',
+      rawScale: cell(cells, 'rawScale') !== '',
+      rawLookback: cell(cells, 'rawLookback') !== '',
+      rawMinIssueScore: cell(cells, 'rawMinIssueScore') !== '',
+      processingEnabled: cell(cells, 'processingEnabled') !== '',
+    };
+
+    // A new Sensor takes the dialog's defaults for empty cells; an existing one keeps what it has (nothing is "defaulted" over it).
+    const directionRaw = cell(cells, 'direction') || (exists ? '' : defaults.direction);
+    const direction = directionRaw === '' ? (current?.direction ?? null) : parseDirection(directionRaw);
     if (!direction) fail('direction', directionRaw, `direction "${directionRaw}" must be lowerisbetter, higherisbetter or bidirectional.`);
 
-    const scaleRaw = cell(cells, 'rawScale') || defaults.rawScale;
+    const scaleRaw = cell(cells, 'rawScale') || (exists ? '' : defaults.rawScale);
     const rawScale = parseScale(scaleRaw);
-    if (!rawScale) fail('rawScale', scaleRaw, scaleRaw === '' ? 'rawScale is missing (set a default or fill the column).' : `rawScale "${scaleRaw}" must be one of ${SCALES.join(', ')}.`);
+    if (!rawScale && !(exists && scaleRaw === '')) fail('rawScale', scaleRaw, scaleRaw === '' ? 'rawScale is missing (set a default or fill the column).' : `rawScale "${scaleRaw}" must be one of ${SCALES.join(', ')}.`);
 
-    const lookbackRaw = cell(cells, 'rawLookback') || defaults.rawLookback;
+    const lookbackRaw = cell(cells, 'rawLookback') || (exists ? '' : defaults.rawLookback);
     const rawLookback = Number(lookbackRaw);
-    if (lookbackRaw === '' || !Number.isInteger(rawLookback) || rawLookback <= 0) {
+    if (!(exists && lookbackRaw === '') && (lookbackRaw === '' || !Number.isInteger(rawLookback) || rawLookback <= 0)) {
       fail('rawLookback', lookbackRaw, lookbackRaw === '' ? 'rawLookback is missing (set a default or fill the column).' : `rawLookback "${lookbackRaw}" must be a whole number greater than zero.`);
     }
 
-    const minScoreRaw = cell(cells, 'rawMinIssueScore') || defaults.rawMinIssueScore;
+    const minScoreRaw = cell(cells, 'rawMinIssueScore') || (exists ? '' : defaults.rawMinIssueScore);
     const rawMinIssueScore = minScoreRaw === '' ? 1 : Number(minScoreRaw);
     if (!Number.isInteger(rawMinIssueScore) || rawMinIssueScore < 0 || rawMinIssueScore > 32767) {
       fail('rawMinIssueScore', minScoreRaw, `rawMinIssueScore "${minScoreRaw}" must be a whole number from 0 to 32767.`);
@@ -484,32 +490,31 @@ export function parseSensorTable(text: string, defaults: ImportDefaults, catalog
 
     const processingRaw = cell(cells, 'processingEnabled');
     const processingParsed = processingRaw === '' ? defaults.processingEnabled : parseBoolean(processingRaw);
-    if (processingParsed === null) fail('processingEnabled', processingRaw, `processingEnabled "${processingRaw}" must be true or false (also 1/0, yes/no, on/off, igen/nem).`);
+    if (processingParsed === null) fail('Calculate', processingRaw, `Calculate "${processingRaw}" must be true or false (also 1/0, yes/no, on/off, igen/nem).`);
 
-    const setpoint = readSetpoint((column) => cell(cells, column), direction, fail);
+    const setpoint = readSetpoint((column) => cell(cells, column), direction, fail, !exists);
 
     const name = cell(cells, 'name');
     const sensorType = cell(cells, 'sensorType');
     const unitCode = cell(cells, 'unitCode');
-    const aggregationType = cell(cells, 'aggregationType');
-    const aggregationExplanation = cell(cells, 'aggregationExplanation');
     for (const [column, value] of [['externalSensorId', externalSensorId], ['name', name], ['sensorType', sensorType], ['unitCode', unitCode]] as const) {
       const max = MAX_LENGTH[column];
       if (max !== undefined && value.length > max) fail(column, value, `${COLUMN_LABEL[column] ?? column} is longer than ${max} characters.`);
     }
 
-    issues.push(...validateMetadata(externalSensorId, unitCode, aggregationType, aggregationExplanation, catalog));
+    // The unit of a known metric is judged when it is given - and always for a new Sensor. An existing Sensor with an empty unit cell keeps its unit.
+    if (!exists || provided.unitCode) issues.push(...validateMetadata(externalSensorId, unitCode, catalog));
     const known = externalSensorId ? findKnownMetric(catalog, externalSensorId) : undefined;
 
     return {
       line,
+      exists,
+      provided,
       externalSensorId,
       name,
       direction: direction ?? defaults.direction,
       sensorType,
       unitCode,
-      aggregationType,
-      aggregationExplanation,
       knownMetric: known?.machineName,
       rawScale: rawScale ?? '',
       rawLookback: Number.isFinite(rawLookback) ? rawLookback : 0,
@@ -534,22 +539,22 @@ function csvField(value: string | number): string {
  * The template the user downloads. Comma-separated with a UTF-8 BOM so Excel opens it with the right encoding; the
  * importer reads `;` and tab as well, so a file re-saved by a Hungarian Excel still works.
  *
- * The example rows are taken from the API catalog (known metrics, with their exact unit, aggregation type and
- * explanation), so they are valid by construction and the template can never teach a wrong mapping. Allowed values for
- * `unitCode` and `aggregationType` are listed in the import dialog, from the same catalog.
+ * The example rows are taken from the API catalog (known metrics, with their exact unit), so they are valid by
+ * construction and the template can never teach a wrong mapping. Allowed values for `unitCode` are listed in the
+ * import dialog, from the same catalog.
  */
 export function buildTemplateCsv(catalog: ImportCatalog): string {
-  // One example per distinct (unit, aggregation type) combination the catalog contains - the first metric of each - so the
-  // template shows every kind without this file naming any metric.
+  // One example per distinct unit the catalog contains - the first metric of each - so the template shows every kind
+  // without this file naming any metric.
   const seen = new Set<string>();
   const examples = catalog.metrics
     .filter((m) => {
-      const kind = `${m.unitCode}|${m.aggregationType}`;
+      const kind = m.unitCode;
       if (seen.has(kind)) return false;
       seen.add(kind);
       return true;
     })
-    .map((m) => [`${m.machineName}_1`, m.displayName, 'lowerisbetter', '', m.unitCode, m.aggregationType, m.aggregationExplanation, 'Seconds', 60, 1, 'true', '', '', '', '', '', '']);
+    .map((m) => [`${m.machineName}_1`, m.displayName, 'lowerisbetter', '', m.unitCode, 'Seconds', 60, 1, 'true', '', '', '', '', '', '']);
   return BOM + [TEMPLATE_HEADERS.join(','), ...examples.map((r) => r.map(csvField).join(','))].join('\r\n') + '\r\n';
 }
 
@@ -563,4 +568,44 @@ export interface SensorIdMapEntry {
 export function buildSensorIdMapCsv(entries: SensorIdMapEntry[]): string {
   const sorted = [...entries].sort((a, b) => a.sensorId - b.sensorId);
   return BOM + ['externalSensorId,sensorId,name', ...sorted.map((e) => [e.externalSensorId, e.sensorId, e.name].map(csvField).join(','))].join('\r\n') + '\r\n';
+}
+
+export type SetpointMerge =
+  | { kind: 'unchanged' }
+  | { kind: 'change'; values: SetpointValues }
+  | { kind: 'invalid'; message: string };
+
+/**
+ * What the import does with the setpoint cells of a row for a Sensor that already exists. `current` is the setpoint effective
+ * now (undefined = none). Only the filled cells change: a row with just a tolerance keeps the current target, and the values
+ * of the cells the sheet left empty are carried over so the new interval is complete. Nothing is written when every filled
+ * value already equals the current one. Only the columns that belong to the Sensor's direction are considered.
+ */
+export function mergeSetpoint(
+  current: Partial<Record<SetpointColumn, number | null | undefined>> | undefined,
+  provided: SetpointValues,
+  direction: SensorDirection,
+): SetpointMerge {
+  const bidirectional = direction === 'bidirectional';
+  const relevant: SetpointColumn[] = bidirectional ? ['targetAbove', 'targetBelow', 'toleranceAbove', 'toleranceBelow'] : ['target', 'tolerance'];
+
+  const merged: SetpointValues = {};
+  let changed = false;
+  for (const column of relevant) {
+    const now = current?.[column] ?? undefined;
+    const given = provided[column];
+    const value = given ?? now;
+    if (value !== undefined) merged[column] = value;
+    if (given !== undefined && given !== now) changed = true;
+  }
+
+  if (bidirectional) {
+    if (merged.targetAbove === undefined && merged.targetBelow === undefined) return { kind: 'invalid', message: 'The Sensor has no targetAbove/targetBelow yet - give at least one of them.' };
+    if (merged.toleranceAbove !== undefined && merged.targetAbove === undefined) return { kind: 'invalid', message: 'toleranceAbove needs targetAbove, which the Sensor does not have yet.' };
+    if (merged.toleranceBelow !== undefined && merged.targetBelow === undefined) return { kind: 'invalid', message: 'toleranceBelow needs targetBelow, which the Sensor does not have yet.' };
+  } else if (merged.target === undefined) {
+    return { kind: 'invalid', message: `The Sensor has no target yet - a ${direction} Sensor needs a target before a tolerance can be set.` };
+  }
+
+  return changed ? { kind: 'change', values: merged } : { kind: 'unchanged' };
 }
