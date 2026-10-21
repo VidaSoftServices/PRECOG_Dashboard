@@ -57,7 +57,8 @@ export interface TelemetrySeriesInput {
 
 export interface TelemetryChartProps {
   series: TelemetrySeriesInput[];
-  height?: number;
+  /** Pixels, or any CSS length (e.g. `calc(85vh - 220px)`) for a chart that follows the window. */
+  height?: number | string;
   /** 'single' shows control-limit bands, target/tolerance bands, and anomaly markers - built for one series. 'compare' shows clean overlay lines for legibility across several series (decision #17). */
   mode?: 'single' | 'compare';
   showControlLimits?: boolean;

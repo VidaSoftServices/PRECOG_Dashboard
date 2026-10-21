@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogSurface,
   DialogTitle,
+  DialogTrigger,
   Input,
   Spinner,
   Switch,
@@ -21,7 +22,7 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import { ArrowClockwise16Regular, ArrowClockwise24Regular, FullScreenMaximize16Regular, ChevronLeft24Regular, ChevronRight24Regular, DataTrending24Regular, Search24Regular } from '@fluentui/react-icons';
+import { Dismiss24Regular, ArrowClockwise16Regular, ArrowClockwise24Regular, FullScreenMaximize16Regular, ChevronLeft24Regular, ChevronRight24Regular, DataTrending24Regular, Search24Regular } from '@fluentui/react-icons';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
@@ -80,8 +81,9 @@ const useStyles = makeStyles({
     cursor: 'zoom-in',
   },
   dialogSurface: {
-    maxWidth: '1200px',
-    width: '96vw',
+    // About 15% of the window stays free around the enlarged chart.
+    width: '85vw',
+    maxWidth: '85vw',
   },
   headerActions: {
     display: 'flex',
@@ -196,7 +198,26 @@ function SensorLiveCard({
       <Dialog open={enlarged} onOpenChange={(_, d) => setEnlarged(d.open)}>
         <DialogSurface className={styles.dialogSurface}>
           <DialogBody>
-            <DialogTitle>{sensorLabel}</DialogTitle>
+            <DialogTitle
+              action={
+                <div className={styles.headerActions}>
+                  {/* The same one-off refresh as the card's icon, so the enlarged chart can be refreshed without closing it. */}
+                  <Button
+                    appearance="subtle"
+                    icon={refreshing ? <Spinner size="tiny" /> : <ArrowClockwise16Regular />}
+                    aria-label={`Refresh ${sensorLabel}`}
+                    title="Refresh this Sensor now"
+                    disabled={refreshDisabled || refreshing}
+                    onClick={onRefresh}
+                  />
+                  <DialogTrigger disableButtonEnhancement action="close">
+                    <Button appearance="subtle" aria-label="Close" icon={<Dismiss24Regular />} />
+                  </DialogTrigger>
+                </div>
+              }
+            >
+              {sensorLabel}
+            </DialogTitle>
             <DialogContent>
               <div className={styles.valueRow}>
                 <span className={styles.bigValue}>{latest?.actual ?? '—'}</span>
@@ -204,7 +225,7 @@ function SensorLiveCard({
                   {latest ? `${formatDateTime(latest.measured)} (${formatRelative(latest.measured)})` : 'no data'}
                 </Text>
               </div>
-              <TelemetryChart series={chartSeries} height={460} mode="single" showControlLimits timeAxis="fullDateTime" emphasizeHover />
+              <TelemetryChart series={chartSeries} height="calc(85vh - 230px)" mode="single" showControlLimits timeAxis="fullDateTime" emphasizeHover />
             </DialogContent>
             <DialogActions>
               <Button appearance="primary" onClick={() => setEnlarged(false)}>
