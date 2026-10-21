@@ -32,6 +32,7 @@ import { useDevices, useDevice } from '@/api/hooks/devices';
 import { useSensors } from '@/api/hooks/sensors';
 import { useTelemetryTrailingPeriods, familyFor, isCurveFamily } from '@/api/hooks/telemetry';
 import { useNumberSearchParam } from '@/lib/useNumberSearchParam';
+import { filterSensors } from '@/lib/sensorFilter';
 import { usePageVisible } from '@/lib/usePageVisible';
 import { formatRelative, formatDateTime, freshnessOf } from '@/lib/dateTime';
 import { POLL_INTERVALS_MS } from '@/lib/pollIntervals';
@@ -265,13 +266,7 @@ export function LiveMonitoringPage() {
   // What the page shows is what it keeps fresh: a Device can have hundreds of Sensors, and one request every
   // few seconds could never keep all of them current, so only the Sensors on screen (after the filter, one page of them)
   // are in the rotation. Narrow the filter or turn the page to watch others.
-  const filtered = useMemo(
-    () =>
-      (sensorsQuery.data ?? []).filter(
-        (sensor) => filter === '' || (sensor.name ?? '').toLowerCase().includes(filter) || (sensor.externalSensorId ?? '').toLowerCase().includes(filter),
-      ),
-    [sensorsQuery.data, filter],
-  );
+  const filtered = useMemo(() => filterSensors(sensorsQuery.data ?? [], filter), [sensorsQuery.data, filter]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, pageCount - 1);
   const shown = useMemo(() => filtered.slice(safePage * pageSize, safePage * pageSize + pageSize), [filtered, safePage, pageSize]);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Card,
@@ -6,6 +6,7 @@ import {
   Body1Strong,
   Select,
   Checkbox,
+  Input,
   RadioGroup,
   Radio,
   MessageBar,
@@ -15,13 +16,13 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import { Share24Regular } from '@fluentui/react-icons';
+import { Search24Regular, Share24Regular } from '@fluentui/react-icons';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
 import { EmptyState } from '@/components/states/EmptyState';
 import { DateTimeField } from '@/components/DateTimeField';
-import { TelemetryChart } from '@/components/charts/TelemetryChart';
+import { EnlargeableTelemetryChart } from '@/components/charts/EnlargeableTelemetryChart';
 import { ReviewStatePill } from '@/components/StatusPill';
 import { useDevices, useDevice } from '@/api/hooks/devices';
 import { useSensors } from '@/api/hooks/sensors';
@@ -30,6 +31,7 @@ import { useTelemetryDateRange, familyFor } from '@/api/hooks/telemetry';
 import { useKnowledgeCompatibility } from '@/api/hooks/knowledgeSharing';
 import { useIssues } from '@/api/hooks/issues';
 import { useNumberSearchParam } from '@/lib/useNumberSearchParam';
+import { filterSensors } from '@/lib/sensorFilter';
 import { toApiIso, formatDateTime, parseApiDate } from '@/lib/dateTime';
 import { useAuth } from '@/auth/AuthContext';
 import { useBreakpoint } from '@/lib/useMediaQuery';
@@ -51,6 +53,9 @@ const useStyles = makeStyles({
     display: 'flex',
     flexDirection: 'column',
     gap: tokens.spacingVerticalXXS,
+    // A Device can have hundreds of Sensors: the list scrolls instead of pushing the chart far down the page.
+    maxHeight: '260px',
+    overflowY: 'auto',
   },
   card: {
     padding: tokens.spacingVerticalM,
@@ -80,8 +85,10 @@ function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; sta
   const deviceQuery = useDevice(deviceId);
   const sensorsQuery = useSensors(deviceId);
   const [selectedSensorIds, setSelectedSensorIds] = useState<number[]>([]);
+  const [sensorFilter, setSensorFilter] = useState('');
 
-  const sensors = sensorsQuery.data ?? [];
+  const sensors = useMemo(() => sensorsQuery.data ?? [], [sensorsQuery.data]);
+  const visibleSensors = useMemo(() => filterSensors(sensors, sensorFilter), [sensors, sensorFilter]);
   const effectiveSelection = selectedSensorIds.length > 0 ? selectedSensorIds : sensors.slice(0, 1).map((s) => s.id!);
   const primarySensor = sensors.find((s) => s.id === effectiveSelection[0]);
 
@@ -133,8 +140,21 @@ function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; sta
       <div>
         <Card className={styles.card}>
           <Body1Strong>Sensors ({effectiveSelection.length} of {Math.min(sensors.length, MAX_OVERLAY_SENSORS)} shown, max {MAX_OVERLAY_SENSORS})</Body1Strong>
-          <div className={styles.sensorList} style={{ marginTop: tokens.spacingVerticalS }}>
-            {sensors.map((sensor) => (
+          <Input
+            aria-label="Filter Sensors"
+            placeholder="Filter Sensors by name…"
+            contentBefore={<Search24Regular />}
+            value={sensorFilter}
+            onChange={(_, d) => setSensorFilter(d.value)}
+            style={{ marginTop: tokens.spacingVerticalS }}
+          />
+          <Text size={200} style={{ display: 'block', color: tokens.colorNeutralForeground3, margin: `${tokens.spacingVerticalXS} 0` }} role="status">
+            {sensorFilter.trim() === '' ? `${sensors.length} Sensors` : `${visibleSensors.length} of ${sensors.length} Sensors match`}
+            {` - selected: ${effectiveSelection.map((id) => sensors.find((s) => s.id === id)).map((s) => s?.name || s?.externalSensorId).join(', ')}`}
+          </Text>
+          <div className={styles.sensorList}>
+            {visibleSensors.length === 0 && <Text size={200}>No Sensor matches the filter.</Text>}
+            {visibleSensors.map((sensor) => (
               <Checkbox
                 key={sensor.id}
                 label={`${sensor.name || sensor.externalSensorId} (${sensor.direction})`}
@@ -156,7 +176,8 @@ function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; sta
           {anyLoading && <LoadingState label="Loading telemetry…" />}
           {firstError && <ErrorState error={firstError.error} />}
           {!anyLoading && !firstError && (
-            <TelemetryChart
+            <EnlargeableTelemetryChart
+              title={series.map((s) => s.label).join(' · ') || 'Telemetry'}
               series={series}
               mode={series.length > 1 ? 'compare' : 'single'}
               showControlLimits={series.length === 1}
@@ -216,9 +237,21 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
 
   const [sensorIdA, setSensorIdA] = useState<number | undefined>();
   const [sensorIdB, setSensorIdB] = useState<number | undefined>();
+  const [filterA, setFilterA] = useState('');
+  const [filterB, setFilterB] = useState('');
 
   const effectiveSensorA = sensorIdA ?? sensorsA.data?.[0]?.id;
   const effectiveSensorB = sensorIdB ?? sensorsB.data?.[0]?.id;
+
+  // The chosen Sensor stays in its list even when it does not match the filter, so the select never shows a value that is not an option.
+  const optionsFor = (sensors: typeof sensorsA.data, filter: string, chosen: number | undefined) => {
+    const all = sensors ?? [];
+    const matching = filterSensors(all, filter);
+    const pinned = all.find((s) => s.id === chosen);
+    return pinned && !matching.includes(pinned) ? [pinned, ...matching] : matching;
+  };
+  const optionsA = optionsFor(sensorsA.data, filterA, effectiveSensorA);
+  const optionsB = optionsFor(sensorsB.data, filterB, effectiveSensorB);
 
   const familyA = familyFor((deviceA.data?.applicationMode as 'continuous' | 'periodic') ?? 'continuous', sensorsA.data?.find((s) => s.id === effectiveSensorA)?.direction);
   const familyB = familyFor((deviceB.data?.applicationMode as 'continuous' | 'periodic') ?? 'continuous', sensorsB.data?.find((s) => s.id === effectiveSensorB)?.direction);
@@ -238,8 +271,9 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
       <div className={styles.toolbar}>
         <div className={styles.column}>
           <Text size={200}>Device A Sensor</Text>
+          <Input aria-label="Filter Device A Sensors" placeholder="Filter Sensors by name…" contentBefore={<Search24Regular />} value={filterA} onChange={(_, d) => setFilterA(d.value)} />
           <Select aria-label="Device A Sensor" value={effectiveSensorA !== undefined ? String(effectiveSensorA) : ''} onChange={(_, d) => setSensorIdA(Number(d.value))}>
-            {sensorsA.data?.map((s) => (
+            {optionsA.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name || s.externalSensorId}
               </option>
@@ -248,8 +282,9 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
         </div>
         <div className={styles.column}>
           <Text size={200}>Device B Sensor</Text>
+          <Input aria-label="Filter Device B Sensors" placeholder="Filter Sensors by name…" contentBefore={<Search24Regular />} value={filterB} onChange={(_, d) => setFilterB(d.value)} />
           <Select aria-label="Device B Sensor" value={effectiveSensorB !== undefined ? String(effectiveSensorB) : ''} onChange={(_, d) => setSensorIdB(Number(d.value))}>
-            {sensorsB.data?.map((s) => (
+            {optionsB.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name || s.externalSensorId}
               </option>
@@ -270,7 +305,8 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
 
       {provenCompatible ? (
         <Card className={styles.card}>
-          <TelemetryChart
+          <EnlargeableTelemetryChart
+            title={`${deviceA.data?.deviceName ?? 'Device A'} · ${deviceB.data?.deviceName ?? 'Device B'}`}
             series={[
               { label: `${deviceA.data?.deviceName ?? 'Device A'}`, points: dataA.data ?? [] },
               { label: `${deviceB.data?.deviceName ?? 'Device B'}`, points: dataB.data ?? [] },
@@ -283,11 +319,11 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
         <div style={{ display: 'grid', gridTemplateColumns: breakpoint === 'desktop' ? '1fr 1fr' : '1fr', gap: tokens.spacingHorizontalM }}>
           <Card className={styles.card}>
             <Body1Strong>{deviceA.data?.deviceName ?? 'Device A'}</Body1Strong>
-            <TelemetryChart series={[{ label: 'A', points: dataA.data ?? [] }]} mode="single" height={300} />
+            <EnlargeableTelemetryChart title={deviceA.data?.deviceName ?? 'Device A'} series={[{ label: 'A', points: dataA.data ?? [] }]} mode="single" height={300} />
           </Card>
           <Card className={styles.card}>
             <Body1Strong>{deviceB.data?.deviceName ?? 'Device B'}</Body1Strong>
-            <TelemetryChart series={[{ label: 'B', points: dataB.data ?? [] }]} mode="single" height={300} />
+            <EnlargeableTelemetryChart title={deviceB.data?.deviceName ?? 'Device B'} series={[{ label: 'B', points: dataB.data ?? [] }]} mode="single" height={300} />
           </Card>
         </div>
       )}

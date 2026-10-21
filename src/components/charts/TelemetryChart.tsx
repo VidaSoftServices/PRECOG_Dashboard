@@ -1,4 +1,4 @@
-import { useId, useMemo } from 'react';
+import { useEffect, useId, useMemo, useRef } from 'react';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -55,7 +55,7 @@ export interface TelemetrySeriesInput {
   unitLabel?: string | null;
 }
 
-interface TelemetryChartProps {
+export interface TelemetryChartProps {
   series: TelemetrySeriesInput[];
   height?: number;
   /** 'single' shows control-limit bands, target/tolerance bands, and anomaly markers - built for one series. 'compare' shows clean overlay lines for legibility across several series (decision #17). */
@@ -76,6 +76,8 @@ interface TelemetryChartProps {
   compact?: boolean;
   /** Hovering a point enlarges its marker five times, so it is clear which value the tooltip shows. */
   emphasizeHover?: boolean;
+  /** Called when the chart is clicked anywhere except on its legend (which keeps toggling series); the pointer shows a zoom cursor. */
+  onEnlarge?: () => void;
 }
 
 /**
@@ -96,6 +98,13 @@ export function unitLabelOfDataset(series: TelemetrySeriesInput[], datasetLabel:
 }
 
 const POINT_RADIUS = 3;
+
+/** True when a canvas position lies on the chart's legend, where a click toggles a series instead of enlarging the chart. */
+function isInsideLegend(chart: ChartJS, x: number | null, y: number | null): boolean {
+  const legend = chart.legend;
+  if (!legend || x === null || y === null) return false;
+  return x >= legend.left && x <= legend.right && y >= legend.top && y <= legend.bottom;
+}
 
 function anomalyPointColor(point: TelemetryPoint, base: string): string {
   const level = point.anomaly ?? Math.max(point.anomalyAbove ?? 0, point.anomalyBelow ?? 0);
@@ -128,9 +137,16 @@ export function TelemetryChart({
   timeAxis = 'dateTime',
   compact = false,
   emphasizeHover = false,
+  onEnlarge,
 }: TelemetryChartProps) {
   const styles = useStyles();
   const summaryId = useId();
+  // The latest callback without rebuilding the chart options (and so the chart) every time the caller re-renders.
+  const enlargeRef = useRef(onEnlarge);
+  useEffect(() => {
+    enlargeRef.current = onEnlarge;
+  });
+  const enlargeable = onEnlarge !== undefined;
 
   const { data, options } = useMemo<{ data: ChartData<'line'>; options: ChartOptions<'line'> }>(() => {
     const labelSet = new Set<string>();
@@ -207,6 +223,16 @@ export function TelemetryChart({
       maintainAspectRatio: false,
       // The marker that grows is the point the tooltip shows (nearest by x position), not only a point the cursor sits exactly on.
       ...(emphasizeHover ? { interaction: { mode: 'index' as const, intersect: false } } : {}),
+      ...(enlargeable
+        ? {
+            onClick: (event, _elements, chart) => {
+              if (!isInsideLegend(chart, event.x, event.y)) enlargeRef.current?.();
+            },
+            onHover: (event, _elements, chart) => {
+              chart.canvas.style.cursor = isInsideLegend(chart, event.x, event.y) ? 'default' : 'zoom-in';
+            },
+          }
+        : {}),
       animation: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? false : undefined,
       plugins: {
         title: { display: !!title, text: title },
@@ -245,7 +271,7 @@ export function TelemetryChart({
     };
 
     return { data: chartData, options: chartOptions };
-  }, [series, mode, showControlLimits, title, timeAxis, compact, emphasizeHover]);
+  }, [series, mode, showControlLimits, title, timeAxis, compact, emphasizeHover, enlargeable]);
 
   const isEmpty = series.every((s) => s.points.length === 0);
 
