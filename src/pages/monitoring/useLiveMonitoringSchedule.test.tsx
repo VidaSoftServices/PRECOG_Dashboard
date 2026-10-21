@@ -264,26 +264,6 @@ describe('useLiveMonitoringSchedule', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('refreshNow triggers an immediate extra tick without waiting for the rest of the current interval', async () => {
-    const sensors = makeSensors(5);
-    const { result } = renderHook(
-      () => useLiveMonitoringSchedule({ active: true, deviceId: 1, sensors, periods: 20, intervalMs: 3_000 }),
-      { wrapper: makeWrapper() },
-    );
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    act(() => {
-      result.current.refreshNow();
-    });
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-
   it('does nothing when there are no Sensors to rotate through', async () => {
     renderHook(() => useLiveMonitoringSchedule({ active: true, deviceId: 1, sensors: [], periods: 20, intervalMs: 3_000 }), {
       wrapper: makeWrapper(),
@@ -292,5 +272,158 @@ describe('useLiveMonitoringSchedule', () => {
       await vi.advanceTimersByTimeAsync(10_000);
     });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('useLiveMonitoringSchedule - manual refresh', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  const render = (active: boolean, count = 5) =>
+    renderHook(() => useLiveMonitoringSchedule({ active, deviceId: 1, sensors: makeSensors(count), periods: 20, intervalMs: 3_000 }), { wrapper: makeWrapper() });
+
+  it('fetches exactly the chosen Sensor once - also while the rotation is paused - and nothing else', async () => {
+    const { result } = render(false);
+    await act(async () => {
+      result.current.refreshSensors([3]);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]![1]).toMatchObject({ deviceId: 1, sensorId: 3, periods: 20 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1); // no rotation was started by it
+    expect(result.current.manualSensorId).toBeNull();
+  });
+
+  it('shows which Sensor is being refreshed and never runs two manual refreshes at once', async () => {
+    let finish!: () => void;
+    fetchMock.mockImplementationOnce(() => new Promise((resolve) => { finish = () => resolve([]); }));
+    const { result } = render(false);
+    await act(async () => {
+      result.current.refreshSensors([1]);
+    });
+    expect(result.current.manualSensorId).toBe(1);
+    await act(async () => {
+      result.current.refreshSensors([2]); // ignored: one is in flight
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      finish();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.manualSensorId).toBeNull();
+    await act(async () => {
+      result.current.refreshSensors([2]);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('holds the rotation back while it runs, so there are never two requests in flight', async () => {
+    let finish!: () => void;
+    fetchMock.mockResolvedValueOnce([]); // rotation tick 1 at t=0
+    fetchMock.mockImplementationOnce(() => new Promise((resolve) => { finish = () => resolve([]); })); // the manual one
+    const { result } = render(true);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      result.current.refreshSensors([4]);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(9_000); // the rotation's 3 s ticks fall due, but the manual request is still open
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      finish();
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3); // the rotation resumed
+  });
+
+  it('a 429 starts the shared cooldown: no further manual refresh, the rotation waits out Retry-After too', async () => {
+    const { result } = render(true);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0); // rotation tick 1
+    });
+    fetchMock.mockRejectedValueOnce(new ApiError({ status: 429, message: 'Too many requests', retryAfterSeconds: 30, raw: null }));
+    await act(async () => {
+      result.current.refreshSensors([2]);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.current.cooldownUntil).not.toBeNull();
+
+    await act(async () => {
+      result.current.refreshSensors([3]); // refused during the cooldown
+      await vi.advanceTimersByTimeAsync(25_000);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2); // neither the click nor the rotation fired
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000);
+    });
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(3); // rotation resumed after the cooldown
+    expect(result.current.cooldownUntil).toBeNull();
+  });
+
+  it('ends the cooldown by itself when the rotation is paused', async () => {
+    fetchMock.mockRejectedValueOnce(new ApiError({ status: 429, message: 'Too many requests', retryAfterSeconds: 10, raw: null }));
+    const { result } = render(false);
+    await act(async () => {
+      result.current.refreshSensors([1]);
+    });
+    expect(result.current.cooldownUntil).not.toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_500);
+    });
+    expect(result.current.cooldownUntil).toBeNull();
+    await act(async () => {
+      result.current.refreshSensors([1]);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('refreshes several Sensors one after another, in the given order, reporting progress, never two at once', async () => {
+    const resolvers: (() => void)[] = [];
+    fetchMock.mockImplementation(() => new Promise((resolve) => { resolvers.push(() => resolve([])); }));
+    const { result } = render(false);
+    await act(async () => {
+      result.current.refreshSensors([3, 1, 2]);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]![1]).toMatchObject({ sensorId: 3 });
+    expect(result.current.manualProgress).toEqual({ done: 0, total: 3 });
+    await act(async () => { resolvers[0]!(); await vi.advanceTimersByTimeAsync(0); });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]![1]).toMatchObject({ sensorId: 1 });
+    expect(result.current.manualProgress).toEqual({ done: 1, total: 3 });
+    await act(async () => { resolvers[1]!(); await vi.advanceTimersByTimeAsync(0); });
+    await act(async () => { resolvers[2]!(); await vi.advanceTimersByTimeAsync(0); });
+    expect(fetchMock.mock.calls.map((c) => (c[1] as { sensorId: number }).sensorId)).toEqual([3, 1, 2]);
+    expect(result.current.manualProgress).toBeNull();
+    expect(result.current.manualSensorId).toBeNull();
+  });
+
+  it('a failing Sensor does not stop the run, a 429 does', async () => {
+    fetchMock.mockRejectedValueOnce(new ApiError({ status: 500, message: 'boom', raw: null }));
+    fetchMock.mockRejectedValueOnce(new ApiError({ status: 429, message: 'Too many requests', retryAfterSeconds: 20, raw: null }));
+    const { result } = render(false);
+    await act(async () => {
+      result.current.refreshSensors([1, 2, 3, 4]);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2); // 1 failed -> went on to 2, which hit the limit -> 3 and 4 never asked
+    expect(result.current.cooldownUntil).not.toBeNull();
+    expect(result.current.manualProgress).toBeNull();
   });
 });

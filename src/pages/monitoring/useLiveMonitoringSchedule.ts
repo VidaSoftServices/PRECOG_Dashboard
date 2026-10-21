@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '@/api/client';
 import { fetchAndCacheTelemetryTrailingPeriods, type TelemetryFamily } from '@/api/hooks/telemetry';
@@ -25,8 +25,18 @@ export interface LiveMonitoringScheduleState {
   lastTickAt: Date | null;
   /** Non-null while backed off after a 429; the schedule is paused until this instant. */
   cooldownUntil: Date | null;
-  /** Manually advances the rotation by one Sensor right now, without waiting out the rest of the current interval. */
-  refreshNow: () => void;
+  /** The Sensor a manual refresh (see refreshSensors) has in flight right now, or null. */
+  manualSensorId: number | null;
+  /** Progress of a manual refresh of several Sensors ("Refreshing 5 / 12"), or null when none runs. */
+  manualProgress: { done: number; total: number } | null;
+  /**
+   * Refreshes the given Sensors once, right now, one after another (also while the rotation is paused) - what the per-Sensor
+   * refresh icon (one id) and "Refresh shown" (every Sensor on screen) do. It never overlaps another Live Monitoring request:
+   * it does nothing while the rotation's tick or another manual refresh is in flight, or while a 429 cooldown runs (callers
+   * disable their controls then). A 429 starts the same shared cooldown the rotation uses - it also holds the rotation back -
+   * and ends the run; any other failure stays on that Sensor's own card and the run goes on with the next Sensor.
+   */
+  refreshSensors: (sensorIds: number[]) => void;
 }
 
 /**
@@ -77,14 +87,78 @@ export function useLiveMonitoringSchedule({
   const [activeSensorId, setActiveSensorId] = useState<number | null>(null);
   const [lastTickAt, setLastTickAt] = useState<Date | null>(null);
   const [cooldownUntil, setCooldownUntil] = useState<Date | null>(null);
-  const [manualNonce, setManualNonce] = useState(0);
+  const [manual, setManual] = useState<{ sensorId: number; done: number; total: number } | null>(null);
+  // Refs, because the rotation loop and refreshSensor must see each other's state without re-running the loop's effect.
+  const busyRef = useRef(false); // a Live Monitoring request is in flight (rotation tick or manual refresh) - never two at once
+  const cooldownRef = useRef(0); // epoch ms until which no request may start (0 = none)
+  const manualAbortRef = useRef<AbortController | null>(null);
+
+  const applyCooldown = useCallback((until: Date | null) => {
+    cooldownRef.current = until ? until.getTime() : 0;
+    setCooldownUntil(until);
+  }, []);
 
   // Sensor identity as a primitive dependency - an array literal is a new
   // reference every render even with the same ids, which would restart the
   // rotation (and the effect below) on every unrelated re-render otherwise.
   const sensorsKey = sensors.map((s) => `${s.id}:${s.family}`).join(',');
 
-  const refreshNow = useCallback(() => setManualNonce((n) => n + 1), []);
+  const refreshSensors = useCallback(
+    (sensorIds: number[]) => {
+      if (deviceId === undefined || busyRef.current || cooldownRef.current > Date.now()) return;
+      const targets = sensorIds.flatMap((id) => sensors.filter((s) => s.id === id));
+      if (targets.length === 0) return;
+      busyRef.current = true;
+      const controller = new AbortController();
+      manualAbortRef.current = controller;
+
+      void (async () => {
+        try {
+          for (const [index, sensor] of targets.entries()) {
+            if (controller.signal.aborted) return;
+            setManual({ sensorId: sensor.id, done: index, total: targets.length });
+            try {
+              await fetchAndCacheTelemetryTrailingPeriods(queryClient, { family: sensor.family, deviceId, sensorId: sensor.id, periods }, controller.signal);
+              if (!controller.signal.aborted) applyCooldown(null);
+            } catch (err) {
+              if (controller.signal.aborted) return;
+              if (err instanceof ApiError && err.status === 429) {
+                applyCooldown(new Date(Date.now() + (err.retryAfterSeconds ? err.retryAfterSeconds * 1000 : computeFallbackBackoffMs(1))));
+                return; // the API asked everyone to slow down: end the run
+              }
+              // Any other error stays on the Sensor's own query state (its card shows it), like a rotation tick's.
+            }
+          }
+        } finally {
+          if (manualAbortRef.current === controller) manualAbortRef.current = null;
+          busyRef.current = false;
+          if (!controller.signal.aborted) setManual(null);
+        }
+      })();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sensorsKey is the intentional stable proxy for `sensors`.
+    [sensorsKey, deviceId, periods, queryClient, applyCooldown],
+  );
+
+  // A manual 429 can happen while the rotation is paused, so nothing else would end the cooldown: end it when it elapses.
+  useEffect(() => {
+    if (!cooldownUntil) return;
+    const handle = setTimeout(() => {
+      if (cooldownRef.current === cooldownUntil.getTime()) applyCooldown(null);
+    }, Math.max(0, cooldownUntil.getTime() - Date.now()));
+    return () => clearTimeout(handle);
+  }, [cooldownUntil, applyCooldown]);
+
+  // A manual refresh belongs to the Device on screen: abort it when the Device (or the page) changes.
+  useEffect(
+    () => () => {
+      manualAbortRef.current?.abort();
+      manualAbortRef.current = null;
+      busyRef.current = false;
+      setManual(null);
+    },
+    [deviceId],
+  );
 
   useEffect(() => {
     if (!active || deviceId === undefined || sensors.length === 0) return;
@@ -97,10 +171,17 @@ export function useLiveMonitoringSchedule({
 
     async function runTick() {
       if (cancelled) return;
+      // One Live Monitoring request at a time: a manual refresh in flight, or a cooldown another path started, holds this tick back.
+      const holdMs = busyRef.current ? 250 : cooldownRef.current - Date.now();
+      if (holdMs > 0) {
+        timeoutHandle = setTimeout(runTick, holdMs);
+        return;
+      }
       const cycleStart = Date.now();
       const sensor = sensors[rotationIndex % sensors.length]!;
       rotationIndex = nextRotationIndex(rotationIndex, sensors.length);
       setActiveSensorId(sensor.id);
+      busyRef.current = true;
 
       let rateLimited = false;
       let cooldownMs = 0;
@@ -113,7 +194,7 @@ export function useLiveMonitoringSchedule({
         if (!cancelled) {
           consecutiveRateLimits = 0;
           setLastTickAt(new Date());
-          setCooldownUntil(null);
+          applyCooldown(null);
         }
       } catch (err) {
         // Aborted by cleanup (route change/Device switch) - not a real
@@ -123,13 +204,14 @@ export function useLiveMonitoringSchedule({
           rateLimited = true;
           consecutiveRateLimits += 1;
           cooldownMs = err.retryAfterSeconds ? err.retryAfterSeconds * 1000 : computeFallbackBackoffMs(consecutiveRateLimits);
-          setCooldownUntil(new Date(Date.now() + cooldownMs));
+          applyCooldown(new Date(Date.now() + cooldownMs));
         }
         // Any other error (network blip, one Sensor's own 404/500): leave it
         // on that Sensor's own query state via fetchQuery's normal caching -
         // partial failure must not stop the rotation for every other Sensor.
       }
 
+      busyRef.current = false;
       if (cancelled) return;
       setActiveSensorId(null);
 
@@ -144,10 +226,18 @@ export function useLiveMonitoringSchedule({
       cancelled = true;
       abortController.abort();
       if (timeoutHandle) clearTimeout(timeoutHandle);
+      busyRef.current = false;
       setActiveSensorId(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sensorsKey is the intentional stable proxy for `sensors` (see comment above); including the array itself would restart this effect every render.
-  }, [active, deviceId, sensorsKey, periods, intervalMs, queryClient, manualNonce]);
+  }, [active, deviceId, sensorsKey, periods, intervalMs, queryClient, applyCooldown]);
 
-  return { activeSensorId, lastTickAt, cooldownUntil, refreshNow };
+  return {
+    activeSensorId,
+    lastTickAt,
+    cooldownUntil,
+    manualSensorId: manual?.sensorId ?? null,
+    manualProgress: manual ? { done: manual.done, total: manual.total } : null,
+    refreshSensors,
+  };
 }

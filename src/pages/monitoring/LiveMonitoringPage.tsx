@@ -6,6 +6,8 @@ import {
   Body1Strong,
   Select,
   Button,
+  Input,
+  Spinner,
   Switch,
   MessageBar,
   MessageBarBody,
@@ -13,7 +15,7 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import { ArrowClockwise24Regular, DataTrending24Regular } from '@fluentui/react-icons';
+import { ArrowClockwise16Regular, ArrowClockwise24Regular, ChevronLeft24Regular, ChevronRight24Regular, DataTrending24Regular, Search24Regular } from '@fluentui/react-icons';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
@@ -41,13 +43,24 @@ const useStyles = makeStyles({
   statusBar: {
     display: 'flex',
     gap: tokens.spacingHorizontalM,
-    marginBottom: tokens.spacingVerticalL,
+    marginBottom: tokens.spacingVerticalS,
     flexWrap: 'wrap',
     alignItems: 'center',
   },
+  pager: {
+    display: 'flex',
+    gap: tokens.spacingHorizontalS,
+    alignItems: 'center',
+  },
+  explanation: {
+    display: 'block',
+    marginBottom: tokens.spacingVerticalL,
+    color: tokens.colorNeutralForeground3,
+  },
+  search: { minWidth: '260px' },
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
     gap: tokens.spacingHorizontalM,
   },
   card: {
@@ -55,6 +68,11 @@ const useStyles = makeStyles({
     display: 'flex',
     flexDirection: 'column',
     gap: tokens.spacingVerticalS,
+  },
+  headerActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: tokens.spacingHorizontalXS,
   },
   valueRow: {
     display: 'flex',
@@ -67,7 +85,23 @@ const useStyles = makeStyles({
   },
 });
 
-function SensorLiveCard({ deviceId, sensor, applicationMode }: { deviceId: number; sensor: SensorDto; applicationMode: 'continuous' | 'periodic' }) {
+function SensorLiveCard({
+  deviceId,
+  sensor,
+  applicationMode,
+  refreshing,
+  refreshDisabled,
+  onRefresh,
+}: {
+  deviceId: number;
+  sensor: SensorDto;
+  applicationMode: 'continuous' | 'periodic';
+  /** This Sensor's manual refresh is in flight. */
+  refreshing: boolean;
+  /** Another Live Monitoring request is in flight, or the API asked us to slow down. */
+  refreshDisabled: boolean;
+  onRefresh: () => void;
+}) {
   const styles = useStyles();
   const family = familyFor(applicationMode, sensor.direction);
   const curveFamily = isCurveFamily(family);
@@ -84,8 +118,22 @@ function SensorLiveCard({ deviceId, sensor, applicationMode }: { deviceId: numbe
     <Card className={styles.card}>
       <div className={styles.valueRow}>
         <Body1Strong>{sensor.name || sensor.externalSensorId}</Body1Strong>
-        {/* A Sensor in maintenance is being ignored on purpose, so its aging data must read as maintenance, not as a silent (stale) Sensor. */}
-        {!curveFamily && (sensor.maintenanceMode ? <MaintenancePill maintenanceMode /> : <FreshnessPill freshness={freshnessOf(latest?.measured)} />)}
+        <div className={styles.headerActions}>
+          {/* A Sensor in maintenance is being ignored on purpose, so its aging data must read as maintenance, not as a silent (stale) Sensor. */}
+          {!curveFamily && (sensor.maintenanceMode ? <MaintenancePill maintenanceMode /> : <FreshnessPill freshness={freshnessOf(latest?.measured)} />)}
+          {/* One-off refresh of just this Sensor; a curve Sensor has no trailing-periods reading to refresh. */}
+          {!curveFamily && (
+            <Button
+              appearance="subtle"
+              size="small"
+              icon={refreshing ? <Spinner size="extra-tiny" /> : <ArrowClockwise16Regular />}
+              aria-label={`Refresh ${sensor.name || sensor.externalSensorId}`}
+              title="Refresh this Sensor now"
+              disabled={refreshDisabled || refreshing}
+              onClick={onRefresh}
+            />
+          )}
+        </div>
       </div>
 
       {curveFamily ? (
@@ -137,12 +185,28 @@ function RateLimitBanner({ cooldownUntil }: { cooldownUntil: Date }) {
   );
 }
 
+const PAGE_SIZES = [12, 24, 48] as const;
+
+/** Lags the value behind by delayMs, so typing in the filter does not restart the refresh rotation on every keystroke. */
+function useDebounced<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const handle = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(handle);
+  }, [value, delayMs]);
+  return debounced;
+}
+
 export function LiveMonitoringPage() {
   const styles = useStyles();
   const navigate = useNavigate();
   const pageVisible = usePageVisible();
   const [deviceId, setDeviceId] = useNumberSearchParam('deviceId');
   const [live, setLive] = useState(true);
+  const [filterText, setFilterText] = useState('');
+  const [pageSize, setPageSize] = useState<number>(PAGE_SIZES[0]);
+  const [page, setPage] = useState(0);
+  const filter = useDebounced(filterText.trim().toLowerCase(), 500);
 
   const devicesQuery = useDevices();
   const deviceQuery = useDevice(deviceId);
@@ -154,15 +218,28 @@ export function LiveMonitoringPage() {
   const selectedId = deviceId ?? devices[0]?.id;
   const applicationMode = deviceQuery.data?.applicationMode as 'continuous' | 'periodic' | undefined;
 
-  // Only Sensors with a real trailing-periods concept belong in the
-  // rotation - a curve Sensor's card never fetches anything (see
-  // SensorLiveCard), so including it would just waste a turn every sweep.
+  // What the page shows is what it keeps fresh: a Device can have hundreds of Sensors, and one request every
+  // few seconds could never keep all of them current, so only the Sensors on screen (after the filter, one page of them)
+  // are in the rotation. Narrow the filter or turn the page to watch others.
+  const filtered = useMemo(
+    () =>
+      (sensorsQuery.data ?? []).filter(
+        (sensor) => filter === '' || (sensor.name ?? '').toLowerCase().includes(filter) || (sensor.externalSensorId ?? '').toLowerCase().includes(filter),
+      ),
+    [sensorsQuery.data, filter],
+  );
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, pageCount - 1);
+  const shown = useMemo(() => filtered.slice(safePage * pageSize, safePage * pageSize + pageSize), [filtered, safePage, pageSize]);
+
+  // Only Sensors with a real trailing-periods concept belong in the rotation - a curve Sensor's card never fetches anything
+  // (see SensorLiveCard), so including it would just waste a turn every sweep.
   const rotationSensors = useMemo<RotationSensor[]>(() => {
     if (!applicationMode) return [];
-    return (sensorsQuery.data ?? [])
+    return shown
       .map((sensor) => ({ id: sensor.id!, family: familyFor(applicationMode, sensor.direction) }))
       .filter((s) => !isCurveFamily(s.family));
-  }, [sensorsQuery.data, applicationMode]);
+  }, [shown, applicationMode]);
 
   const schedule = useLiveMonitoringSchedule({
     active: effectiveLive && selectedId !== undefined,
@@ -183,10 +260,18 @@ export function LiveMonitoringPage() {
     if (selectedId !== undefined && deviceId === undefined) setDeviceId(selectedId);
   }, [selectedId, deviceId, setDeviceId]);
 
+  useEffect(() => {
+    setPage(0);
+  }, [filter, pageSize, selectedId]);
+
   if (devicesQuery.isLoading) return <LoadingState label="Loading devices…" />;
   if (devicesQuery.isError) return <ErrorState error={devicesQuery.error} onRetry={() => devicesQuery.refetch()} />;
 
-  const refreshDisabled = schedule.cooldownUntil !== null || schedule.activeSensorId !== null;
+  const refreshDisabled = schedule.cooldownUntil !== null || schedule.activeSensorId !== null || schedule.manualSensorId !== null;
+  const refreshing = schedule.manualProgress;
+  const firstShown = filtered.length === 0 ? 0 : safePage * pageSize + 1;
+  const lastShown = safePage * pageSize + shown.length;
+  const seconds = POLL_INTERVALS_MS.liveMonitoringCycle / 1000;
 
   return (
     <>
@@ -213,10 +298,23 @@ export function LiveMonitoringPage() {
             </option>
           ))}
         </Select>
-        <Switch checked={live} onChange={(_, d) => setLive(d.checked)} label={live ? `Live (rotating refresh, every ${POLL_INTERVALS_MS.liveMonitoringCycle / 1000}s)` : 'Paused'} />
-        <Button icon={<ArrowClockwise24Regular />} onClick={schedule.refreshNow} disabled={refreshDisabled}>
-          Refresh now
-        </Button>
+        <Input
+          className={styles.search}
+          type="search"
+          aria-label="Filter Sensors"
+          placeholder="Filter Sensors by name…"
+          contentBefore={<Search24Regular />}
+          value={filterText}
+          onChange={(_, d) => setFilterText(d.value)}
+        />
+        <Select aria-label="Sensors per page" value={String(pageSize)} onChange={(_, d) => setPageSize(Number(d.value))}>
+          {PAGE_SIZES.map((n) => (
+            <option key={n} value={n}>
+              {n} per page
+            </option>
+          ))}
+        </Select>
+        <Switch checked={live} onChange={(_, d) => setLive(d.checked)} label={live ? 'Live: shown Sensors refresh in turn' : 'Paused'} />
         {!pageVisible && live && (
           <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
             Paused - tab not visible
@@ -224,19 +322,38 @@ export function LiveMonitoringPage() {
         )}
       </div>
 
-      <div className={styles.statusBar}>
-        {schedule.cooldownUntil ? (
-          <RateLimitBanner cooldownUntil={schedule.cooldownUntil} />
-        ) : (
-          <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-            {schedule.lastTickAt
-              ? `Rotation cycle last advanced ${formatRelative(schedule.lastTickAt)} - each Sensor refreshes roughly every ${Math.round((rotationSensors.length * POLL_INTERVALS_MS.liveMonitoringCycle) / 1000)}s, one at a time, to stay within the API's rate limit (see CLAUDE.md).`
-              : live && rotationSensors.length > 0
-                ? 'Starting rotation…'
-                : null}
+      {sensorsQuery.data && sensorsQuery.data.length > 0 && (
+        <div className={styles.statusBar}>
+          <div className={styles.pager}>
+            <Button icon={<ChevronLeft24Regular />} aria-label="Previous page" disabled={safePage === 0} onClick={() => setPage(safePage - 1)} />
+            <Text role="status">
+              {filtered.length === 0 ? 'No Sensor matches the filter' : `Showing ${firstShown}–${lastShown} of ${filtered.length} Sensors`}
+              {filter !== '' && ` (filtered from ${sensorsQuery.data.length})`}
+            </Text>
+            <Button icon={<ChevronRight24Regular />} aria-label="Next page" disabled={safePage >= pageCount - 1} onClick={() => setPage(safePage + 1)} />
+          </div>
+          <Button
+            icon={refreshing ? <Spinner size="tiny" /> : <ArrowClockwise24Regular />}
+            onClick={() => schedule.refreshSensors(rotationSensors.map((r) => r.id))}
+            disabled={refreshDisabled || rotationSensors.length === 0}
+          >
+            {refreshing ? `Refreshing ${Math.min(refreshing.done + 1, refreshing.total)} / ${refreshing.total}…` : 'Refresh shown'}
+          </Button>
+        </div>
+      )}
+      {schedule.cooldownUntil ? (
+        <RateLimitBanner cooldownUntil={schedule.cooldownUntil} />
+      ) : (
+        sensorsQuery.data &&
+        sensorsQuery.data.length > 0 && (
+          <Text size={200} className={styles.explanation}>
+            Only the Sensors shown here are refreshed automatically - one request every {seconds} s, in turn
+            {rotationSensors.length > 0 && `, so each one about every ${Math.max(seconds, rotationSensors.length * seconds)} s`}
+            {schedule.lastTickAt && ` (last request ${formatRelative(schedule.lastTickAt)})`}. The circular arrow on a card refreshes just that Sensor now;
+            "Refresh shown" refreshes all of them now, one after another. Use the filter or the page buttons to watch other Sensors.
           </Text>
-        )}
-      </div>
+        )
+      )}
 
       {deviceQuery.isError && <ErrorState error={deviceQuery.error} />}
       {sensorsQuery.isLoading && <LoadingState label="Loading sensors…" />}
@@ -245,12 +362,15 @@ export function LiveMonitoringPage() {
 
       {deviceQuery.data && sensorsQuery.data && sensorsQuery.data.length > 0 && (
         <div className={styles.grid}>
-          {sensorsQuery.data.map((sensor) => (
+          {shown.map((sensor) => (
             <SensorLiveCard
               key={sensor.id}
               deviceId={selectedId!}
               sensor={sensor}
               applicationMode={deviceQuery.data.applicationMode as 'continuous' | 'periodic'}
+              refreshing={schedule.manualSensorId === sensor.id}
+              refreshDisabled={refreshDisabled}
+              onRefresh={() => schedule.refreshSensors([sensor.id!])}
             />
           ))}
         </div>
