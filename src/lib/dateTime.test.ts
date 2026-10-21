@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { freshnessOf, formatDateTime, toApiIso, parseApiDate } from './dateTime';
+import { freshnessOf, formatDateTime, toApiIso, parseApiDate, formatTime, formatShortDateTime } from './dateTime';
 
 describe('freshnessOf', () => {
   it('is fresh within the fresh-minutes window', () => {
@@ -50,5 +50,21 @@ describe('toApiIso / parseApiDate round-trip', () => {
     expect(parseApiDate(null)).toBeNull();
     expect(parseApiDate('')).toBeNull();
     expect(parseApiDate('not-a-date')).toBeNull();
+  });
+});
+
+describe('formatTime', () => {
+  it('shows only the clock time as HH:mm:ss, and a dash for nothing', () => {
+    expect(formatTime(new Date(2026, 9, 21, 5, 3, 7))).toBe('05:03:07');
+    expect(formatTime(new Date(2026, 9, 21, 23, 59, 59))).toBe('23:59:59');
+    expect(formatTime(null)).toBe('—');
+    expect(formatTime('not a date')).toBe('—');
+  });
+});
+
+describe('formatShortDateTime', () => {
+  it('shows a two-digit year, month, day and the time', () => {
+    expect(formatShortDateTime(new Date(2026, 9, 21, 5, 3, 7))).toBe('26-10-21 05:03:07');
+    expect(formatShortDateTime(undefined)).toBe('—');
   });
 });

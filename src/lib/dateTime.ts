@@ -32,6 +32,20 @@ export function formatDateTime(value: string | Date | null | undefined): string 
   return format(date, 'yyyy-MM-dd HH:mm:ss');
 }
 
+/** Two-digit year, month, day and clock time, yy-MM-dd HH:mm:ss (local) - for the axis of an enlarged chart. */
+export function formatShortDateTime(value: string | Date | null | undefined): string {
+  const date = typeof value === 'string' ? parseApiDate(value) : value;
+  if (!date || !isValid(date)) return '—';
+  return format(date, 'yy-MM-dd HH:mm:ss');
+}
+
+/** Clock time only, HH:mm:ss (local) - for chart axes that span minutes, where the date is noise. */
+export function formatTime(value: string | Date | null | undefined): string {
+  const date = typeof value === 'string' ? parseApiDate(value) : value;
+  if (!date || !isValid(date)) return '—';
+  return format(date, 'HH:mm:ss');
+}
+
 export function formatDateTimeWithZone(value: string | Date | null | undefined): string {
   const formatted = formatDateTime(value);
   return formatted === '—' ? formatted : `${formatted} ${localZone()}`;

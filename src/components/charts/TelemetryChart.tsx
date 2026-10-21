@@ -16,7 +16,7 @@ import {
 import { Text, makeStyles, tokens } from '@fluentui/react-components';
 import type { TelemetryPoint } from '@/api/hooks/telemetry';
 import { seriesPalette, seriesDashPatterns, anomalyColors } from './palette';
-import { formatDateTime } from '@/lib/dateTime';
+import { formatDateTime, formatShortDateTime, formatTime } from '@/lib/dateTime';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
@@ -36,6 +36,15 @@ const useStyles = makeStyles({
   summary: {
     color: tokens.colorNeutralForeground3,
   },
+  // Visually hidden, still read by assistive technology (the chart's accessible description).
+  summaryHidden: {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    overflow: 'hidden',
+    clipPath: 'inset(50%)',
+    whiteSpace: 'nowrap',
+  },
 });
 
 export interface TelemetrySeriesInput {
@@ -54,6 +63,19 @@ interface TelemetryChartProps {
   showControlLimits?: boolean;
   title?: string;
   emptyLabel?: string;
+  /**
+   * 'dateTime' (default): x-axis ticks show month-day and clock time. 'time': ticks show only HH:mm:ss - for a short live window
+   * where every point is minutes apart at most; the tooltip then carries the full date and time of the point.
+   * 'fullDateTime': ticks show yy-MM-dd HH:mm:ss (an enlarged chart).
+   */
+  timeAxis?: 'dateTime' | 'time' | 'fullDateTime';
+  /**
+   * A small, glanceable chart: no tooltip on hover, a legend that cannot be clicked to hide a series, and the text summary is
+   * kept for assistive technology but not shown under the chart.
+   */
+  compact?: boolean;
+  /** Hovering a point enlarges its marker five times, so it is clear which value the tooltip shows. */
+  emphasizeHover?: boolean;
 }
 
 /**
@@ -72,6 +94,8 @@ export function unitLabelOfDataset(series: TelemetrySeriesInput[], datasetLabel:
   const owner = series.find((s) => datasetLabel === s.label) ?? series.find((s) => datasetLabel.startsWith(s.label + ' '));
   return owner?.unitLabel || undefined;
 }
+
+const POINT_RADIUS = 3;
 
 function anomalyPointColor(point: TelemetryPoint, base: string): string {
   const level = point.anomaly ?? Math.max(point.anomalyAbove ?? 0, point.anomalyBelow ?? 0);
@@ -94,7 +118,17 @@ function summarize(series: TelemetrySeriesInput[]): string {
   return parts.join(' · ');
 }
 
-export function TelemetryChart({ series, height = 320, mode = 'single', showControlLimits = false, title, emptyLabel }: TelemetryChartProps) {
+export function TelemetryChart({
+  series,
+  height = 320,
+  mode = 'single',
+  showControlLimits = false,
+  title,
+  emptyLabel,
+  timeAxis = 'dateTime',
+  compact = false,
+  emphasizeHover = false,
+}: TelemetryChartProps) {
   const styles = useStyles();
   const summaryId = useId();
 
@@ -119,6 +153,7 @@ export function TelemetryChart({ series, height = 320, mode = 'single', showCont
             borderColor: tokens.colorNeutralStroke2,
             borderDash: [6, 4],
             pointRadius: 0,
+            ...(emphasizeHover ? { pointHoverRadius: 0 } : {}),
             borderWidth: 1,
           },
           {
@@ -127,6 +162,7 @@ export function TelemetryChart({ series, height = 320, mode = 'single', showCont
             borderColor: tokens.colorNeutralStroke2,
             borderDash: [6, 4],
             pointRadius: 0,
+            ...(emphasizeHover ? { pointHoverRadius: 0 } : {}),
             borderWidth: 1,
           },
         );
@@ -142,6 +178,7 @@ export function TelemetryChart({ series, height = 320, mode = 'single', showCont
           borderColor: anomalyColors.warning,
           borderDash: [4, 4],
           pointRadius: 0,
+          ...(emphasizeHover ? { pointHoverRadius: 0 } : {}),
           borderWidth: 1.5,
         });
       }
@@ -154,7 +191,8 @@ export function TelemetryChart({ series, height = 320, mode = 'single', showCont
         borderDash: dash,
         spanGaps: false,
         tension: 0.2,
-        pointRadius: aligned.map((p) => (p ? 3 : 0)),
+        pointRadius: aligned.map((p) => (p ? POINT_RADIUS : 0)),
+        ...(emphasizeHover ? { pointHoverRadius: POINT_RADIUS * 5, pointHoverBorderWidth: 2 } : {}),
         pointBackgroundColor: aligned.map((p) => (p ? anomalyPointColor(p, color) : color)),
         borderWidth: 2,
       });
@@ -167,14 +205,19 @@ export function TelemetryChart({ series, height = 320, mode = 'single', showCont
     const chartOptions: ChartOptions<'line'> = {
       responsive: true,
       maintainAspectRatio: false,
+      // The marker that grows is the point the tooltip shows (nearest by x position), not only a point the cursor sits exactly on.
+      ...(emphasizeHover ? { interaction: { mode: 'index' as const, intersect: false } } : {}),
       animation: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? false : undefined,
       plugins: {
         title: { display: !!title, text: title },
-        legend: { position: 'top' },
+        // A compact chart's legend only names the lines: clicking it must not hide one.
+        legend: { position: 'top', ...(compact ? { onClick: () => undefined } : {}) },
         tooltip: {
+          enabled: !compact,
           mode: 'index',
           intersect: false,
           callbacks: {
+            ...(timeAxis !== 'dateTime' ? { title: (items) => (items[0] ? formatDateTime(items[0].label) : '') } : {}),
             // The unit comes from the API metadata of the series, never from the metric name.
             label(context) {
               const unit = unitLabelOfDataset(series, context.dataset.label);
@@ -191,7 +234,10 @@ export function TelemetryChart({ series, height = 320, mode = 'single', showCont
             minRotation: 0,
             callback(_value, index) {
               const label = labels[index];
-              return label ? formatDateTime(label).replace(/^\d{4}-/, '') : '';
+              if (!label) return '';
+              if (timeAxis === 'time') return formatTime(label);
+              if (timeAxis === 'fullDateTime') return formatShortDateTime(label);
+              return formatDateTime(label).replace(/^\d{4}-/, '');
             },
           },
         },
@@ -199,7 +245,7 @@ export function TelemetryChart({ series, height = 320, mode = 'single', showCont
     };
 
     return { data: chartData, options: chartOptions };
-  }, [series, mode, showControlLimits, title]);
+  }, [series, mode, showControlLimits, title, timeAxis, compact, emphasizeHover]);
 
   const isEmpty = series.every((s) => s.points.length === 0);
 
@@ -213,7 +259,7 @@ export function TelemetryChart({ series, height = 320, mode = 'single', showCont
         )}
       </div>
       {!isEmpty && (
-        <Text id={summaryId} size={200} className={styles.summary}>
+        <Text id={summaryId} size={200} className={compact ? styles.summaryHidden : styles.summary}>
           {summarize(series)}
         </Text>
       )}

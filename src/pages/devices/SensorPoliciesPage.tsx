@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Card,
   Text,
   Body1Strong,
   Input,
+  Select,
   Field,
   Button,
   Table,
@@ -29,6 +30,14 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useAppToast } from '@/components/ToastProvider';
 import { useSensor } from '@/api/hooks/sensors';
 import { MetricDefinitionCard } from './MetricDefinitionCard';
+import {
+  AGGREGATION_FUNCTION_OPTIONS,
+  DEFAULT_TIME_ZONE,
+  SCALE_OPTIONS,
+  SOURCE_DATA_KEY,
+  TIME_SCALE_OPTIONS,
+  timeZoneOptions,
+} from '@/lib/aggregationOptions';
 import {
   useAggregationPolicies,
   useUpdateAggregationPolicy,
@@ -305,40 +314,71 @@ function SetpointsCard({ deviceId, sensorId, bidirectional }: { deviceId: number
   );
 }
 
-function NewPolicyForm({ deviceId, sensorId }: { deviceId: number; sensorId: number }) {
+/** A required dropdown that starts on a prompt and only offers values the system knows. */
+function ChoiceField({
+  label,
+  hint,
+  value,
+  onChange,
+  options,
+  prompt = 'Choose…',
+}: {
+  label: string;
+  hint?: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly { value: string; label: string }[];
+  prompt?: string;
+}) {
+  return (
+    <Field label={label} required hint={hint}>
+      <Select value={value} onChange={(_, d) => onChange(d.value)}>
+        <option value="">{prompt}</option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </Select>
+    </Field>
+  );
+}
+
+export function NewPolicyForm({ deviceId, sensorId }: { deviceId: number; sensorId: number }) {
   const styles = useStyles();
   const toast = useAppToast();
   const create = useCreateAggregationPolicy(deviceId, sensorId);
   const [showForm, setShowForm] = useState(false);
-  const [sourceDataKey, setSourceDataKey] = useState('');
   const [timeScale, setTimeScale] = useState('');
   const [aggregationFunction, setAggregationFunction] = useState('');
   const [scale, setScale] = useState('');
   const [lookback, setLookback] = useState('');
   const [minIssueScore, setMinIssueScore] = useState('');
-  const [timeZone, setTimeZone] = useState('');
+  const [timeZone, setTimeZone] = useState(DEFAULT_TIME_ZONE);
+  const timeZones = useMemo(() => timeZoneOptions(), []);
 
   const reset = () => {
-    setSourceDataKey('');
     setTimeScale('');
     setAggregationFunction('');
     setScale('');
     setLookback('');
     setMinIssueScore('');
-    setTimeZone('');
+    setTimeZone(DEFAULT_TIME_ZONE);
   };
 
-  const canSubmit = sourceDataKey.trim() !== '' && timeScale.trim() !== '' && aggregationFunction.trim() !== '' && scale.trim() !== '' && Number(lookback) > 0;
+  const canSubmit = timeScale.trim() !== '' && aggregationFunction.trim() !== '' && scale.trim() !== '' && Number(lookback) > 0;
 
   const submit = async () => {
     const body: CreateAggregationPolicyRequest = {
-      sourceDataKey,
+      // Only measured values are aggregated: target and tolerance are Setpoint configuration, not a data key, and the same
+      // rule applies at every level. The API would accept other keys (Analysed, Anomaly, ...), but nothing here needs them.
+      sourceDataKey: SOURCE_DATA_KEY,
       timeScale,
       aggregationFunction,
       scale,
       lookback: Number(lookback),
       minIssueScore: minIssueScore ? Number(minIssueScore) : undefined,
-      timeZone: timeZone || undefined,
+      timeZone,
     };
     await create.mutateAsync(body);
     toast.success('Aggregation level created');
@@ -357,29 +397,29 @@ function NewPolicyForm({ deviceId, sensorId }: { deviceId: number; sensorId: num
   return (
     <Card className={styles.card}>
       <Body1Strong>New aggregation level</Body1Strong>
+      <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+        Aggregates the measured values. The Sensor's target and tolerance are not aggregated: for each time slice the setpoint that was in effect for the larger part of the slice applies.
+      </Text>
       <div className={styles.row}>
-        <Field label="Source data key" required hint='e.g. "Actual", "Analysed"'>
-          <Input value={sourceDataKey} onChange={(_, d) => setSourceDataKey(d.value)} />
-        </Field>
-        <Field label="Time scale" required hint='One of the 16 aggregation time scales, e.g. "hours4", "days3"'>
-          <Input value={timeScale} onChange={(_, d) => setTimeScale(d.value)} />
-        </Field>
-        <Field label="Aggregation function" required hint='e.g. "avg", "max"'>
-          <Input value={aggregationFunction} onChange={(_, d) => setAggregationFunction(d.value)} />
-        </Field>
+        <ChoiceField label="Time scale" hint="The length of one aggregated slice" value={timeScale} onChange={setTimeScale} options={TIME_SCALE_OPTIONS} />
+        <ChoiceField label="Aggregation function" hint="How the values of one slice are combined" value={aggregationFunction} onChange={setAggregationFunction} options={AGGREGATION_FUNCTION_OPTIONS} />
       </div>
       <div className={styles.row}>
         <Field label="Lookback" required hint="Must be greater than zero">
           <Input type="number" min="1" value={lookback} onChange={(_, d) => setLookback(d.value)} />
         </Field>
-        <Field label="Scale" required hint='A time unit (e.g. "Days", "Hours") or "periods"'>
-          <Input value={scale} onChange={(_, d) => setScale(d.value)} />
-        </Field>
+        <ChoiceField label="Scale" hint="The unit of Lookback" value={scale} onChange={setScale} options={SCALE_OPTIONS} />
         <Field label="Min issue score" hint="Defaults to 1">
           <Input type="number" value={minIssueScore} onChange={(_, d) => setMinIssueScore(d.value)} />
         </Field>
-        <Field label="Time zone" hint='IANA name, e.g. "Europe/Budapest". Defaults to UTC.'>
-          <Input value={timeZone} onChange={(_, d) => setTimeZone(d.value)} />
+        <Field label="Time zone" hint="Slices start and end at this zone's calendar boundaries">
+          <Select value={timeZone} onChange={(_, d) => setTimeZone(d.value)}>
+            {timeZones.map((z) => (
+              <option key={z.value} value={z.value}>
+                {z.label}
+              </option>
+            ))}
+          </Select>
         </Field>
       </div>
       {create.isError && <ErrorState error={create.error} />}

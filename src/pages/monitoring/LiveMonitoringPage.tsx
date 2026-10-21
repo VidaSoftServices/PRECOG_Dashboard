@@ -6,6 +6,12 @@ import {
   Body1Strong,
   Select,
   Button,
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogContent,
+  DialogSurface,
+  DialogTitle,
   Input,
   Spinner,
   Switch,
@@ -15,7 +21,7 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import { ArrowClockwise16Regular, ArrowClockwise24Regular, ChevronLeft24Regular, ChevronRight24Regular, DataTrending24Regular, Search24Regular } from '@fluentui/react-icons';
+import { ArrowClockwise16Regular, ArrowClockwise24Regular, FullScreenMaximize16Regular, ChevronLeft24Regular, ChevronRight24Regular, DataTrending24Regular, Search24Regular } from '@fluentui/react-icons';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
@@ -69,6 +75,13 @@ const useStyles = makeStyles({
     flexDirection: 'column',
     gap: tokens.spacingVerticalS,
   },
+  chartArea: {
+    cursor: 'zoom-in',
+  },
+  dialogSurface: {
+    maxWidth: '1200px',
+    width: '96vw',
+  },
   headerActions: {
     display: 'flex',
     alignItems: 'center',
@@ -113,6 +126,10 @@ function SensorLiveCard({
 
   const latest = trailing.data?.[trailing.data.length - 1];
   const neverFetched = trailing.data === undefined;
+  const [enlarged, setEnlarged] = useState(false);
+  const sensorLabel = sensor.name || sensor.externalSensorId || 'Sensor';
+  // One definition for the card and the enlarged view, so the modal always shows exactly the data the card has (it moves with every refresh).
+  const chartSeries = [{ label: sensorLabel, points: trailing.data ?? [], bidirectional: sensor.direction === 'bidirectional', unitLabel: sensor.unitLabel }];
 
   return (
     <Card className={styles.card}>
@@ -122,6 +139,16 @@ function SensorLiveCard({
           {/* A Sensor in maintenance is being ignored on purpose, so its aging data must read as maintenance, not as a silent (stale) Sensor. */}
           {!curveFamily && (sensor.maintenanceMode ? <MaintenancePill maintenanceMode /> : <FreshnessPill freshness={freshnessOf(latest?.measured)} />)}
           {/* One-off refresh of just this Sensor; a curve Sensor has no trailing-periods reading to refresh. */}
+          {!curveFamily && !neverFetched && !trailing.isError && (
+            <Button
+              appearance="subtle"
+              size="small"
+              icon={<FullScreenMaximize16Regular />}
+              aria-label={`Enlarge chart of ${sensorLabel}`}
+              title="Open the chart in a large window"
+              onClick={() => setEnlarged(true)}
+            />
+          )}
           {!curveFamily && (
             <Button
               appearance="subtle"
@@ -159,16 +186,33 @@ function SensorLiveCard({
               {latest ? formatRelative(latest.measured) : 'no data'}
             </Text>
           </div>
-          <TelemetryChart
-            series={[{ label: sensor.name || sensor.externalSensorId || 'Sensor', points: trailing.data ?? [], bidirectional: sensor.direction === 'bidirectional', unitLabel: sensor.unitLabel }]}
-            height={160}
-            mode="single"
-          />
-          <Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
-            {trailing.isFetching ? 'Refreshing…' : `Dashboard checked ${formatRelative(new Date(trailing.dataUpdatedAt))}`}
-          </Text>
+          {/* Clicking the chart opens it large (mouse convenience); the keyboard and screen-reader route is the "Enlarge" button above. */}
+          <div className={styles.chartArea} onClick={() => setEnlarged(true)}>
+            <TelemetryChart series={chartSeries} height={160} mode="single" timeAxis="time" compact />
+          </div>
         </>
       )}
+      <Dialog open={enlarged} onOpenChange={(_, d) => setEnlarged(d.open)}>
+        <DialogSurface className={styles.dialogSurface}>
+          <DialogBody>
+            <DialogTitle>{sensorLabel}</DialogTitle>
+            <DialogContent>
+              <div className={styles.valueRow}>
+                <span className={styles.bigValue}>{latest?.actual ?? '—'}</span>
+                <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+                  {latest ? `${formatDateTime(latest.measured)} (${formatRelative(latest.measured)})` : 'no data'}
+                </Text>
+              </div>
+              <TelemetryChart series={chartSeries} height={460} mode="single" showControlLimits timeAxis="fullDateTime" emphasizeHover />
+            </DialogContent>
+            <DialogActions>
+              <Button appearance="primary" onClick={() => setEnlarged(false)}>
+                Close
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
     </Card>
   );
 }
@@ -185,7 +229,7 @@ function RateLimitBanner({ cooldownUntil }: { cooldownUntil: Date }) {
   );
 }
 
-const PAGE_SIZES = [12, 24, 48] as const;
+const PAGE_SIZES = [10, 25, 50] as const;
 
 /** Lags the value behind by delayMs, so typing in the filter does not restart the refresh rotation on every keystroke. */
 function useDebounced<T>(value: T, delayMs: number): T {
@@ -350,7 +394,7 @@ export function LiveMonitoringPage() {
             Only the Sensors shown here are refreshed automatically - one request every {seconds} s, in turn
             {rotationSensors.length > 0 && `, so each one about every ${Math.max(seconds, rotationSensors.length * seconds)} s`}
             {schedule.lastTickAt && ` (last request ${formatRelative(schedule.lastTickAt)})`}. The circular arrow on a card refreshes just that Sensor now;
-            "Refresh shown" refreshes all of them now, one after another. Use the filter or the page buttons to watch other Sensors.
+            "Refresh shown" refreshes all of them now, one after another.
           </Text>
         )
       )}
