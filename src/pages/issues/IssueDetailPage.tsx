@@ -6,6 +6,8 @@ import {
   Body1Strong,
   Button,
   Select,
+  Textarea,
+  Field,
   Badge,
   MessageBar,
   MessageBarBody,
@@ -24,6 +26,7 @@ import {
   useIssue,
   useIssueGroup,
   useReviewIssue,
+  useUpdateIssue,
   useReopenIssue,
   useAssignIssueCategory,
   useUngroupIssue,
@@ -190,6 +193,56 @@ function OllamaSummary({ issueId }: { issueId: number }) {
   );
 }
 
+/** The Issue.Message column length (the API does not validate it, the database refuses a longer text). */
+const MAX_FEEDBACK_LENGTH = 440;
+
+/**
+ * The technician's feedback text of an Issue (the Issue's message): the Admin writes or edits it here, independent of the
+ * verdict buttons - before, together with or after a review. Saved with PUT /api/Issue/{id} carrying only the message, so it
+ * never changes the review state, never touches training eligibility and schedules no retraining.
+ */
+export function IssueFeedbackEditor({ deviceId, issueId, message, reviewed }: { deviceId: number; issueId: number; message: string; reviewed: boolean }) {
+  const toast = useAppToast();
+  const update = useUpdateIssue(deviceId, issueId);
+  const [text, setText] = useState(message);
+  const changed = text !== message;
+  const tooLong = text.length > MAX_FEEDBACK_LENGTH;
+
+  return (
+    <Field
+      label="Feedback"
+      hint={
+        reviewed
+          ? 'Shown with the Issue (and on the Device). Kept as you wrote it.'
+          : 'Shown with the Issue (and on the Device). While the Issue is not reviewed, a new automatic analysis may replace this text; once a verdict is recorded it stays.'
+      }
+      validationState={tooLong ? 'error' : 'none'}
+      validationMessage={tooLong ? `At most ${MAX_FEEDBACK_LENGTH} characters.` : `${text.length} / ${MAX_FEEDBACK_LENGTH}`}
+    >
+      <Textarea
+        value={text}
+        rows={3}
+        resize="vertical"
+        disabled={update.isPending}
+        onChange={(_, d) => setText(d.value)}
+      />
+      <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, marginTop: tokens.spacingVerticalS }}>
+        <Button
+          appearance="primary"
+          disabled={!changed || tooLong || update.isPending}
+          onClick={() => update.mutate({ message: text }, { onSuccess: () => toast.success('Feedback saved') })}
+        >
+          {update.isPending ? 'Saving…' : 'Save feedback'}
+        </Button>
+        <Button appearance="secondary" disabled={!changed || update.isPending} onClick={() => setText(message)}>
+          Revert
+        </Button>
+      </div>
+      {update.isError && <ErrorState error={update.error} />}
+    </Field>
+  );
+}
+
 export function IssueDetailPage() {
   const styles = useStyles();
   const navigate = useNavigate();
@@ -254,7 +307,17 @@ export function IssueDetailPage() {
               <ReviewStatePill reviewState={issue.reviewState} />
               {!issue.isCanonical && <Badge appearance="outline">member of canonical #{issue.canonicalIssueId}</Badge>}
             </div>
-            {issue.message && <Text>{issue.message}</Text>}
+            {isAdmin ? (
+              <IssueFeedbackEditor
+                key={issue.id}
+                deviceId={issue.deviceId!}
+                issueId={id}
+                message={issue.message ?? ''}
+                reviewed={issue.reviewState !== 'PendingReview'}
+              />
+            ) : (
+              issue.message && <Text>{issue.message}</Text>
+            )}
 
             {isAdmin && issue.reviewState === 'PendingReview' && (
               <div className={styles.reviewButtons}>

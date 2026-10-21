@@ -71,7 +71,10 @@ export function useCreateIssue(deviceId: number) {
   });
 }
 
-/** Legacy Confirmed/IsAnomaly-style edit - prefer useReviewIssue for the authoritative reviewState workflow. */
+/**
+ * PUT /api/Issue/{id}. The dashboard uses it ONLY to edit the feedback text (`{ message }`, IssueFeedbackEditor); the legacy
+ * Confirmed/IsAnomaly fields are never sent - the verdict always goes through useReviewIssue (the authoritative reviewState workflow).
+ */
 export function useUpdateIssue(deviceId: number, issueId: number) {
   const queryClient = useQueryClient();
   return useMutation({
