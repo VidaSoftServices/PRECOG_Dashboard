@@ -114,6 +114,10 @@ function NewDeviceDialog({ open, onClose }: { open: boolean; onClose: () => void
   );
 }
 
+// The columns were 150 px wide each (the grid default); Last heartbeat holds a status pill and the relative age, so it is 50% wider (225 px).
+// Still resizable by the user.
+const COLUMN_SIZING = { heartbeat: { defaultWidth: 225, idealWidth: 225, minWidth: 120 } };
+
 export function DeviceListPage() {
   const styles = useStyles();
   const navigate = useNavigate();
@@ -204,7 +208,13 @@ export function DeviceListPage() {
       )}
 
       {devicesQuery.isSuccess && filtered.length > 0 && breakpoint === 'desktop' && (
-        <DataGrid items={filtered} columns={columns} getRowId={(item) => item.id} resizableColumns>
+        <DataGrid
+          items={filtered}
+          columns={columns}
+          getRowId={(item) => item.id}
+          resizableColumns
+          columnSizingOptions={COLUMN_SIZING}
+        >
           <DataGridHeader>
             <DataGridRow>{({ renderHeaderCell }) => <DataGridHeaderCell>{renderHeaderCell()}</DataGridHeaderCell>}</DataGridRow>
           </DataGridHeader>
