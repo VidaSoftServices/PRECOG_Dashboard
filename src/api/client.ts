@@ -57,6 +57,12 @@ export class ApiError extends Error {
  *         API's own existence-hiding pattern, 409->actionable conflict
  *         message, 429->backoff countdown - see queryClient.ts's retry policy).
  */
+/** True for a fetch that ended because its AbortSignal fired (the error is an AbortError, or the request's own signal is aborted). */
+export function isAbort(error: unknown, request?: Request): boolean {
+  if (request?.signal?.aborted) return true;
+  return typeof error === 'object' && error !== null && (error as { name?: unknown }).name === 'AbortError';
+}
+
 const authMiddleware: Middleware = {
   onRequest({ request }) {
     const token = getToken();
@@ -75,7 +81,12 @@ const authMiddleware: Middleware = {
 
     throw new ApiError(normalized);
   },
-  onError({ error }) {
+  onError({ error, request }) {
+    // A request the caller cancelled on purpose (its AbortSignal fired: a page or Device switch, a superseded query, an unmount)
+    // is NOT a connection failure. Keep it as the abort it is, so nothing downstream - the global "Connection lost" toast
+    // above all - mistakes it for an unreachable API (paging quickly through Live Monitoring used to raise that toast over
+    // and over, because every page change aborts the requests still in flight).
+    if (isAbort(error, request)) return error instanceof Error ? error : new DOMException('The request was aborted.', 'AbortError');
     // fetch() itself threw - offline, DNS failure, connection refused, CORS.
     // No Response object exists yet, so this never went through onResponse.
     if (error instanceof ApiError) return error;
