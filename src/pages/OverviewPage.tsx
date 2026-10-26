@@ -8,7 +8,7 @@ import { FreshnessPill } from '@/components/StatusPill';
 import { useDevices, useDevice } from '@/api/hooks/devices';
 import { useIssues } from '@/api/hooks/issues';
 import { useTrainingRequests } from '@/api/hooks/training';
-import { useNumberSearchParam } from '@/lib/useNumberSearchParam';
+import { useDeviceSelection } from '@/lib/selectedDevice';
 import { freshnessOf, formatRelative } from '@/lib/dateTime';
 import { activateProps } from '@/lib/useActivateProps';
 
@@ -45,10 +45,9 @@ export function OverviewPage() {
   const styles = useStyles();
   const navigate = useNavigate();
   const devicesQuery = useDevices();
-  const [deviceId, setDeviceId] = useNumberSearchParam('deviceId');
-
   const devices = devicesQuery.data ?? [];
-  const effectiveDeviceId = deviceId ?? devices[0]?.id;
+  // The Device chosen on any page stays chosen while moving between menu items (see lib/selectedDevice.ts).
+  const [effectiveDeviceId, setDeviceId] = useDeviceSelection(devicesQuery.data);
 
   const deviceQuery = useDevice(effectiveDeviceId);
   const issuesQuery = useIssues(effectiveDeviceId, { includeMembers: false, take: 500 });

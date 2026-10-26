@@ -201,8 +201,9 @@ One `apiClient` instance, one `authMiddleware`:
   **never** assume the uniform `ProblemDetails` envelope the integration
   guide claims; the running API has no such middleware, confirmed against
   `Program.cs`), and throws a typed `ApiError`.
-- **401** — `notifyUnauthorized()` clears the session centrally; every
-  `RequireAuth`-guarded route reacts via `useSyncExternalStore`.
+- **401** — `notifyUnauthorized()` marks the access as expired centrally; the
+  sign-in dialog (`SessionExpiredDialog`) reacts via `useSyncExternalStore`
+  and the page stays where it is.
 - **403/404/409** — left on `ApiError.status` for the call site to render
   the page-appropriate state.
 - **429** — `ApiError.retryAfterSeconds` from the `Retry-After` header;
@@ -1079,9 +1080,11 @@ and the Admin-only transition link.
 - **No silent reauthentication loop.** The old dashboard held the plaintext
   password resident in React state for the whole session specifically to
   support a 14m30s auto-refresh `setInterval`. This dashboard does not do
-  that, anywhere. A 401 from any call, on any page, clears the session
-  (`notifyUnauthorized`) and the router sends the user to `/login` with the
-  attempted route preserved (`location.state.from`) for return-after-login.
+  that, anywhere. A 401 from any call, on any page, does **not** sign the
+  user out and does not redirect: `notifyUnauthorized` marks the access as
+  expired (`isReauthRequired`) and `SessionExpiredDialog` asks for the password
+  again **over the current page** (see "Session expiry: sign in again in
+  place" below). Signing out (or closing the tab) is what ends the session.
 - **Logout**: clears the in-memory session; nothing to invalidate
   server-side beyond the token's own natural expiry (there's no logout/
   revoke-token endpoint).
@@ -1286,3 +1289,17 @@ The Issue detail page's first card has an Admin-only **Feedback** box (`IssueFee
 ## Cancelled requests are not "Connection lost"
 
 A request the caller cancels on purpose (its `AbortSignal` fires - a Live Monitoring page or Device switch, a superseded query, an unmount) used to be turned by `client.ts`'s `onError` middleware into an `ApiError` with `status: 0`, which `notifyGlobalFailure` toasted as **"Connection lost - Check your connection and try again."**: paging quickly through Live Monitoring aborted the requests still in flight on every page change and raised the toast again and again. `client.ts` now keeps such an error as the `AbortError` it is (`isAbort`: the error is named `AbortError`, or the request's own signal is aborted), so it never becomes an `ApiError`, the global toast ignores it, and a genuine network failure (offline, DNS, refused, CORS) is still a status-0 `ApiError` with its toast. Tests: `client.test.ts` (an aborted request stays an AbortError and raises no toast; a `TypeError: Failed to fetch` is still status 0; `isAbort`). Checked in a real Chromium with a slow mocked API: five quick Next/Previous page rounds gave 10 toasts before the fix and none after.
+
+## The selected Device follows you between pages
+
+Choosing a Device once is enough while moving between menu items. `useDeviceSelection(devices)` (`src/lib/selectedDevice.ts`) replaces the per-page `deviceId` search-param handling on Overview, Live Monitoring, Smart Analytics (Device A), Issues and Training, backed by `SelectedDeviceProvider` (`src/app/`, mounted in the app shell around the page outlet). Order of precedence: (1) a `deviceId` in the page's URL (a shared link or the page's own earlier choice) wins; (2) otherwise the Device chosen on any other page, but only while it is still in the loaded Device list (a deleted or no longer granted Device is never carried along); (3) otherwise the first Device. The result is always written back into the URL with `replace` (so `?deviceId=N` shows on every such page) and remembered for the next page. The page's Device picker calls the returned setter. Opening a Device's detail page (`/devices/:id`) also makes it the selected Device. The choice lives **in memory only** (a UI convenience: nothing is stored in the browser, and it resets on sign-out or a full reload - the URL of the page you reload still carries it). Knowledge Sharing (source/target pair), Ollama Jobs (job id) and Smart Analytics' Device B (`compareDeviceId`) keep their own parameters. Tests: `selectedDevice.test.tsx` (default and URL write-back, carried to the next page, URL wins, a Device that vanished is not carried, no invention while the list loads); checked in a real Chromium (mocked API): Device 3 picked on Live Monitoring stays selected on Smart Analytics, Issues, Training, Overview and back; opening Device 2 from the list makes Issues show Device 2.
+
+## Session expiry: sign in again in place
+
+The access token lives 15 minutes and the API has no refresh endpoint (a new key needs the username and password), and this dashboard never keeps the password. Instead of throwing the person out to `/login` when it expires, it asks for the password again **over the current page**, so the page, its filters, an open chart and anything typed stay exactly as they were.
+
+- **Detection**: any request answered `401` while signed in. `authStore.notifyUnauthorized()` no longer clears the session; it sets `reauthRequired` (once), after which `getToken()` returns null so the refused token is not sent again. With no session (a wrong password on the login form) a 401 does nothing, as before.
+- **While expired**, `client.ts` fails page requests fast with a 401 `ApiError` ("Your session has expired - sign in again to continue.") without calling the API; only `/api/Authentication/*` goes through. Nothing hammers the API with a dead token.
+- **`SessionExpiredDialog`** (`src/auth/`, mounted in the app shell; an alert dialog that cannot be dismissed any other way): the **username is shown read-only** (kept in memory by `AuthContext`; it is not a secret) so it can only continue as the account that was signed in - **Sign out** is the way to change account; a password field; a wrong password shows the API's message and keeps the dialog open. The password is held only by the field while typing and cleared after every attempt; it is never stored and there is no automatic re-sign-in.
+- **After a successful sign-in** the dialog closes, the new token is used, and every query that had failed is refetched (`invalidateQueries` on error-state queries); the toast says an action that did not go through has to be repeated (a mutation refused with 401 is not replayed automatically). Live Monitoring's rotation simply carries on with the new token.
+- Not covered, by design: nothing renews the access before it expires (that would need either the password kept in memory or a new server endpoint; the in-place dialog was chosen as the most secure option). Tests: `authStore.test.ts`, `RequireAuth.test.tsx` (a 401 keeps the page; sign-out still redirects), `client.test.ts` (fail-fast while expired, the sign-in call still goes through), `SessionExpiredDialog.test.tsx` (opens on 401, same-user read-only name, wrong password, success keeps typed text and the failed query recovers, Sign out); checked in a real Chromium with a mocked API (token key-1 -> key-2, no redirect, same URL).

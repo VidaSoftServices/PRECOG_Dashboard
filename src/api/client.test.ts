@@ -76,3 +76,27 @@ describe('a request the caller cancelled is not a connection failure', () => {
     expect(isAbort(new Error('anything'), new Request('http://localhost/x', { signal: controller.signal }))).toBe(true);
   });
 });
+
+describe('while the access is expired and the sign-in dialog is open', () => {
+  it('does not send page requests with the refused token (fails fast with a 401 ApiError) but still lets the sign-in call through', async () => {
+    const authStore = await import('@/auth/authStore');
+    const { apiClient } = await import('./client');
+    const { fetchMock } = await import('@/test/mockFetch');
+    authStore.setSession({ token: 'old', principalType: 'User', expiresAt: new Date(Date.now() + 60_000).toISOString() });
+    authStore.notifyUnauthorized();
+    fetchMock().mockClear();
+
+    const error = await apiClient.GET('/api/Devices').then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(401);
+    expect(fetchMock()).not.toHaveBeenCalled();
+
+    fetchMock().mockResolvedValueOnce(new Response(JSON.stringify({ _HMAC_Key: 'new' }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    await apiClient.POST('/api/Authentication/Request_HMAC_Key', { body: { userName: 'anna', password: 'x' } });
+    expect(fetchMock()).toHaveBeenCalledTimes(1);
+    authStore.clearSession();
+  });
+});

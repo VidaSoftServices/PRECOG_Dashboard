@@ -11,7 +11,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useAppToast } from '@/components/ToastProvider';
 import { useDevices } from '@/api/hooks/devices';
 import { useIssues, useGroupIssues } from '@/api/hooks/issues';
-import { useNumberSearchParam } from '@/lib/useNumberSearchParam';
+import { useDeviceSelection } from '@/lib/selectedDevice';
 import { formatDateTime } from '@/lib/dateTime';
 import { useAuth } from '@/auth/AuthContext';
 
@@ -45,7 +45,6 @@ export function IssueListPage() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const toast = useAppToast();
-  const [deviceId, setDeviceId] = useNumberSearchParam('deviceId');
   const [includeMembers, setIncludeMembers] = useState(false);
   const [reviewFilter, setReviewFilter] = useState('all');
   const [groupMode, setGroupMode] = useState(false);
@@ -55,7 +54,7 @@ export function IssueListPage() {
 
   const devicesQuery = useDevices();
   const devices = devicesQuery.data ?? [];
-  const effectiveDeviceId = deviceId ?? devices[0]?.id;
+  const [effectiveDeviceId, setDeviceId] = useDeviceSelection(devicesQuery.data);
 
   const issuesQuery = useIssues(effectiveDeviceId, { includeMembers, take: 200 });
   const groupIssues = useGroupIssues(effectiveDeviceId ?? -1);

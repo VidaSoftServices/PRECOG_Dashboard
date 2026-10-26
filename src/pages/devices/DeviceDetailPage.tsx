@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useSelectedDevice } from '@/lib/selectedDevice';
 import {
   Button,
   Card,
@@ -339,6 +340,12 @@ export function DeviceDetailPage() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const toast = useAppToast();
+
+  // Opening a Device makes it the Device the other pages work with (see lib/selectedDevice.ts).
+  const { setSelectedDeviceId } = useSelectedDevice();
+  useEffect(() => {
+    if (Number.isInteger(id)) setSelectedDeviceId(id);
+  }, [id, setSelectedDeviceId]);
 
   // Polled so "Last heartbeat" keeps telling the truth while this page is
   // open - the Device reports liveness on its own, without any user action.

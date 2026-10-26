@@ -50,7 +50,27 @@ describe('RequireAuth', () => {
     expect(await screen.findByText('Protected Content')).toBeInTheDocument();
   });
 
-  it('stops rendering protected content the moment the session is torn down (e.g. by a 401 anywhere - see authStore.test.ts for that half of the chain)', async () => {
+  it('stops rendering protected content the moment the session is torn down (sign-out)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ userId: 1, companyId: 1, isCompanyAdmin: false }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+    authStore.setSession({ token: 'abc', principalType: 'User', expiresAt: new Date(Date.now() + 60_000).toISOString() });
+
+    renderProtectedApp(['/']);
+    expect(await screen.findByText('Protected Content')).toBeInTheDocument();
+
+    authStore.clearSession();
+
+    expect(await screen.findByText('Login Page')).toBeInTheDocument();
+  });
+
+  it('keeps the protected page when the access expires (a 401): no redirect to the login page', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
@@ -67,6 +87,7 @@ describe('RequireAuth', () => {
 
     authStore.notifyUnauthorized();
 
-    expect(await screen.findByText('Login Page')).toBeInTheDocument();
+    expect(screen.getByText('Protected Content')).toBeInTheDocument();
+    expect(screen.queryByText('Login Page')).not.toBeInTheDocument();
   });
 });

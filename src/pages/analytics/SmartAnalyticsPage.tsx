@@ -31,6 +31,7 @@ import { useTelemetryDateRange, familyFor } from '@/api/hooks/telemetry';
 import { useKnowledgeCompatibility } from '@/api/hooks/knowledgeSharing';
 import { useIssues } from '@/api/hooks/issues';
 import { useNumberSearchParam } from '@/lib/useNumberSearchParam';
+import { useDeviceSelection } from '@/lib/selectedDevice';
 import { filterSensors } from '@/lib/sensorFilter';
 import { toApiIso, formatDateTime, parseApiDate } from '@/lib/dateTime';
 import { useAuth } from '@/auth/AuthContext';
@@ -345,14 +346,14 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
 export function SmartAnalyticsPage() {
   const styles = useStyles();
   const [mode, setMode] = useState<'single' | 'compare'>('single');
-  const [deviceIdA, setDeviceIdA] = useNumberSearchParam('deviceId');
   const [deviceIdB, setDeviceIdB] = useNumberSearchParam('compareDeviceId');
   const [range, setRange] = useState(defaultRange);
 
   const devicesQuery = useDevices();
   const devices = devicesQuery.data ?? [];
 
-  const effectiveA = deviceIdA ?? devices[0]?.id;
+  // Device A is the Device chosen on any page (it stays chosen while moving between menu items).
+  const [effectiveA, setDeviceIdA] = useDeviceSelection(devicesQuery.data);
 
   const validationMessage = range.start >= range.end ? 'Start must be before end.' : undefined;
 

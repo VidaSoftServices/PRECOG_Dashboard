@@ -5,7 +5,7 @@
 // other than local Docker).
 import createClient, { type Middleware } from 'openapi-fetch';
 import type { AuthPatchedPaths } from './authHeaderPatch';
-import { getToken, notifyUnauthorized } from '@/auth/authStore';
+import { getToken, isReauthRequired, notifyUnauthorized } from '@/auth/authStore';
 import { normalizeApiError, type NormalizedApiError } from './errors';
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL as string | undefined;
@@ -65,6 +65,12 @@ export function isAbort(error: unknown, request?: Request): boolean {
 
 const authMiddleware: Middleware = {
   onRequest({ request }) {
+    // The access has expired and the sign-in dialog is open: do not ask the API with a token it already refused (every page
+    // request would just be another 401). Fail fast instead; the page keeps its state and its queries are refetched after the
+    // person signs in again. The sign-in call itself must still go through.
+    if (isReauthRequired() && !request.url.includes('/api/Authentication/')) {
+      throw new ApiError({ status: 401, message: 'Your session has expired - sign in again to continue.', raw: null });
+    }
     const token = getToken();
     if (token) request.headers.set('HMAC_Key', token);
     return request;

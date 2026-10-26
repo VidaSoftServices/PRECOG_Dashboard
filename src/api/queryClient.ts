@@ -43,9 +43,9 @@ export function retryDelay(failureCount: number, error: unknown): number {
  *   - a 429 - a policy-level rate limit, with a concrete wait time from the
  *     server, useful to see even if the underlying page doesn't have room
  *     for a persistent banner.
- * 401 is deliberately not toasted here - the redirect to /login (triggered
- * by authStore.notifyUnauthorized in client.ts) is feedback enough on its
- * own and a toast would just be noise on top of a full navigation.
+ * 401 is deliberately not toasted here - the sign-in dialog that opens over the
+ * page (triggered by authStore.notifyUnauthorized in client.ts) is feedback
+ * enough on its own and a toast would just be noise on top of it.
  */
 /** Exported for unit testing - see queryClient.test.ts. */
 export function notifyGlobalFailure(error: unknown): void {

@@ -32,7 +32,7 @@ import { TelemetryChart } from '@/components/charts/TelemetryChart';
 import { useDevices, useDevice } from '@/api/hooks/devices';
 import { useSensors } from '@/api/hooks/sensors';
 import { useTelemetryTrailingPeriods, familyFor, isCurveFamily } from '@/api/hooks/telemetry';
-import { useNumberSearchParam } from '@/lib/useNumberSearchParam';
+import { useDeviceSelection } from '@/lib/selectedDevice';
 import { filterSensors } from '@/lib/sensorFilter';
 import { usePageVisible } from '@/lib/usePageVisible';
 import { formatRelative, formatDateTime, freshnessOf } from '@/lib/dateTime';
@@ -267,7 +267,6 @@ export function LiveMonitoringPage() {
   const styles = useStyles();
   const navigate = useNavigate();
   const pageVisible = usePageVisible();
-  const [deviceId, setDeviceId] = useNumberSearchParam('deviceId');
   const [live, setLive] = useState(true);
   const [filterText, setFilterText] = useState('');
   const [pageSize, setPageSize] = useState<number>(PAGE_SIZES[0]);
@@ -275,13 +274,14 @@ export function LiveMonitoringPage() {
   const filter = useDebounced(filterText.trim().toLowerCase(), 500);
 
   const devicesQuery = useDevices();
-  const deviceQuery = useDevice(deviceId);
-  const sensorsQuery = useSensors(deviceId);
+  // The Device chosen on any page stays chosen while moving between menu items (see lib/selectedDevice.ts).
+  const [selectedId, setDeviceId] = useDeviceSelection(devicesQuery.data);
+  const deviceQuery = useDevice(selectedId);
+  const sensorsQuery = useSensors(selectedId);
 
   const effectiveLive = live && pageVisible;
 
   const devices = devicesQuery.data ?? [];
-  const selectedId = deviceId ?? devices[0]?.id;
   const applicationMode = deviceQuery.data?.applicationMode as 'continuous' | 'periodic' | undefined;
 
   // What the page shows is what it keeps fresh: a Device can have hundreds of Sensors, and one request every
@@ -308,17 +308,6 @@ export function LiveMonitoringPage() {
     periods: 20,
     intervalMs: POLL_INTERVALS_MS.liveMonitoringCycle,
   });
-
-  // Defaulting to the first Device must happen as an effect, not directly in
-  // the render body - calling setDeviceId (which itself calls React
-  // Router's setSearchParams) during render triggers "Cannot update a
-  // component while rendering a different component" and updates a
-  // sibling/ancestor router state outside React's expected render phase.
-  // Must run unconditionally (before the loading/error early returns below)
-  // - React Hooks can never be called after an early return.
-  useEffect(() => {
-    if (selectedId !== undefined && deviceId === undefined) setDeviceId(selectedId);
-  }, [selectedId, deviceId, setDeviceId]);
 
   useEffect(() => {
     setPage(0);

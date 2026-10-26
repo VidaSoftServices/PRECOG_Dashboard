@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/states/EmptyState';
 import { JobStatusPill } from '@/components/StatusPill';
 import { useDevices } from '@/api/hooks/devices';
 import { useTrainingRequests, useCreateTrainingRequest } from '@/api/hooks/training';
-import { useNumberSearchParam } from '@/lib/useNumberSearchParam';
+import { useDeviceSelection } from '@/lib/selectedDevice';
 import { formatDateTime, formatRelative } from '@/lib/dateTime';
 import { useAuth } from '@/auth/AuthContext';
 import { useAppToast } from '@/components/ToastProvider';
@@ -34,9 +34,8 @@ export function TrainingPage() {
   const { isAdmin } = useAuth();
   const toast = useAppToast();
   const devicesQuery = useDevices();
-  const [deviceId, setDeviceId] = useNumberSearchParam('deviceId');
   const devices = devicesQuery.data ?? [];
-  const effectiveDeviceId = deviceId ?? devices[0]?.id;
+  const [effectiveDeviceId, setDeviceId] = useDeviceSelection(devicesQuery.data);
 
   const requestsQuery = useTrainingRequests(effectiveDeviceId);
   const createRequest = useCreateTrainingRequest(effectiveDeviceId ?? -1);

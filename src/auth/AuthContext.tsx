@@ -12,8 +12,10 @@ export type CurrentUser = components['schemas']['CurrentUserDto'];
  * doesn't report an expiry (D1) - there is no refresh-token endpoint, and
  * deliberately no silent-re-auth loop here (the old dashboard kept the
  * plaintext password resident in memory for exactly that purpose; this
- * rewrite does not). A 401 from ANY call, anywhere, tears the session down
- * and the router sends the user back to /login - see RequireAuth.tsx.
+ * rewrite does not). A 401 from ANY call, anywhere, does not tear the
+ * session down and does not redirect: it sets `sessionExpired`, and
+ * SessionExpiredDialog asks for the password again over the current page
+ * (the username is kept - it is not a secret - the password never is).
  */
 const ASSUMED_TOKEN_LIFETIME_SECONDS = 900;
 
@@ -23,6 +25,10 @@ interface AuthContextValue {
   /** False only once userDetails has actually loaded and confirmed no authorized Company - never true-by-default during the initial fetch, so a Company-having User never sees a false flash of the no-Company state. */
   hasAuthorizedCompany: boolean;
   userDetails: CurrentUser | null;
+  /** The access expired (a request was answered 401): sign in again in place; the page and its state stay. */
+  sessionExpired: boolean;
+  /** The user name of the current sign-in (not a secret), so the re-sign-in dialog can only continue as the same account. */
+  userName: string | null;
   loginPending: boolean;
   loginError: string | null;
   login: (userName: string, password: string) => Promise<void>;
@@ -33,6 +39,8 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const session = useSyncExternalStore(authStore.subscribe, authStore.getSnapshot);
+  const sessionExpired = useSyncExternalStore(authStore.subscribe, authStore.isReauthRequired);
+  const [userName, setUserName] = useState<string | null>(null);
   const [userDetails, setUserDetails] = useState<CurrentUser | null>(null);
   const [loginPending, setLoginPending] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -67,6 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         principalType: 'User',
         expiresAt: new Date(Date.now() + ASSUMED_TOKEN_LIFETIME_SECONDS * 1000).toISOString(),
       });
+      setUserName(userName);
     } catch (err) {
       setLoginError(err instanceof Error ? err.message : 'Login failed.');
       throw err;
@@ -77,9 +86,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     authStore.clearSession();
+    setUserName(null);
   }, []);
-
-  useEffect(() => authStore.onUnauthorized(() => setUserDetails(null)), []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -90,12 +98,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // only an actually-confirmed false response ever gates it off.
       hasAuthorizedCompany: userDetails === null ? true : (userDetails.hasAuthorizedCompany ?? true),
       userDetails,
+      sessionExpired,
+      userName,
       loginPending,
       loginError,
       login,
       logout,
     }),
-    [session, userDetails, loginPending, loginError, login, logout],
+    [session, userDetails, sessionExpired, userName, loginPending, loginError, login, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,5 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { SelectedDeviceProvider } from './SelectedDeviceProvider';
+import { SessionExpiredDialog } from '@/auth/SessionExpiredDialog';
 import {
   NavDrawer,
   NavDrawerBody,
@@ -249,7 +251,10 @@ export function AppShell() {
           </div>
         )}
 
-        <main className={styles.content}>{hasAuthorizedCompany ? <Outlet /> : <NoCompanyState />}</main>
+        <main className={styles.content}>
+          <SelectedDeviceProvider>{hasAuthorizedCompany ? <Outlet /> : <NoCompanyState />}</SelectedDeviceProvider>
+          <SessionExpiredDialog />
+        </main>
       </div>
     </div>
   );
