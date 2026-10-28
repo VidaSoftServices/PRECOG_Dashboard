@@ -41,9 +41,16 @@ jobs:
           $sourcePath = $env:GITHUB_WORKSPACE
           $deployPath = "C:\Docker\Dashboard\PRECOG_Dashboard"
 
-          New-Item -ItemType Directory -Force -Path $deployPath | Out-Null
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path $deployPath |
+            Out-Null
 
-          robocopy $sourcePath $deployPath /MIR `
+          robocopy `
+            $sourcePath `
+            $deployPath `
+            /MIR `
             /XD ".git" ".github" "node_modules" `
             /XF ".env"
 
@@ -75,5 +82,14 @@ jobs:
             -p precog `
             ps
 
-          docker inspect dashboard `
-            --format='Status={{.State.Status}} Image={{.Config.Image}}'
+          $containerStatus = docker inspect dashboard `
+            --format='{{.State.Status}}'
+
+          if ($containerStatus -ne "running") {
+              throw "Dashboard container is not running. Current status: $containerStatus"
+          }
+
+          Write-Host "Dashboard container is running successfully."
+          Write-Host "Compose project: precog"
+          Write-Host "Container: dashboard"
+          Write-Host "Address: http://localhost:8030"
