@@ -558,6 +558,17 @@ Authoritative anomaly/target/tolerance/control-limit calculation happens
 entirely server-side; the frontend only renders `TelemetryPoint` fields as
 returned.
 
+**A Signal's `period` is derived, not stored (API change 2026-10-28).** For the
+Signal family the API no longer has a stored period: `SignalOutputData.period` is
+the `measured` instant as Unix epoch **milliseconds**, computed by the API, and
+`LastPeriod`/`PeriodRange` speak the same scale. The Dashboard never ingests
+(so the now optional, ignored `SignalInputData.period` and the removed 409 of
+`POST /api/Continuous/Signals` change nothing here - `schema.generated.ts` was
+regenerated for them) and keeps reading `measured` for time axes and `period`
+only as an opaque, ordered identifier; it must never be shown as a sequence
+number or compared across Sensors. BiSignal, Curve and BiCurve keep their
+client-supplied Period.
+
 ### Canonical Issues
 
 ```mermaid
