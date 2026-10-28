@@ -1,0 +1,79 @@
+name: Deploy PRECOG Dashboard Facelift
+
+on:
+  push:
+    branches:
+      - Facelift
+
+  workflow_dispatch:
+
+concurrency:
+  group: precog-dashboard-facelift
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy Facelift to Windows Docker host
+
+    runs-on:
+      - self-hosted
+      - Windows
+      - X64
+
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Facelift source
+        uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 1
+
+      - name: Check Docker
+        shell: powershell
+        run: |
+          docker info --format '{{.OSType}}'
+          docker-compose version
+
+      - name: Copy source to deployment directory
+        shell: powershell
+        run: |
+          $sourcePath = $env:GITHUB_WORKSPACE
+          $deployPath = "C:\Docker\Dashboard\PRECOG_Dashboard"
+
+          New-Item -ItemType Directory -Force -Path $deployPath | Out-Null
+
+          robocopy $sourcePath $deployPath /MIR `
+            /XD ".git" ".github" "node_modules" `
+            /XF ".env"
+
+          $robocopyExitCode = $LASTEXITCODE
+
+          if ($robocopyExitCode -ge 8) {
+            throw "Robocopy failed with exit code $robocopyExitCode"
+          }
+
+          $global:LASTEXITCODE = 0
+
+      - name: Build and deploy dashboard
+        shell: powershell
+        run: |
+          Set-Location "C:\Docker\Dashboard\PRECOG_Dashboard"
+
+          docker-compose `
+            -f deploy-facelift.yml `
+            -p precog `
+            up -d --build --remove-orphans
+
+      - name: Verify deployment
+        shell: powershell
+        run: |
+          Set-Location "C:\Docker\Dashboard\PRECOG_Dashboard"
+
+          docker-compose `
+            -f deploy-facelift.yml `
+            -p precog `
+            ps
+
+          docker inspect dashboard `
+            --format='Status={{.State.Status}} Image={{.Config.Image}}'
