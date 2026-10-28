@@ -34,12 +34,23 @@ jobs:
         run: |
           $dockerOs = docker info --format '{{.OSType}}'
 
+          if ($LASTEXITCODE -ne 0) {
+              throw "Docker is not available."
+          }
+
+          $dockerOs = $dockerOs.Trim()
+
           if ($dockerOs -ne "linux") {
               throw "Docker is not running in Linux container mode. Current mode: $dockerOs"
           }
 
           Write-Host "Docker container mode: $dockerOs"
+
           docker-compose version
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "Docker Compose is not available."
+          }
 
       - name: Copy source to deployment directory
         shell: powershell
@@ -90,7 +101,7 @@ jobs:
           Write-Host "Created Vite production environment file:"
           Write-Host $envFile
 
-      - name: Verify deployment files
+      - name: Validate deployment files
         shell: powershell
         run: |
           $deployPath = "C:\Docker\Dashboard\PRECOG_Dashboard"
@@ -112,7 +123,7 @@ jobs:
               Write-Host "Found: $fullPath"
           }
 
-      - name: Build and deploy dashboard
+      - name: Build dashboard image
         shell: powershell
         run: |
           Set-Location "C:\Docker\Dashboard\PRECOG_Dashboard"
@@ -120,7 +131,21 @@ jobs:
           docker-compose `
             -f docker-compose.yml `
             -p precog `
-            up -d --build
+            build --no-cache
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "Docker Compose build failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Start dashboard container
+        shell: powershell
+        run: |
+          Set-Location "C:\Docker\Dashboard\PRECOG_Dashboard"
+
+          docker-compose `
+            -f docker-compose.yml `
+            -p precog `
+            up -d
 
           if ($LASTEXITCODE -ne 0) {
               throw "Docker Compose deployment failed with exit code $LASTEXITCODE"
@@ -136,8 +161,20 @@ jobs:
             -p precog `
             ps
 
+          if ($LASTEXITCODE -ne 0) {
+              throw "Could not retrieve Docker Compose status."
+          }
+
+          Start-Sleep -Seconds 3
+
           $containerStatus = docker inspect dashboard `
             --format='{{.State.Status}}'
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "Could not inspect the dashboard container."
+          }
+
+          $containerStatus = $containerStatus.Trim()
 
           if ($containerStatus -ne "running") {
               throw "Dashboard container is not running. Current status: $containerStatus"
@@ -145,6 +182,11 @@ jobs:
 
           $composeProject = docker inspect dashboard `
             --format='{{ index .Config.Labels "com.docker.compose.project" }}'
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "Could not read the dashboard Compose project    }
+
+          $composeProject = $composeProject.Trim()
 
           if ($composeProject -ne "precog") {
               throw "Unexpected Compose project: $composeProject"
