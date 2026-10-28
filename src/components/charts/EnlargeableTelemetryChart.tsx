@@ -4,7 +4,8 @@ import { FullScreenMaximize16Regular } from '@fluentui/react-icons';
 import { TelemetryChart, type TelemetryChartProps } from './TelemetryChart';
 
 const useStyles = makeStyles({
-  surface: { maxWidth: '1200px', width: '96vw' },
+  // Larger than the Live Monitoring modal (85vw): a long-range analysis chart needs the room (about 5% of the window stays free).
+  surface: { width: '95vw', maxWidth: '95vw' },
   bar: { display: 'flex', justifyContent: 'flex-end' },
 });
 
@@ -36,7 +37,7 @@ export function EnlargeableTelemetryChart({ title, ...chart }: TelemetryChartPro
             <DialogTitle>{title}</DialogTitle>
             <DialogContent style={{ paddingTop: tokens.spacingVerticalS }}>
               {/* Only built while open: a closed dialog renders nothing, so no second chart sits in the page. */}
-              <TelemetryChart {...chart} height={520} timeAxis="fullDateTime" emphasizeHover onEnlarge={undefined} />
+              <TelemetryChart {...chart} height="calc(92vh - 200px)" timeAxis="fullDateTime" emphasizeHover onEnlarge={undefined} />
             </DialogContent>
             <DialogActions>
               <Button appearance="primary" onClick={() => setOpen(false)}>
