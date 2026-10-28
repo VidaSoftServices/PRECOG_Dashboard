@@ -16,7 +16,7 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import { Delete24Regular, ShieldKeyhole24Regular, Settings24Regular, ChartMultiple24Regular, AddCircle24Regular, Edit24Regular, Wrench24Regular, TableArrowUp24Regular } from '@fluentui/react-icons';
+import { Delete24Regular, ShieldKeyhole24Regular, Settings24Regular, ChartMultiple24Regular, AddCircle24Regular, Edit24Regular, Wrench24Regular, TableArrowUp24Regular, TargetEdit24Regular } from '@fluentui/react-icons';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
@@ -26,6 +26,8 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SensorImportDialog } from './SensorImportDialog';
 import { SensorTypeInput } from '@/components/SensorTypeInput';
 import { ExportSensorMapButton } from './ExportSensorMapButton';
+import { ExportAllSensorsButton } from './ExportAllSensorsButton';
+import { ManageSetpointsDialog } from './ManageSetpointsDialog';
 import { DeleteDeviceDataDialog, DeleteDeviceDialog } from './DeleteDeviceDialog';
 import { useAppToast } from '@/components/ToastProvider';
 import { useDevice, useUpdateDevice, useDisableDevice } from '@/api/hooks/devices';
@@ -49,6 +51,13 @@ const useStyles = makeStyles({
     display: 'flex',
     flexDirection: 'column',
     gap: tokens.spacingVerticalS,
+  },
+  // "Import Sensors" with "Export all sensors" right under it.
+  actionStack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacingVerticalXS,
+    alignItems: 'stretch',
   },
   sensorRow: {
     display: 'flex',
@@ -364,6 +373,7 @@ export function DeviceDetailPage() {
   const [deleteDataOpen, setDeleteDataOpen] = useState(false);
   const [addSensorOpen, setAddSensorOpen] = useState(false);
   const [importSensorsOpen, setImportSensorsOpen] = useState(false);
+  const [manageSetpointsOpen, setManageSetpointsOpen] = useState(false);
   const [editingSensorId, setEditingSensorId] = useState<number | null>(null);
   const [maintenanceSensorId, setMaintenanceSensorId] = useState<number | null>(null);
   const [processingSensorId, setProcessingSensorId] = useState<number | null>(null);
@@ -511,8 +521,16 @@ export function DeviceDetailPage() {
               </Button>
             )}
             {isAdmin && (
-              <Button icon={<TableArrowUp24Regular />} onClick={() => setImportSensorsOpen(true)}>
-                Import Sensors
+              <div className={styles.actionStack}>
+                <Button icon={<TableArrowUp24Regular />} onClick={() => setImportSensorsOpen(true)}>
+                  Import Sensors
+                </Button>
+                <ExportAllSensorsButton deviceId={id} sensors={sensorsQuery.data ?? []} />
+              </div>
+            )}
+            {isAdmin && (
+              <Button icon={<TargetEdit24Regular />} onClick={() => setManageSetpointsOpen(true)}>
+                Manage Setpoints
               </Button>
             )}
             {isAdmin && <ExportSensorMapButton device={device} sensors={sensorsQuery.data ?? []} />}
@@ -669,6 +687,8 @@ export function DeviceDetailPage() {
           }}
         />
       )}
+
+      {isAdmin && manageSetpointsOpen && <ManageSetpointsDialog deviceId={id} open={manageSetpointsOpen} onClose={() => setManageSetpointsOpen(false)} />}
 
       {isAdmin && importSensorsOpen && (
         <SensorImportDialog

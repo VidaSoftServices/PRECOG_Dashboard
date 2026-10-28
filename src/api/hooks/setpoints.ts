@@ -48,3 +48,19 @@ export function useCreateSetpoint(deviceId: number, sensorId: number) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.setpoints(deviceId, sensorId) }),
   });
 }
+
+/**
+ * Deletes ONE Setpoint interval (DELETE .../Setpoints/{setpointId}, Admin only, audited). Nothing else changes: neighbouring
+ * intervals keep their own validity, so a gap can remain, and a measurement with no effective Setpoint is simply not analysed.
+ */
+export function useDeleteSetpoint(deviceId: number, sensorId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (setpointId: number) =>
+      unwrap(await apiClient.DELETE('/api/Devices/{deviceId}/Sensors/{sensorId}/Setpoints/{setpointId}', { params: { path: { deviceId, sensorId, setpointId } } })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.setpoints(deviceId, sensorId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.deviceSetpoints(deviceId) });
+    },
+  });
+}

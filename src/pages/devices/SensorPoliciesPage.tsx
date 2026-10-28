@@ -19,7 +19,7 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import { AddCircle24Regular } from '@fluentui/react-icons';
+import { AddCircle24Regular, Delete24Regular } from '@fluentui/react-icons';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
@@ -30,6 +30,8 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useAppToast } from '@/components/ToastProvider';
 import { useSensor } from '@/api/hooks/sensors';
 import { MetricDefinitionCard } from './MetricDefinitionCard';
+import { DeleteSetpointsDialog } from './DeleteSetpointsDialog';
+import { isRawPolicy } from '@/lib/policies';
 import {
   AGGREGATION_FUNCTION_OPTIONS,
   DEFAULT_TIME_ZONE,
@@ -76,7 +78,7 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
   const [minIssueScore, setMinIssueScore] = useState(String(policy.minIssueScore ?? ''));
   const [retrainConfirmOpen, setRetrainConfirmOpen] = useState(false);
   const [deactivateConfirmOpen, setDeactivateConfirmOpen] = useState(false);
-  const isRaw = policy.timeScale === 'native' && policy.aggregationFunction === 'raw';
+  const isRaw = isRawPolicy(policy);
 
   const applyUpdate = () => {
     update.mutate(
@@ -186,6 +188,7 @@ function SetpointsCard({ deviceId, sensorId, bidirectional }: { deviceId: number
   const createSetpoint = useCreateSetpoint(deviceId, sensorId);
 
   const [showForm, setShowForm] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [validFrom, setValidFrom] = useState<Date | null>(new Date());
   const [target, setTarget] = useState('');
   const [tolerance, setTolerance] = useState('');
@@ -232,8 +235,9 @@ function SetpointsCard({ deviceId, sensorId, bidirectional }: { deviceId: number
         )}
       </div>
       <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-        Time-versioned target/tolerance configuration - append-only, never edited or deleted. For historical fault
-        analysis, use the setpoint effective at measurement time, not the latest one.
+        Time-versioned target/tolerance configuration: a change is a new interval (the previous one ends where it begins). For
+        historical fault analysis, use the setpoint effective at measurement time, not the latest one. An interval can be deleted
+        with the button below.
       </Text>
 
       {effectiveQuery.data && (
@@ -309,6 +313,23 @@ function SetpointsCard({ deviceId, sensorId, bidirectional }: { deviceId: number
             ))}
           </TableBody>
         </Table>
+      )}
+
+      {isAdmin && setpointsQuery.data && setpointsQuery.data.length > 0 && (
+        <div>
+          <Button icon={<Delete24Regular />} onClick={() => setDeleteOpen(true)}>
+            Delete setpoints…
+          </Button>
+          {deleteOpen && (
+            <DeleteSetpointsDialog
+              deviceId={deviceId}
+              sensorId={sensorId}
+              setpoints={setpointsQuery.data}
+              open={deleteOpen}
+              onClose={() => setDeleteOpen(false)}
+            />
+          )}
+        </div>
       )}
     </Card>
   );

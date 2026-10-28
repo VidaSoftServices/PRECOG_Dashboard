@@ -7,7 +7,7 @@ import { buildSensorMap, sensorMapFileName, type SensorMapSensor } from '@/lib/s
 import { toImportCatalog } from '@/lib/sensorImport';
 
 /**
- * "Export sensor_map": downloads, as a .txt, exactly what the Vibration_Duo firmware's `include/sensor_map.h` needs - the
+ * "Export sensor for hardware" (the sensor_map.h of the firmware): downloads, as a .txt, exactly what the Vibration_Duo firmware's `include/sensor_map.h` needs - the
  * numeric SensorId of every firmware channel that exists as a Sensor on this Device right now (see `buildSensorMap`).
  * Built in the browser from the Sensors already loaded on the page; nothing is sent anywhere. The numeric ids are not
  * secret. Which names are firmware channels comes from the API's catalog, so the button waits for it.
@@ -41,7 +41,7 @@ export function ExportSensorMapButton({
   return (
     <Tooltip content="Download the numeric SensorIds of this Device's existing Sensors as the text of the firmware's sensor_map.h" relationship="description">
       <Button icon={<DocumentArrowDown24Regular />} onClick={exportMap} disabled={disabled}>
-        Export sensor_map
+        Export sensor for hardware
       </Button>
     </Tooltip>
   );

@@ -213,7 +213,7 @@ export interface ParseResult {
   ignoredColumns: string[];
 }
 
-function normalizeHeader(value: string): string {
+export function normalizeHeader(value: string): string {
   return value.split(BOM).join('').trim().toLowerCase().replace(/\(optional\)/g, '').replace(/[\s_-]+/g, '');
 }
 
@@ -253,7 +253,7 @@ const COLUMN_ALIASES: Record<string, Column> = {
 };
 
 /** A plain decimal number as an Excel user types it; a decimal comma ("0,5") is read as 0.5. null for anything else (text, "1e", blanks). */
-function parseDecimal(raw: string): number | null {
+export function parseDecimal(raw: string): number | null {
   const text = raw.trim().replace(/^(-?\d+),(\d+)$/, '$1.$2');
   return /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(text) && Number.isFinite(Number(text)) ? Number(text) : null;
 }
@@ -264,7 +264,7 @@ function parseDecimal(raw: string): number | null {
  * one uses targetAbove/targetBelow + toleranceAbove/toleranceBelow; at least one target is needed; a tolerance is never
  * negative and needs the target it belongs to. Returns undefined when the row has no setpoint value at all.
  */
-function readSetpoint(
+export function readSetpoint(
   cell: (column: SetpointColumn) => string,
   direction: SensorDirection | null,
   fail: (field: string, value: string, message: string) => void,
@@ -530,7 +530,7 @@ export function parseSensorTable(
 }
 
 /** Quotes a CSV field when it contains the delimiter, a quote or a newline. */
-function csvField(value: string | number): string {
+export function csvField(value: string | number): string {
   const s = String(value);
   return /[",;\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }

@@ -55,7 +55,7 @@ describe('ExportSensorMapButton', () => {
         { id: 13, externalSensorId: 'velocity_rms_x_max_1' },
         { id: 14, externalSensorId: 'my_custom_tag' },
       ]);
-      const button = screen.getByRole('button', { name: 'Export sensor_map' });
+      const button = screen.getByRole('button', { name: 'Export sensor for hardware' });
       await waitFor(() => expect(button).toBeEnabled()); // waits for the catalog
 
       await user.click(button);
@@ -82,12 +82,12 @@ describe('ExportSensorMapButton', () => {
   it('is disabled when the Device has no Sensors', async () => {
     renderButton([]);
     await new Promise((r) => setTimeout(r, 100));
-    expect(screen.getByRole('button', { name: 'Export sensor_map' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Export sensor for hardware' })).toBeDisabled();
   });
 
   it('stays disabled while the catalog is unavailable - which names are firmware channels is not guessed', async () => {
     renderButton([{ id: 1, externalSensorId: 'velocity_rms_x_eq_1' }], false);
     await new Promise((r) => setTimeout(r, 100));
-    expect(screen.getByRole('button', { name: 'Export sensor_map' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Export sensor for hardware' })).toBeDisabled();
   });
 });

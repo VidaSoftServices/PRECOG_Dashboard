@@ -27,6 +27,8 @@ export const queryKeys = {
   aggregationPolicy: (deviceId: number, sensorId: number, policyId: number) =>
     ['devices', deviceId, 'sensors', sensorId, 'policies', policyId] as const,
 
+  deviceSetpoints: (deviceId: number) => ['devices', deviceId, 'setpoints'] as const,
+  deviceAggregationPolicies: (deviceId: number) => ['devices', deviceId, 'aggregation-policies'] as const,
   setpoints: (deviceId: number, sensorId: number) => ['devices', deviceId, 'sensors', sensorId, 'setpoints'] as const,
   effectiveSetpoint: (deviceId: number, sensorId: number, at?: string) =>
     ['devices', deviceId, 'sensors', sensorId, 'setpoints', 'effective', at ?? 'now'] as const,
