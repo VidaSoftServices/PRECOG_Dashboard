@@ -136,7 +136,7 @@ jobs:
             -p precog `
             ps
 
-          $containerStatus = docker inspectt dashboard `
+          $containerStatus = docker inspect dashboard `
             --format='{{.State.Status}}'
 
           if ($containerStatus -ne "running") {
