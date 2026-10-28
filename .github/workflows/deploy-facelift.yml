@@ -52,7 +52,7 @@ jobs:
             $deployPath `
             /MIR `
             /XD ".git" ".github" "node_modules" `
-            /XF ".env"
+            /XF ".env" ".env.*"
 
           $robocopyExitCode = $LASTEXITCODE
 
