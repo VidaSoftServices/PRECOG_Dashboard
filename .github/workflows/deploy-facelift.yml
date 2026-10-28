@@ -63,7 +63,7 @@ jobs:
           docker-compose `
             -f docker-compose.yml `
             -p precog `
-            up -d --build --remove-orphans
+            up -d --build
 
       - name: Verify deployment
         shell: powershell
