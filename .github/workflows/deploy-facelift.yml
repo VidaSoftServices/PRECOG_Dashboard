@@ -167,26 +167,22 @@ jobs:
 
           Start-Sleep -Seconds 3
 
-          $containerStatus = docker inspect dashboard `
-            --format='{{.State.Status}}'
+          # Read the inspect output as JSON: Windows PowerShell 5.1 strips the
+          # embedded double quotes of a docker --format template.
+          $inspectJson = docker inspect dashboard
 
           if ($LASTEXITCODE -ne 0) {
               throw "Could not inspect the dashboard container."
           }
 
-          $containerStatus = $containerStatus.Trim()
+          $inspect = ($inspectJson -join "`n") | ConvertFrom-Json
+          $containerStatus = $inspect[0].State.Status
 
           if ($containerStatus -ne "running") {
               throw "Dashboard container is not running. Current status: $containerStatus"
           }
 
-          $composeProject = docker inspect dashboard `
-            --format='{{ index .Config.Labels "com.docker.compose.project" }}'
-
-          if ($LASTEXITCODE -ne 0) {
-              throw "Could not read the dashboard Compose project    }
-
-          $composeProject = $composeProject.Trim()
+          $composeProject = $inspect[0].Config.Labels.'com.docker.compose.project'
 
           if ($composeProject -ne "precog") {
               throw "Unexpected Compose project: $composeProject"
