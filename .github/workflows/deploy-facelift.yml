@@ -50,7 +50,7 @@ jobs:
           $robocopyExitCode = $LASTEXITCODE
 
           if ($robocopyExitCode -ge 8) {
-            throw "Robocopy failed with exit code $robocopyExitCode"
+              throw "Robocopy failed with exit code $robocopyExitCode"
           }
 
           $global:LASTEXITCODE = 0
@@ -61,7 +61,7 @@ jobs:
           Set-Location "C:\Docker\Dashboard\PRECOG_Dashboard"
 
           docker-compose `
-            -f deploy-facelift.yml `
+            -f docker-compose.yml `
             -p precog `
             up -d --build --remove-orphans
 
@@ -71,7 +71,7 @@ jobs:
           Set-Location "C:\Docker\Dashboard\PRECOG_Dashboard"
 
           docker-compose `
-            -f deploy-facelift.yml `
+            -f docker-compose.yml `
             -p precog `
             ps
 
