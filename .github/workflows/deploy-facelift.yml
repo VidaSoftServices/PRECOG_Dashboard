@@ -32,7 +32,13 @@ jobs:
       - name: Check Docker
         shell: powershell
         run: |
-          docker info --format '{{.OSType}}'
+          $dockerOs = docker info --format '{{.OSType}}'
+
+          if ($dockerOs -ne "linux") {
+              throw "Docker is not running in Linux container mode. Current mode: $dockerOs"
+          }
+
+          Write-Host "Docker container mode: $dockerOs"
           docker-compose version
 
       - name: Copy source to deployment directory
@@ -60,7 +66,51 @@ jobs:
               throw "Robocopy failed with exit code $robocopyExitCode"
           }
 
+          Write-Host "Source copied successfully to $deployPath"
+
           $global:LASTEXITCODE = 0
+
+      - name: Create Vite production environment file
+        shell: powershell
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+        run: |
+          $deployPath = "C:\Docker\Dashboard\PRECOG_Dashboard"
+          $envFile = Join-Path $deployPath ".env.production.local"
+
+          if ([string]::IsNullOrWhiteSpace($env:VITE_API_BASE_URL)) {
+              throw "GitHub repository variable VITE_API_BASE_URL is not configured."
+          }
+
+          "VITE_API_BASE_URL=$env:VITE_API_BASE_URL" |
+            Set-Content `
+              -Path $envFile `
+              -Encoding UTF8
+
+          Write-Host "Created Vite production environment file:"
+          Write-Host $envFile
+
+      - name: Verify deployment files
+        shell: powershell
+        run: |
+          $deployPath = "C:\Docker\Dashboard\PRECOG_Dashboard"
+
+          $requiredFiles = @(
+              "docker-compose.yml",
+              "Dockerfile",
+              "package.json",
+              ".env.production.local"
+          )
+
+          foreach ($requiredFile in $requiredFiles) {
+              $fullPath = Join-Path $deployPath $requiredFile
+
+              if (-not (Test-Path $fullPath)) {
+                  throw "Required deployment file is missing: $fullPath"
+              }
+
+              Write-Host "Found: $fullPath"
+          }
 
       - name: Build and deploy dashboard
         shell: powershell
@@ -72,6 +122,10 @@ jobs:
             -p precog `
             up -d --build
 
+          if ($LASTEXITCODE -ne 0) {
+              throw "Docker Compose deployment failed with exit code $LASTEXITCODE"
+          }
+
       - name: Verify deployment
         shell: powershell
         run: |
@@ -82,14 +136,22 @@ jobs:
             -p precog `
             ps
 
-          $containerStatus = docker inspect dashboard `
+          $containerStatus = docker inspectt dashboard `
             --format='{{.State.Status}}'
 
           if ($containerStatus -ne "running") {
               throw "Dashboard container is not running. Current status: $containerStatus"
           }
 
-          Write-Host "Dashboard container is running successfully."
-          Write-Host "Compose project: precog"
+          $composeProject = docker inspect dashboard `
+            --format='{{ index .Config.Labels "com.docker.compose.project" }}'
+
+          if ($composeProject -ne "precog") {
+              throw "Unexpected Compose project: $composeProject"
+          }
+
+          Write-Host "Dashboard deployment completed successfully."
+          Write-Host "Compose project: $composeProject"
           Write-Host "Container: dashboard"
+          Write-Host "Container status: $containerStatus"
           Write-Host "Address: http://localhost:8030"
