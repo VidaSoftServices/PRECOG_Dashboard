@@ -120,6 +120,10 @@ describe('OpenAPI contract quality (static - reads schema.generated.ts, no live 
     expect(block('SensorDto')).toMatch(/processingEnabled\?:\s*boolean;/);
     expect(block('CreateSensorRequest')).toMatch(/processingEnabled\?:\s*boolean;/);
     expect(block('UpdateSensorRequest')).toMatch(/processingEnabled\?:\s*boolean \| null;/);
+    // The per-Sensor visibility flag (hide from Live Monitoring and Smart Analytics): optional everywhere.
+    expect(block('SensorDto')).toMatch(/visible\?:\s*boolean;/);
+    expect(block('CreateSensorRequest')).toMatch(/visible\?:\s*boolean;/);
+    expect(block('UpdateSensorRequest')).toMatch(/visible\?:\s*boolean \| null;/);
   });
 
   it('the MAC address registry routes this dashboard manages still exist', () => {

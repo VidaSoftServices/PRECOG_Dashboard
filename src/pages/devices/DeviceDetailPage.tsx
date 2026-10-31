@@ -21,7 +21,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
 import { EmptyState } from '@/components/states/EmptyState';
-import { EnabledPill, FreshnessPill, MaintenancePill, ProcessingOffPill } from '@/components/StatusPill';
+import { EnabledPill, FreshnessPill, HiddenPill, MaintenancePill, ProcessingOffPill } from '@/components/StatusPill';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SensorImportDialog } from './SensorImportDialog';
 import { SensorTypeInput } from '@/components/SensorTypeInput';
@@ -34,6 +34,7 @@ import { useDevice, useUpdateDevice, useDisableDevice } from '@/api/hooks/device
 import { useSensors, useCreateSensor, useUpdateSensor, type SensorDto } from '@/api/hooks/sensors';
 import { useSetSensorMaintenance } from '@/api/hooks/maintenance';
 import { MaintenanceAllDialog } from './MaintenanceAllDialog';
+import { VisibilityDialog } from './VisibilityDialog';
 import { useDevicePrincipal } from '@/api/hooks/devicePrincipal';
 import { useTrainingRequests } from '@/api/hooks/training';
 import { freshnessOf, formatDateTimeWithZone, formatRelative } from '@/lib/dateTime';
@@ -378,6 +379,7 @@ export function DeviceDetailPage() {
   const [editingSensorId, setEditingSensorId] = useState<number | null>(null);
   const [maintenanceSensorId, setMaintenanceSensorId] = useState<number | null>(null);
   const [maintenanceAllOpen, setMaintenanceAllOpen] = useState(false);
+  const [visibilitySensorId, setVisibilitySensorId] = useState<number | null>(null);
   const [processingSensorId, setProcessingSensorId] = useState<number | null>(null);
 
   if (deviceQuery.isLoading) return <LoadingState label="Loading device…" />;
@@ -388,6 +390,7 @@ export function DeviceDetailPage() {
   const editingSensor = sensorsQuery.data?.find((s) => s.id === editingSensorId) ?? null;
   const maintenanceSensor = sensorsQuery.data?.find((s) => s.id === maintenanceSensorId) ?? null;
   const processingSensor = sensorsQuery.data?.find((s) => s.id === processingSensorId) ?? null;
+  const visibilitySensor = sensorsQuery.data?.find((s) => s.id === visibilitySensorId) ?? null;
   const sensorsInMaintenance = (sensorsQuery.data ?? []).filter((s) => s.maintenanceMode).length;
 
   const startEdit = () => {
@@ -597,6 +600,7 @@ export function DeviceDetailPage() {
                 <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center' }}>
                   <MaintenancePill maintenanceMode={sensor.maintenanceMode} />
                   <ProcessingOffPill processingEnabled={sensor.processingEnabled} />
+                  <HiddenPill visible={sensor.visible} />
                   <EnabledPill enabled={sensor.enabled} />
                   {isAdmin && (
                     <Switch
@@ -604,6 +608,14 @@ export function DeviceDetailPage() {
                       label="Calculate"
                       checked={sensor.processingEnabled !== false}
                       onChange={() => setProcessingSensorId(sensor.id!)}
+                    />
+                  )}
+                  {isAdmin && (
+                    <Switch
+                      aria-label={`Visibility of ${sensor.name || sensor.externalSensorId} in Live Monitoring and Smart Analytics`}
+                      label="Visible"
+                      checked={sensor.visible !== false}
+                      onChange={() => setVisibilitySensorId(sensor.id!)}
                     />
                   )}
                   {isAdmin && (
@@ -717,6 +729,16 @@ export function DeviceDetailPage() {
           sensor={editingSensor}
           open={editingSensorId !== null}
           onClose={() => setEditingSensorId(null)}
+        />
+      )}
+
+      {isAdmin && visibilitySensor && (
+        <VisibilityDialog
+          key={`${visibilitySensor.id}-${visibilitySensor.visible}`}
+          deviceId={id}
+          sensor={visibilitySensor}
+          open={visibilitySensorId !== null}
+          onClose={() => setVisibilitySensorId(null)}
         />
       )}
 

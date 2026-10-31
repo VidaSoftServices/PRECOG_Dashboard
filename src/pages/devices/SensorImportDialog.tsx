@@ -88,7 +88,7 @@ function setpointText(setpoint: ParsedSensorRow['setpoint']): string {
   ].join(', ');
 }
 
-const DEFAULTS: ImportDefaults = { direction: 'lowerisbetter', rawScale: '', rawLookback: '', rawMinIssueScore: '1', processingEnabled: true };
+const DEFAULTS: ImportDefaults = { direction: 'lowerisbetter', rawScale: '', rawLookback: '', rawMinIssueScore: '1', processingEnabled: true, visible: true };
 const PREVIEW_ROWS = 8;
 const MAX_LISTED = 20;
 
@@ -323,6 +323,12 @@ export function SensorImportDialog({
                   <option value="off">Off</option>
                 </Select>
               </Field>
+              <Field label="Visible" hint="Off: hidden from Live Monitoring and Smart Analytics; data is still stored and calculated.">
+                <Select value={defaults.visible ? 'on' : 'off'} onChange={(_, d) => setDefault('visible', d.value === 'on')} disabled={running}>
+                  <option value="on">On</option>
+                  <option value="off">Off</option>
+                </Select>
+              </Field>
               <Field label="Min issue score">
                 <Input type="number" min="0" value={defaults.rawMinIssueScore} onChange={(_, d) => setDefault('rawMinIssueScore', d.value)} disabled={running} />
               </Field>
@@ -366,7 +372,7 @@ export function SensorImportDialog({
                 <table className={styles.preview} aria-label="Preview of the first rows">
                   <thead>
                     <tr>
-                      {['Line', 'Action', 'Sensor name', 'Display name', 'Unit', 'Calculate', 'Setpoint', 'Validation'].map((h) => (
+                      {['Line', 'Action', 'Sensor name', 'Display name', 'Unit', 'Calculate', 'Visible', 'Setpoint', 'Validation'].map((h) => (
                         <th key={h} className={styles.cell}>
                           {h}
                         </th>
@@ -382,6 +388,7 @@ export function SensorImportDialog({
                         <td className={styles.cell}>{r.name}</td>
                         <td className={styles.cell}>{unitText(catalog, r.unitCode)}</td>
                         <td className={styles.cell}>{r.exists && !r.provided.processingEnabled ? '—' : r.processingEnabled ? 'on' : 'off'}</td>
+                        <td className={styles.cell}>{r.exists && !r.provided.visible ? '—' : r.visible ? 'on' : 'off'}</td>
                         <td className={styles.cell}>{setpointText(r.setpoint) || '—'}</td>
                         <td className={styles.cell}>{r.errors.length === 0 ? 'OK' : `Error (${r.issues.map((i) => i.field).join(', ')})`}</td>
                       </tr>

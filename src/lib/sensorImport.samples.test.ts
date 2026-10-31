@@ -9,7 +9,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const sample = (name: string) => readFileSync(join(here, '..', '..', 'samples', name), 'utf-8');
 
 /** What the user types into the dialog's default fields; the sample files deliberately leave scale/lookback empty. */
-const DEFAULTS = { direction: 'lowerisbetter' as const, rawScale: 'Seconds', rawLookback: '60', rawMinIssueScore: '1', processingEnabled: true };
+const DEFAULTS = { direction: 'lowerisbetter' as const, rawScale: 'Seconds', rawLookback: '60', rawMinIssueScore: '1', processingEnabled: true, visible: true };
 
 describe('sample import files (samples/)', () => {
   it('the sample sheets carry the unit and no aggregation columns', () => {

@@ -44,6 +44,7 @@ export const TEMPLATE_COLUMNS = [
   'rawLookback',
   'rawMinIssueScore',
   'processingEnabled',
+  'visible',
   'target',
   'tolerance',
   'targetAbove',
@@ -70,6 +71,7 @@ export const TEMPLATE_HEADERS = [
   'rawLookback',
   'rawMinIssueScore',
   'Calculate',
+  'Visible',
   'target (optional)',
   'tolerance (optional)',
   'targetAbove (optional)',
@@ -156,6 +158,8 @@ export interface ImportDefaults {
   rawMinIssueScore: string;
   /** Default for the per-Sensor calculation switch when the sheet has no such column / an empty cell. */
   processingEnabled: boolean;
+  /** Default for the per-Sensor "visible" switch (shown in Live Monitoring and Smart Analytics) when the sheet has no such column / an empty cell. */
+  visible: boolean;
 }
 
 /** Which cells of a row were actually filled. For a Sensor that already exists only these are applied; an empty cell never overwrites. */
@@ -168,6 +172,7 @@ export interface ProvidedFields {
   rawLookback: boolean;
   rawMinIssueScore: boolean;
   processingEnabled: boolean;
+  visible: boolean;
 }
 
 /** What the parser needs to know about a Sensor that already exists on the Device (key: its externalSensorId, lower-case). */
@@ -194,6 +199,8 @@ export interface ParsedSensorRow {
   rawMinIssueScore: number;
   /** False: the data is stored and trained on, but its arrival triggers no calculation. */
   processingEnabled: boolean;
+  /** False: the Sensor is hidden from Live Monitoring and Smart Analytics (a presentation flag only - nothing else changes). */
+  visible: boolean;
   /**
    * The row's target/tolerance, present only when the sheet filled at least one of them. The import records them as the
    * Sensor's first Setpoint, valid from the moment of the import; without one the Sensor's data is stored but not analysed.
@@ -244,6 +251,9 @@ const COLUMN_ALIASES: Record<string, Column> = {
   dataprocessing: 'processingEnabled',
   calculation: 'processingEnabled',
   calculate: 'processingEnabled',
+  visible: 'visible',
+  show: 'visible',
+  shown: 'visible',
   target: 'target',
   tolerance: 'tolerance',
   targetabove: 'targetAbove',
@@ -465,6 +475,7 @@ export function parseSensorTable(
       rawLookback: cell(cells, 'rawLookback') !== '',
       rawMinIssueScore: cell(cells, 'rawMinIssueScore') !== '',
       processingEnabled: cell(cells, 'processingEnabled') !== '',
+      visible: cell(cells, 'visible') !== '',
     };
 
     // A new Sensor takes the dialog's defaults for empty cells; an existing one keeps what it has (nothing is "defaulted" over it).
@@ -491,6 +502,10 @@ export function parseSensorTable(
     const processingRaw = cell(cells, 'processingEnabled');
     const processingParsed = processingRaw === '' ? defaults.processingEnabled : parseBoolean(processingRaw);
     if (processingParsed === null) fail('Calculate', processingRaw, `Calculate "${processingRaw}" must be true or false (also 1/0, yes/no, on/off, igen/nem).`);
+
+    const visibleRaw = cell(cells, 'visible');
+    const visibleParsed = visibleRaw === '' ? defaults.visible : parseBoolean(visibleRaw);
+    if (visibleParsed === null) fail('Visible', visibleRaw, `Visible "${visibleRaw}" must be true or false (also 1/0, yes/no, on/off, igen/nem).`);
 
     const setpoint = readSetpoint((column) => cell(cells, column), direction, fail, !exists);
 
@@ -520,6 +535,7 @@ export function parseSensorTable(
       rawLookback: Number.isFinite(rawLookback) ? rawLookback : 0,
       rawMinIssueScore: Number.isFinite(rawMinIssueScore) ? rawMinIssueScore : 1,
       processingEnabled: processingParsed ?? defaults.processingEnabled,
+      visible: visibleParsed ?? defaults.visible,
       ...(setpoint ? { setpoint } : {}),
       issues,
       errors: issues.map((i) => i.message),
@@ -554,7 +570,7 @@ export function buildTemplateCsv(catalog: ImportCatalog): string {
       seen.add(kind);
       return true;
     })
-    .map((m) => [`${m.machineName}_1`, m.displayName, 'lowerisbetter', '', m.unitCode, 'Seconds', 60, 1, 'true', '', '', '', '', '', '']);
+    .map((m) => [`${m.machineName}_1`, m.displayName, 'lowerisbetter', '', m.unitCode, 'Seconds', 60, 1, 'true', 'true', '', '', '', '', '', '']);
   return BOM + [TEMPLATE_HEADERS.join(','), ...examples.map((r) => r.map(csvField).join(','))].join('\r\n') + '\r\n';
 }
 

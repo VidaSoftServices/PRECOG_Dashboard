@@ -131,7 +131,7 @@ const same = (a: string | null | undefined, b: string) => (a ?? '').toLowerCase(
 
 /**
  * Updates a Sensor that already exists with the cells the sheet filled - an empty cell never overwrites. Three independent
- * steps, each only when something differs: the Sensor itself (name, type, unit, direction, calculation switch), its raw/base
+ * steps, each only when something differs: the Sensor itself (name, type, unit, direction, calculation switch, visible switch), its raw/base
  * aggregation policy (scale, lookback, min issue score) and its setpoint (a new interval from now; see mergeSetpoint).
  */
 async function updateExisting(
@@ -184,6 +184,10 @@ async function updateExisting(
   if (p.processingEnabled && row.processingEnabled !== (sensor.processingEnabled ?? true)) {
     sensorBody.processingEnabled = row.processingEnabled;
     sensorChanges.push(`Calculate ${sensor.processingEnabled ?? true} -> ${row.processingEnabled}`);
+  }
+  if (p.visible && row.visible !== (sensor.visible ?? true)) {
+    sensorBody.visible = row.visible;
+    sensorChanges.push(`Visible ${sensor.visible ?? true} -> ${row.visible}`);
   }
   if (sensorChanges.length > 0) {
     const r = await attempt(
@@ -327,6 +331,7 @@ export async function importSensors({ deviceId, rows, existing, isCurve, setpoin
               rawLookback: row.rawLookback,
               rawMinIssueScore: row.rawMinIssueScore,
               processingEnabled: row.processingEnabled,
+              visible: row.visible,
             },
             signal,
           }),

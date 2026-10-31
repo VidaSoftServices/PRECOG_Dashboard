@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { parseSensorTable, type ImportDefaults } from './sensorImport';
 import { CATALOG } from '@/test/sensorCatalog';
 
-const DEFAULTS: ImportDefaults = { direction: 'lowerisbetter', rawScale: 'Seconds', rawLookback: '60', rawMinIssueScore: '1', processingEnabled: true };
+const DEFAULTS: ImportDefaults = { direction: 'lowerisbetter', rawScale: 'Seconds', rawLookback: '60', rawMinIssueScore: '1', processingEnabled: true, visible: true };
 
 describe('import column names', () => {
   it('the template headers sensorName, displayName and sensorType fill the Sensor id, name and sensor type', () => {

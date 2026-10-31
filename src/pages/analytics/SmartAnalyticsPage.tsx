@@ -33,6 +33,7 @@ import { useIssues } from '@/api/hooks/issues';
 import { useNumberSearchParam } from '@/lib/useNumberSearchParam';
 import { useDeviceSelection } from '@/lib/selectedDevice';
 import { filterSensors } from '@/lib/sensorFilter';
+import { splitShownSensors } from '@/lib/sensorVisibility';
 import { toApiIso, formatDateTime, parseApiDate } from '@/lib/dateTime';
 import { useAuth } from '@/auth/AuthContext';
 import { useBreakpoint } from '@/lib/useMediaQuery';
@@ -88,9 +89,11 @@ function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; sta
   const [selectedSensorIds, setSelectedSensorIds] = useState<number[]>([]);
   const [sensorFilter, setSensorFilter] = useState('');
 
-  const sensors = useMemo(() => sensorsQuery.data ?? [], [sensorsQuery.data]);
+  // A Sensor hidden with the Device page's "Visible" switch is not offered here (an Issue that involves it still shows it elsewhere).
+  const { shown: sensors, hiddenCount } = useMemo(() => splitShownSensors(sensorsQuery.data), [sensorsQuery.data]);
   const visibleSensors = useMemo(() => filterSensors(sensors, sensorFilter), [sensors, sensorFilter]);
-  const effectiveSelection = selectedSensorIds.length > 0 ? selectedSensorIds : sensors.slice(0, 1).map((s) => s.id!);
+  const pickedIds = selectedSensorIds.filter((id) => sensors.some((s) => s.id === id));
+  const effectiveSelection = pickedIds.length > 0 ? pickedIds : sensors.slice(0, 1).map((s) => s.id!);
   const primarySensor = sensors.find((s) => s.id === effectiveSelection[0]);
 
   const policiesQuery = useAggregationPolicies(deviceId, primarySensor?.id);
@@ -117,7 +120,13 @@ function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; sta
 
   if (sensorsQuery.isLoading || deviceQuery.isLoading) return <LoadingState label="Loading sensors…" />;
   if (sensorsQuery.isError) return <ErrorState error={sensorsQuery.error} onRetry={() => sensorsQuery.refetch()} />;
-  if (sensors.length === 0) return <EmptyState title="This Device has no Sensors yet" />;
+  if (sensors.length === 0) {
+    return hiddenCount > 0 ? (
+      <EmptyState title="All Sensors of this Device are hidden" description="An Admin can show them again with the Visible switch of each Sensor on the Device page." />
+    ) : (
+      <EmptyState title="This Device has no Sensors yet" />
+    );
+  }
 
   const series = effectiveSelection
     .map((sensorId, i) => {
@@ -151,6 +160,7 @@ function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; sta
           />
           <Text size={200} style={{ display: 'block', color: tokens.colorNeutralForeground3, margin: `${tokens.spacingVerticalXS} 0` }} role="status">
             {sensorFilter.trim() === '' ? `${sensors.length} Sensors` : `${visibleSensors.length} of ${sensors.length} Sensors match`}
+            {hiddenCount > 0 && ` (${hiddenCount} hidden on the Device page)`}
             {` - selected: ${effectiveSelection.map((id) => sensors.find((s) => s.id === id)).map((s) => s?.name || s?.externalSensorId).join(', ')}`}
           </Text>
           <div className={styles.sensorList}>
@@ -241,8 +251,11 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
   const [filterA, setFilterA] = useState('');
   const [filterB, setFilterB] = useState('');
 
-  const effectiveSensorA = sensorIdA ?? sensorsA.data?.[0]?.id;
-  const effectiveSensorB = sensorIdB ?? sensorsB.data?.[0]?.id;
+  // Hidden Sensors (Device page, "Visible" switch) are not offered; a chosen Sensor that has been hidden since falls back to the first shown one.
+  const shownA = useMemo(() => splitShownSensors(sensorsA.data).shown, [sensorsA.data]);
+  const shownB = useMemo(() => splitShownSensors(sensorsB.data).shown, [sensorsB.data]);
+  const effectiveSensorA = sensorIdA !== undefined && shownA.some((s) => s.id === sensorIdA) ? sensorIdA : shownA[0]?.id;
+  const effectiveSensorB = sensorIdB !== undefined && shownB.some((s) => s.id === sensorIdB) ? sensorIdB : shownB[0]?.id;
 
   // The chosen Sensor stays in its list even when it does not match the filter, so the select never shows a value that is not an option.
   const optionsFor = (sensors: typeof sensorsA.data, filter: string, chosen: number | undefined) => {
@@ -251,8 +264,8 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
     const pinned = all.find((s) => s.id === chosen);
     return pinned && !matching.includes(pinned) ? [pinned, ...matching] : matching;
   };
-  const optionsA = optionsFor(sensorsA.data, filterA, effectiveSensorA);
-  const optionsB = optionsFor(sensorsB.data, filterB, effectiveSensorB);
+  const optionsA = optionsFor(shownA, filterA, effectiveSensorA);
+  const optionsB = optionsFor(shownB, filterB, effectiveSensorB);
 
   const familyA = familyFor((deviceA.data?.applicationMode as 'continuous' | 'periodic') ?? 'continuous', sensorsA.data?.find((s) => s.id === effectiveSensorA)?.direction);
   const familyB = familyFor((deviceB.data?.applicationMode as 'continuous' | 'periodic') ?? 'continuous', sensorsB.data?.find((s) => s.id === effectiveSensorB)?.direction);

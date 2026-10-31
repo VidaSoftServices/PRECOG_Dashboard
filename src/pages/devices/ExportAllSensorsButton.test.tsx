@@ -9,7 +9,7 @@ import * as authStore from '@/auth/authStore';
 import { fetchMock } from '@/test/mockFetch';
 
 const SENSORS = [
-  { id: 2, externalSensorId: 'rpm_b', name: 'RPM', direction: 'bidirectional', sensorType: 'rotation', unitCode: 'rpm', processingEnabled: false },
+  { id: 2, externalSensorId: 'rpm_b', name: 'RPM', direction: 'bidirectional', sensorType: 'rotation', unitCode: 'rpm', processingEnabled: false, visible: false },
   { id: 1, externalSensorId: 'temp_a', name: 'Temperature', direction: 'lowerisbetter', sensorType: 'temperature', unitCode: 'Cel', processingEnabled: true },
 ];
 
@@ -80,11 +80,11 @@ describe('ExportAllSensorsButton', { timeout: 20_000 }, () => {
       expect(gets.sort()).toEqual(['/api/Devices/4/AggregationPolicies', '/api/Devices/4/Setpoints']);
       const lines = (await readBlob(download.blobs[0]!)).replace(/^\uFEFF/, '').trim().split('\r\n');
       expect(lines[0]).toBe(
-        'sensorName,displayName,direction,sensorType,unitCode,rawScale,rawLookback,rawMinIssueScore,Calculate,target (optional),tolerance (optional),targetAbove (optional),targetBelow (optional),toleranceAbove (optional),toleranceBelow (optional)',
+        'sensorName,displayName,direction,sensorType,unitCode,rawScale,rawLookback,rawMinIssueScore,Calculate,Visible,target (optional),tolerance (optional),targetAbove (optional),targetBelow (optional),toleranceAbove (optional),toleranceBelow (optional)',
       );
       // The current setpoint only (the interval in effect now), in the columns of the Sensor's direction.
-      expect(lines[1]).toBe('temp_a,Temperature,lowerisbetter,temperature,Cel,Days,30,5,TRUE,21.5,0.5,,,,');
-      expect(lines[2]).toBe('rpm_b,RPM,bidirectional,rotation,rpm,Years,100,1,FALSE,,,1500,1400,20,10');
+      expect(lines[1]).toBe('temp_a,Temperature,lowerisbetter,temperature,Cel,Days,30,5,TRUE,TRUE,21.5,0.5,,,,');
+      expect(lines[2]).toBe('rpm_b,RPM,bidirectional,rotation,rpm,Years,100,1,FALSE,FALSE,,,1500,1400,20,10');
     } finally {
       download.restore();
     }

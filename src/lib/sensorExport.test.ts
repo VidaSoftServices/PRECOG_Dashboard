@@ -6,12 +6,12 @@ import type { SensorDto } from '@/api/hooks/sensors';
 import { fetchMock } from '@/test/mockFetch';
 import { CATALOG } from '@/test/sensorCatalog';
 
-const DEFAULTS: ImportDefaults = { direction: 'lowerisbetter', rawScale: 'Seconds', rawLookback: '60', rawMinIssueScore: '1', processingEnabled: true };
+const DEFAULTS: ImportDefaults = { direction: 'lowerisbetter', rawScale: 'Seconds', rawLookback: '60', rawMinIssueScore: '1', processingEnabled: true, visible: true };
 const NOW = new Date(Date.UTC(2026, 9, 28, 12, 0, 0));
 const D = (day: number, month = 0) => new Date(Date.UTC(2026, month, day)).toISOString();
 
 const SENSORS: ExportSensor[] = [
-  { id: 2, externalSensorId: 'shaft_rpm_mean_1', name: '1# Shaft speed', direction: 'bidirectional', sensorType: 'rotation', unitCode: 'rpm', processingEnabled: false },
+  { id: 2, externalSensorId: 'shaft_rpm_mean_1', name: '1# Shaft speed', direction: 'bidirectional', sensorType: 'rotation', unitCode: 'rpm', processingEnabled: false, visible: false },
   { id: 1, externalSensorId: 'velocity_rms_x_eq_1', name: '1# Velocity RMS X', direction: 'lowerisbetter', sensorType: 'vibration', unitCode: 'mm_s', processingEnabled: true },
   { id: 3, externalSensorId: 'custom, "tag"', name: null, direction: 'higherisbetter', sensorType: null, unitCode: null, processingEnabled: true },
 ];
@@ -36,24 +36,24 @@ describe('buildSensorsExportCsv', () => {
     expect([...SENSOR_EXPORT_HEADERS]).toEqual([...TEMPLATE_HEADERS]);
     const lines = buildSensorsExportCsv(SENSORS, POLICIES, SETPOINTS, NOW).replace(/^\uFEFF/, '').trim().split('\r\n');
     expect(lines[0]).toBe(
-      'sensorName,displayName,direction,sensorType,unitCode,rawScale,rawLookback,rawMinIssueScore,Calculate,target (optional),tolerance (optional),targetAbove (optional),targetBelow (optional),toleranceAbove (optional),toleranceBelow (optional)',
+      'sensorName,displayName,direction,sensorType,unitCode,rawScale,rawLookback,rawMinIssueScore,Calculate,Visible,target (optional),tolerance (optional),targetAbove (optional),targetBelow (optional),toleranceAbove (optional),toleranceBelow (optional)',
     );
-    expect(lines[1]).toBe('velocity_rms_x_eq_1,1# Velocity RMS X,lowerisbetter,vibration,mm_s,Days,30,5,TRUE,5.5,0.5,,,,');
-    expect(lines[2]).toBe('shaft_rpm_mean_1,1# Shaft speed,bidirectional,rotation,rpm,Years,100,1,FALSE,,,100,50,5,5');
+    expect(lines[1]).toBe('velocity_rms_x_eq_1,1# Velocity RMS X,lowerisbetter,vibration,mm_s,Days,30,5,TRUE,TRUE,5.5,0.5,,,,');
+    expect(lines[2]).toBe('shaft_rpm_mean_1,1# Shaft speed,bidirectional,rotation,rpm,Years,100,1,FALSE,FALSE,,,100,50,5,5');
     // No raw policy -> those cells are empty; a field with a comma and quotes is quoted; a future-only setpoint is not "current".
-    expect(lines[3]).toBe('"custom, ""tag""",,higherisbetter,,,,,,TRUE,,,,,,');
+    expect(lines[3]).toBe('"custom, ""tag""",,higherisbetter,,,,,,TRUE,TRUE,,,,,,');
   });
 
   it('exports the interval in effect NOW, not the newest one: a closed or future interval is never offered as the current setpoint', () => {
     const only = (sp: ExportSetpoint) => buildSensorsExportCsv([SENSORS[1]!], POLICIES, [sp], NOW).trim().split('\r\n')[1]!;
-    expect(only({ sensorId: 1, validFrom: D(1), validTo: D(10), target: 4, tolerance: 1 })).toMatch(/,TRUE,,,,,,$/); // ended
-    expect(only({ sensorId: 1, validFrom: D(1, 11), validTo: null, target: 9, tolerance: 1 })).toMatch(/,TRUE,,,,,,$/); // not started
-    expect(only({ sensorId: 1, validFrom: D(1), validTo: D(1, 11), target: 6, tolerance: 2 })).toMatch(/,TRUE,6,2,,,,$/); // bounded but in effect
+    expect(only({ sensorId: 1, validFrom: D(1), validTo: D(10), target: 4, tolerance: 1 })).toMatch(/,TRUE,TRUE,,,,,,$/); // ended
+    expect(only({ sensorId: 1, validFrom: D(1, 11), validTo: null, target: 9, tolerance: 1 })).toMatch(/,TRUE,TRUE,,,,,,$/); // not started
+    expect(only({ sensorId: 1, validFrom: D(1), validTo: D(1, 11), target: 6, tolerance: 2 })).toMatch(/,TRUE,TRUE,6,2,,,,$/); // bounded but in effect
   });
 
   it('exports only the columns of the Sensor\'s own direction (a stale value of the other side would not import)', () => {
     const stale: ExportSetpoint = { sensorId: 1, validFrom: D(1), validTo: null, target: 5, tolerance: 1, targetAbove: 99, toleranceAbove: 9 };
-    expect(buildSensorsExportCsv([SENSORS[1]!], POLICIES, [stale], NOW).trim().split('\r\n')[1]).toMatch(/,TRUE,5,1,,,,$/);
+    expect(buildSensorsExportCsv([SENSORS[1]!], POLICIES, [stale], NOW).trim().split('\r\n')[1]).toMatch(/,TRUE,TRUE,5,1,,,,$/);
   });
 
   it('starts with a BOM (Excel reads the encoding) and has a stable file name', () => {
@@ -74,7 +74,9 @@ describe('the Sensor export feeds the Sensor import back without changing anythi
       expect(row.errors).toEqual([]);
       expect(row.exists).toBe(true);
     }
-    expect(rows[0]!.provided).toMatchObject({ rawScale: true, rawLookback: true, rawMinIssueScore: true, processingEnabled: true });
+    expect(rows[0]!.provided).toMatchObject({ rawScale: true, rawLookback: true, rawMinIssueScore: true, processingEnabled: true, visible: true });
+    // The Visible switch round-trips: the hidden shaft-speed Sensor stays hidden, the others stay visible.
+    expect(rows.map((r) => r.visible)).toEqual([true, false, true]);
     expect(rows[0]!.setpoint).toEqual({ target: 5.5, tolerance: 0.5 });
     expect(rows[1]!.setpoint).toEqual({ targetAbove: 100, targetBelow: 50, toleranceAbove: 5, toleranceBelow: 5 });
     expect(rows[2]!.provided).toMatchObject({ rawScale: false, rawLookback: false }); // no raw policy -> left alone

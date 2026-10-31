@@ -756,6 +756,17 @@ Meant for Sensors that should feed the model without ever raising an Issue of th
   on/off, igen/nem), and the dialog has a "Calculation" default for rows that leave it empty -
   so a 163-row sheet can mark only some Sensors as "store and train, don't calculate".
 
+## Per-Sensor visible switch
+
+`SensorDto.visible` (default true; API: `Sensor.Visible`) lets an Admin **hide a Sensor from Live Monitoring and Smart Analytics** - for everybody, until it is shown again. It is a **presentation flag only**: the data is still stored, calculated and used to train the model (it is not `enabled`, not the calculation switch, not maintenance mode), the API's reads do not filter on it, and it is not a security boundary.
+
+- **Where it hides**: `LiveMonitoringPage` (the cards, the paging counts and the polling rotation only contain shown Sensors; the status line says "N hidden Sensor(s) not listed"; a Device whose Sensors are all hidden says so instead of "No sensors") and `SmartAnalyticsPage` (the single-Device Sensor list and both Sensor pickers of the two-Device comparison; a default or remembered choice that is hidden falls back to the first shown Sensor; the list says how many are hidden). The one rule lives in `src/lib/sensorVisibility.ts` (`isShownSensor`, `splitShownSensors`: hidden only when `visible === false`, so a missing flag counts as shown).
+- **Where it never hides**: the **Device page** (it lists every Sensor, with a "Hidden" pill, and is where the switch lives), **Issues** (an Issue that involves a hidden Sensor still shows it - the Issue pages never call the helper), Export/Import, Policies, Knowledge Sharing, Training and every other page.
+- **Switch**: Device page, Sensor row, Admin only - a **Visible** `Switch` next to **Calculate**, confirmed through `VisibilityDialog` (`useUpdateSensor` `{ visible }`, nothing else; the dialog says what it does and does not do; no retraining warning because the server schedules none). `HiddenPill` (icon + text) marks a hidden Sensor for every level and renders nothing for a visible one.
+- **Import / export, like Calculate**: the sheet has a `Visible` column (true/false, 1/0, yes/no, on/off, igen/nem; aliases `show`, `shown`) right after `Calculate`; the dialog has a **Visible** default for rows that leave it empty and a **Visible** column in the preview; for an **existing** Sensor only a filled cell is applied and only when it differs (`PUT .../Sensors/{id}` `{ visible }`, listed as "Visible true -> false" in the result); **Export all sensors** writes the column (re-importing the export changes nothing); the **Data sets** workbook has a Visible sheet and an Overview row; the template has the column. A bad value is reported on `Visible`.
+- Needs the API version that has `Sensor.Visible` (and its one-off script `DB_SensorVisible.sql`); against an older API the flag is simply absent and every Sensor counts as shown.
+- Tests: `sensorVisibility.test.ts`, `sensorImport.visible.test.ts`, `SensorImportDialog.test.tsx`, `sensorExport.test.ts`, `ExportAllSensorsButton.test.tsx`, `sensorDataSets.test.ts`, `VisibilityDialog.test.tsx` (dialog and pill), `LiveMonitoringPage.test.tsx` and `SmartAnalyticsPage.test.tsx` (hidden Sensors are not listed or offered; all hidden / none), `contract.test.ts`.
+
 ## Bulk Sensor import
 
 A Device can have hundreds of Sensors (a dual-point vibration monitor publishes
@@ -771,7 +782,7 @@ opens `SensorImportDialog.tsx`:
   `externalSensorId`; `externalSensorId` and `machineName` are accepted as aliases). Optional: `displayName`
   (the Sensor's name; alias `name`), `direction`, `sensorType` (the Sensor's `sensorType`; alias `sensorType`),
   `unitCode`, `rawScale`, `rawLookback`, `rawMinIssueScore`,
-  `Calculate` (the Sensor's `processingEnabled`) and the setpoint columns below; for a **new** Sensor a
+  `Calculate` (the Sensor's `processingEnabled`), `Visible` (the Sensor's `visible` switch, see "Per-Sensor visible switch") and the setpoint columns below; for a **new** Sensor a
   missing column or empty cell takes the **dialog's default** (direction,
   scale, lookback, min issue score). Raw scale and raw lookback have no built-in
   default (as in the single "Add Sensor" form) - they come from the sheet or the

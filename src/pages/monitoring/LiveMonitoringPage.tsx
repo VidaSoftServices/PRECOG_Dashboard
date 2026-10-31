@@ -34,6 +34,7 @@ import { useSensors } from '@/api/hooks/sensors';
 import { useTelemetryTrailingPeriods, familyFor, isCurveFamily } from '@/api/hooks/telemetry';
 import { useDeviceSelection } from '@/lib/selectedDevice';
 import { filterSensors } from '@/lib/sensorFilter';
+import { splitShownSensors } from '@/lib/sensorVisibility';
 import { usePageVisible } from '@/lib/usePageVisible';
 import { formatRelative, formatDateTime, freshnessOf } from '@/lib/dateTime';
 import { POLL_INTERVALS_MS } from '@/lib/pollIntervals';
@@ -287,7 +288,10 @@ export function LiveMonitoringPage() {
   // What the page shows is what it keeps fresh: a Device can have hundreds of Sensors, and one request every
   // few seconds could never keep all of them current, so only the Sensors on screen (after the filter, one page of them)
   // are in the rotation. Narrow the filter or turn the page to watch others.
-  const filtered = useMemo(() => filterSensors(sensorsQuery.data ?? [], filter), [sensorsQuery.data, filter]);
+  // A Sensor hidden with the Device page's "Visible" switch is left out of the cards and the rotation (it still exists, and an Issue
+  // that involves it still shows it).
+  const { shown: shownSensors, hiddenCount } = useMemo(() => splitShownSensors(sensorsQuery.data), [sensorsQuery.data]);
+  const filtered = useMemo(() => filterSensors(shownSensors, filter), [shownSensors, filter]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, pageCount - 1);
   const shown = useMemo(() => filtered.slice(safePage * pageSize, safePage * pageSize + pageSize), [filtered, safePage, pageSize]);
@@ -371,13 +375,14 @@ export function LiveMonitoringPage() {
         )}
       </div>
 
-      {sensorsQuery.data && sensorsQuery.data.length > 0 && (
+      {sensorsQuery.data && shownSensors.length > 0 && (
         <div className={styles.statusBar}>
           <div className={styles.pager}>
             <Button icon={<ChevronLeft24Regular />} aria-label="Previous page" disabled={safePage === 0} onClick={() => setPage(safePage - 1)} />
             <Text role="status">
               {filtered.length === 0 ? 'No Sensor matches the filter' : `Showing ${firstShown}–${lastShown} of ${filtered.length} Sensors`}
-              {filter !== '' && ` (filtered from ${sensorsQuery.data.length})`}
+              {filter !== '' && ` (filtered from ${shownSensors.length})`}
+              {hiddenCount > 0 && ` - ${hiddenCount} hidden Sensor(s) not listed (Visible switch on the Device page)`}
             </Text>
             <Button icon={<ChevronRight24Regular />} aria-label="Next page" disabled={safePage >= pageCount - 1} onClick={() => setPage(safePage + 1)} />
           </div>
@@ -394,7 +399,7 @@ export function LiveMonitoringPage() {
         <RateLimitBanner cooldownUntil={schedule.cooldownUntil} />
       ) : (
         sensorsQuery.data &&
-        sensorsQuery.data.length > 0 && (
+        shownSensors.length > 0 && (
           <Text size={200} className={styles.explanation}>
             Only the Sensors shown here are refreshed automatically - one request every {seconds} s, in turn
             {rotationSensors.length > 0 && `, so each one about every ${Math.max(seconds, rotationSensors.length * seconds)} s`}
@@ -408,8 +413,14 @@ export function LiveMonitoringPage() {
       {sensorsQuery.isLoading && <LoadingState label="Loading sensors…" />}
       {sensorsQuery.isError && <ErrorState error={sensorsQuery.error} onRetry={() => sensorsQuery.refetch()} />}
       {sensorsQuery.data && sensorsQuery.data.length === 0 && <EmptyState title="No sensors on this Device" />}
+      {sensorsQuery.data && sensorsQuery.data.length > 0 && shownSensors.length === 0 && (
+        <EmptyState
+          title="All Sensors of this Device are hidden"
+          description="An Admin can show them again with the Visible switch of each Sensor on the Device page."
+        />
+      )}
 
-      {deviceQuery.data && sensorsQuery.data && sensorsQuery.data.length > 0 && (
+      {deviceQuery.data && sensorsQuery.data && shownSensors.length > 0 && (
         <div className={styles.grid}>
           {shown.map((sensor) => (
             <SensorLiveCard

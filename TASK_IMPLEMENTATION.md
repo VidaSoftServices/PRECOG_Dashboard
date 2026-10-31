@@ -2670,3 +2670,9 @@ The Sensors header of the Device page (Admin only) now reads, left to right: **A
 - Choices: Start (every Sensor not in maintenance yet) / End (every Sensor in maintenance); a choice that would change nothing is disabled, the only sensible one is preselected, a mixed state asks. Start needs an explicit acknowledgement (telemetry sent meanwhile is lost); End needs none. Errors (403 for a non-Admin, 429) are shown inside the dialog, which stays open.
 - Tests: `MaintenanceAllDialog.test.tsx` (preselection, acknowledgement, exactly one PUT with `{ enabled }`, mixed state, the refusal stays visible) and the hook tests in `maintenance.test.tsx`.
 - Needs the API version that has the operation (API PR "maintenance for every Sensor of a Device"); against an older API the call answers 404/405.
+
+## Sensors: "visible" switch (hide from Live Monitoring and Smart Analytics)
+
+- New per-Sensor **Visible** switch (API `Sensor.Visible`, `SensorDto.visible`, `UpdateSensorRequest.visible`, `CreateSensorRequest.visible`; `schema.generated.ts` regenerated). Device page: an Admin-only Visible `Switch` beside Calculate (`VisibilityDialog`), a `HiddenPill` for everybody. Live Monitoring and Smart Analytics (single and comparison pickers) leave hidden Sensors out and say how many are hidden; Issues, the Device page, exports and every other page never filter on it (`src/lib/sensorVisibility.ts` is only called by those two pages).
+- Import / export like Calculate: the `Visible` column (template, parser with the same boolean words, dialog default and preview column, existing-Sensor update only for a filled and different cell, `Export all sensors`, Data sets workbook sheet and Overview row).
+- Tests added/updated: see CLAUDE.md "Per-Sensor visible switch". Typecheck and the whole suite pass.

@@ -108,6 +108,36 @@ describe('SensorImportDialog', { timeout: 20_000 }, () => {
     expect(posted.map((p) => p.body.processingEnabled)).toEqual([false, true, false]);
   });
 
+  it('sends the per-Sensor visible switch: the dialog default, overridden by a Visible column', async () => {
+    const posted = mockApi([]);
+    const user = userEvent.setup();
+    renderDialog();
+
+    paste('externalSensorId,Visible\na_1,\nb_1,true\nc_1,false');
+    await setDefaults(user);
+    await user.selectOptions(within(screen.getByRole('dialog')).getByRole('combobox', { name: 'Visible' }), 'off');
+    // The preview names the column and the value each row will get.
+    expect(within(screen.getByRole('dialog')).getByRole('columnheader', { name: 'Visible' })).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Import 3 Sensor(s)' }));
+
+    await waitFor(() => expect(posted).toHaveLength(3));
+    // empty cell -> dialog default (off = hidden); explicit cells win.
+    expect(posted.map((p) => p.body.visible)).toEqual([false, true, false]);
+  });
+
+  it('a Sensor sheet without a Visible column creates visible Sensors (the default is on)', async () => {
+    const posted = mockApi([]);
+    const user = userEvent.setup();
+    renderDialog();
+
+    paste('externalSensorId\na_1\nb_1');
+    await setDefaults(user);
+    await user.click(await screen.findByRole('button', { name: 'Import 2 Sensor(s)' }));
+
+    await waitFor(() => expect(posted).toHaveLength(2));
+    expect(posted.map((p) => p.body.visible)).toEqual([true, true]);
+  });
+
   /** A sheet line for a known metric with its exact catalog unit (or an overridden one). */
   const knownLine = (machineName: string, overrides: { unitCode?: string } = {}) => {
     const m = CATALOG.metrics.find((x) => x.machineName === machineName)!;
@@ -346,6 +376,32 @@ describe('SensorImportDialog', { timeout: 20_000 }, () => {
     });
     return writes;
   }
+
+  it('updates only the visible switch of an existing Sensor, and only when it really differs', async () => {
+    const writes = mockExisting(null);
+    const user = userEvent.setup();
+    renderDialog();
+
+    paste('sensorName\tVisible\nold_1\tfalse');
+    await user.click(await screen.findByRole('button', { name: 'Import 1 Sensor(s)' }));
+
+    expect(await screen.findByText(/0 created, 1 updated/)).toBeInTheDocument();
+    expect(writes.map((w) => `${w.method} ${w.path}`)).toEqual(['PUT /api/Devices/4/Sensors/7']);
+    expect(writes[0]!.body).toEqual({ visible: false });
+    expect(within(screen.getByRole('list', { name: 'Updated Sensors' })).getByText(/Visible true -> false/)).toBeInTheDocument();
+  });
+
+  it('writes nothing for an existing Sensor whose sheet value equals what it already has (re-running a sheet is idempotent)', async () => {
+    const writes = mockExisting(null);
+    const user = userEvent.setup();
+    renderDialog();
+
+    paste('sensorName\tVisible\nold_1\ttrue'); // the Sensor is visible already
+    await user.click(await screen.findByRole('button', { name: 'Import 1 Sensor(s)' }));
+
+    expect(await screen.findByText(/1 already up to date/)).toBeInTheDocument();
+    expect(writes).toEqual([]);
+  });
 
   it('updates an existing Sensor with only the filled cells: Sensor, raw policy and a new setpoint interval', async () => {
     const writes = mockExisting({ id: 3, validFrom: '2026-01-01T00:00:00Z', target: 5, tolerance: 1 });

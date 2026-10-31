@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { mergeSetpoint, parseSensorTable, type ExistingSensorInfo, type ImportDefaults } from './sensorImport';
 import { CATALOG } from '@/test/sensorCatalog';
 
-const DEFAULTS: ImportDefaults = { direction: 'lowerisbetter', rawScale: 'Seconds', rawLookback: '60', rawMinIssueScore: '1', processingEnabled: true };
+const DEFAULTS: ImportDefaults = { direction: 'lowerisbetter', rawScale: 'Seconds', rawLookback: '60', rawMinIssueScore: '1', processingEnabled: true, visible: true };
 const EXISTING = new Map<string, ExistingSensorInfo>([
   ['old_1', { direction: 'lowerisbetter' }],
   ['bi_1', { direction: 'bidirectional' }],

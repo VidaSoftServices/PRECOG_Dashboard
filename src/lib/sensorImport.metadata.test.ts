@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildTemplateCsv, findKnownMetric, parseSensorTable, toImportCatalog, TEMPLATE_HEADERS, type ImportDefaults } from './sensorImport';
 import { CATALOG, CATALOG_DTO } from '@/test/sensorCatalog';
 
-const DEFAULTS: ImportDefaults = { direction: 'lowerisbetter', rawScale: 'Seconds', rawLookback: '60', rawMinIssueScore: '1', processingEnabled: true };
+const DEFAULTS: ImportDefaults = { direction: 'lowerisbetter', rawScale: 'Seconds', rawLookback: '60', rawMinIssueScore: '1', processingEnabled: true, visible: true };
 
 const HEADER = 'machineName,displayName,unitCode';
 

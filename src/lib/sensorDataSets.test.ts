@@ -3,7 +3,7 @@ import { DATA_SETS_FILE_NAME, buildDataSetsSheets, buildDataSetsWorkbook } from 
 import { DIRECTIONS, FALSE_WORDS, SCALES, TEMPLATE_HEADERS, TRUE_WORDS, parseSensorTable, type ImportDefaults } from './sensorImport';
 import { CATALOG } from '@/test/sensorCatalog';
 
-const DEFAULTS: ImportDefaults = { direction: 'lowerisbetter', rawScale: 'Seconds', rawLookback: '60', rawMinIssueScore: '1', processingEnabled: true };
+const DEFAULTS: ImportDefaults = { direction: 'lowerisbetter', rawScale: 'Seconds', rawLookback: '60', rawMinIssueScore: '1', processingEnabled: true, visible: true };
 
 const sheets = buildDataSetsSheets(CATALOG);
 const sheet = (name: string) => sheets.find((s) => s.name === name)!;
@@ -11,7 +11,7 @@ const firstColumn = (name: string) => sheet(name).rows.slice(1).map((r) => r[0])
 
 describe('the "Data sets" workbook', () => {
   it('has one sheet per selectable field plus an overview', () => {
-    expect(sheets.map((s) => s.name)).toEqual(['Overview', 'direction', 'rawScale', 'Calculate', 'unitCode', 'Known metrics']);
+    expect(sheets.map((s) => s.name)).toEqual(['Overview', 'direction', 'rawScale', 'Calculate', 'Visible', 'unitCode', 'Known metrics']);
     expect(DATA_SETS_FILE_NAME).toBe('sensor-import-data-sets.xlsx');
   });
 
@@ -24,6 +24,7 @@ describe('the "Data sets" workbook', () => {
     expect(firstColumn('direction')).toEqual([...DIRECTIONS]);
     expect(firstColumn('rawScale')).toEqual([...SCALES]);
     expect(firstColumn('Calculate')).toEqual([...TRUE_WORDS, ...FALSE_WORDS]);
+    expect(firstColumn('Visible')).toEqual([...TRUE_WORDS, ...FALSE_WORDS]);
 
     // ...and the importer really takes each of them.
     for (const direction of firstColumn('direction')) {
@@ -35,6 +36,9 @@ describe('the "Data sets" workbook', () => {
     }
     for (const word of firstColumn('Calculate')) {
       expect(parseSensorTable(`sensorName,Calculate\nx_1,${word}`, DEFAULTS, CATALOG).rows[0]!.issues.filter((i) => i.field === 'Calculate')).toEqual([]);
+    }
+    for (const word of firstColumn('Visible')) {
+      expect(parseSensorTable(`sensorName,Visible\nx_1,${word}`, DEFAULTS, CATALOG).rows[0]!.issues.filter((i) => i.field === 'Visible')).toEqual([]);
     }
   });
 

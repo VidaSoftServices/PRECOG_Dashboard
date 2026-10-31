@@ -38,6 +38,7 @@ function overviewRows(): (string | number)[][] {
     ['rawLookback', 'Yes (or the dialog default)', 'Whole number greater than zero, counted in rawScale units.', 'Whole number > 0'],
     ['rawMinIssueScore', 'No (default 1)', 'The score a possible Issue must reach before it is a real Issue.', 'Whole number 0 - 32767'],
     ['Calculate', 'No (dialog default)', 'Calculate from this Sensor (true), or only store its data and train on it (false).', 'Sheet "Calculate"'],
+    ['Visible', 'No (dialog default)', 'Show this Sensor in Live Monitoring and Smart Analytics (true), or hide it there (false). Nothing else changes: the data is still stored, calculated and trained on, and an Issue that involves the Sensor still shows it.', 'Sheet "Visible"'],
     ['target (optional)', 'No', 'Target of a lowerisbetter/higherisbetter Sensor. When any setpoint column is filled the Sensor gets a setpoint effective from the moment of the import; a one-sided Sensor then needs a target.', 'Any number (decimal comma allowed)'],
     ['tolerance (optional)', 'No', 'Tolerance of a lowerisbetter/higherisbetter Sensor; needs target.', 'Number, 0 or more'],
     ['targetAbove (optional)', 'No', 'Upper-side target of a bidirectional Sensor.', 'Any number'],
@@ -71,6 +72,15 @@ export function buildDataSetsSheets(catalog: ImportCatalog): XlsxSheet[] {
         ...FALSE_WORDS.map((w) => [w, 'Calculation off: data is still stored and used for model training, but triggers no analysis.']),
       ],
       columnWidths: [20, 90],
+    },
+    {
+      name: 'Visible',
+      rows: [
+        ['Accepted values', 'Meaning'],
+        ...TRUE_WORDS.map((w) => [w, 'Visible: shown in Live Monitoring and Smart Analytics.']),
+        ...FALSE_WORDS.map((w) => [w, 'Hidden: left out of Live Monitoring and Smart Analytics. The data is still stored, calculated and trained on, and Issues that involve the Sensor still show it.']),
+      ],
+      columnWidths: [20, 110],
     },
     {
       name: 'unitCode',

@@ -8,6 +8,7 @@ import {
   Circle16Regular,
   Wrench16Regular,
   PauseCircle16Regular,
+  EyeOff16Regular,
 } from '@fluentui/react-icons';
 import type { Freshness } from '@/lib/dateTime';
 
@@ -105,6 +106,20 @@ export function ProcessingOffPill({ processingEnabled }: { processingEnabled: bo
   return (
     <Badge appearance="tint" color="informative" icon={<PauseCircle16Regular />}>
       Calculation off
+    </Badge>
+  );
+}
+
+/**
+ * Shown for a Sensor that is hidden from Live Monitoring and Smart Analytics (`SensorDto.visible === false`). A presentation
+ * flag only: its data is still stored, calculated and trained on, and an Issue that involves it still shows it. Icon + text,
+ * never color alone. Renders nothing for a visible Sensor (the default), so the common case stays quiet.
+ */
+export function HiddenPill({ visible }: { visible: boolean | null | undefined }) {
+  if (visible !== false) return null;
+  return (
+    <Badge appearance="tint" color="informative" icon={<EyeOff16Regular />}>
+      Hidden
     </Badge>
   );
 }

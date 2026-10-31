@@ -12,6 +12,7 @@ export interface ExportSensor {
   sensorType?: string | null;
   unitCode?: string | null;
   processingEnabled?: boolean | null;
+  visible?: boolean | null;
 }
 
 export interface ExportPolicy {
@@ -69,7 +70,7 @@ function canonicalScale(scale: string | null | undefined): string {
 
 /**
  * Every Sensor of a Device as a sheet the Sensor import can take back as it is: one row per Sensor, the id in `sensorName`, its
- * display name, direction, type, unit, the raw/base policy's scale / lookback / minimum issue score and the Calculate switch.
+ * display name, direction, type, unit, the raw/base policy's scale / lookback / minimum issue score, the Calculate switch and the Visible switch.
  * The last six columns carry the Sensor's CURRENT setpoint (the interval in effect now: target / tolerance, or the four above/below
  * columns for a bidirectional Sensor; empty for a Sensor with none). Importing the sheet again changes nothing: every value already
  * matches, and an unchanged setpoint writes nothing. The full history of every interval is the "Manage Setpoints" export. A Sensor
@@ -104,6 +105,7 @@ export function buildSensorsExportCsv(
         raw?.lookback ?? '',
         raw?.minIssueScore ?? '',
         sensor.processingEnabled === false ? 'FALSE' : 'TRUE',
+        sensor.visible === false ? 'FALSE' : 'TRUE',
         ...SETPOINT_COLUMNS.map((column) => (current && own.includes(column) ? (current[column] ?? '') : '')),
       ]
         .map(csvField)

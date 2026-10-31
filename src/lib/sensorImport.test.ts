@@ -11,7 +11,7 @@ import {
 } from './sensorImport';
 import { CATALOG } from '@/test/sensorCatalog';
 
-const DEFAULTS: ImportDefaults = { direction: 'lowerisbetter', rawScale: 'Seconds', rawLookback: '60', rawMinIssueScore: '1', processingEnabled: true };
+const DEFAULTS: ImportDefaults = { direction: 'lowerisbetter', rawScale: 'Seconds', rawLookback: '60', rawMinIssueScore: '1', processingEnabled: true, visible: true };
 
 describe('detectDelimiter / splitDelimited', () => {
   it('prefers a tab (an Excel paste), then the more frequent of ; and ,', () => {
@@ -181,7 +181,7 @@ describe('buildTemplateCsv', () => {
     expect(csv.startsWith('﻿')).toBe(true);
     expect(csv.split('\r\n')[0]).toBe('﻿' + TEMPLATE_HEADERS.join(','));
 
-    const { rows, fileErrors } = parseSensorTable(csv, { direction: 'lowerisbetter', rawScale: '', rawLookback: '', rawMinIssueScore: '1', processingEnabled: true }, CATALOG);
+    const { rows, fileErrors } = parseSensorTable(csv, { direction: 'lowerisbetter', rawScale: '', rawLookback: '', rawMinIssueScore: '1', processingEnabled: true, visible: true }, CATALOG);
     expect(fileErrors).toEqual([]);
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.flatMap((r) => r.errors)).toEqual([]);
