@@ -32,3 +32,26 @@ export function useSetSensorMaintenance(deviceId: number, sensorId: number) {
     },
   });
 }
+
+/**
+ * Switches maintenance mode on or off for EVERY Sensor of the Device in one request (`PUT /api/Devices/{deviceId}/Maintenance`):
+ * a Device may have hundreds of Sensors and the per-Sensor call is rate limited to 30 per minute. Same rules as the single-Sensor call
+ * (Company Admin only on the server, `{ enabled }` and nothing else, never a MAC address); Sensors already in the requested state are
+ * left untouched by the API. A success refreshes the Device's Sensor list and every single-Sensor query under it.
+ */
+export function useSetDeviceMaintenance(deviceId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (enabled: boolean) =>
+      unwrap(
+        await apiClient.PUT('/api/Devices/{deviceId}/Maintenance', {
+          params: { path: { deviceId } },
+          body: { enabled },
+        }),
+      ),
+    onSuccess: () => {
+      // The prefix covers the list and every single-Sensor query of this Device.
+      queryClient.invalidateQueries({ queryKey: queryKeys.sensors(deviceId) });
+    },
+  });
+}

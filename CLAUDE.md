@@ -903,6 +903,22 @@ cannot raise false Issues. Data sent meanwhile cannot be recovered.
   `You need admin privileges to set maintenance mode.`
 - Maintenance is an operational state, distinct from `Sensor.enabled` and from
   configuration: it never triggers retraining and changes no Policy.
+- **All Sensors of the Device at once.** The Sensors header of the Device page has an
+  Admin-only **Maintenance (all Sensors)** button (`MaintenanceAllDialog`,
+  `useSetDeviceMaintenance` -> `PUT /api/Devices/{deviceId}/Maintenance` `{ enabled }`): ONE
+  request switches every Sensor of the Device on or off (a Device such as the
+  Vibration_Duo has 326 Sensors and the per-Sensor call is rate limited to 30 per minute, so a
+  loop of per-Sensor calls is not an option). The dialog says how many Sensors are in
+  maintenance now and offers two choices - **Start** on every Sensor that is not in maintenance
+  yet, **End** on every one that is - and disables a choice that would change nothing; with
+  nothing (or everything) in maintenance the only sensible choice is preselected, with a mix none
+  is. **Starting** shows the same data-loss warning as the single-Sensor dialog and needs an
+  explicit acknowledgement checkbox before the destructive confirm button enables; ending needs
+  none. Sensors already in the requested state are left untouched by the API (their start time
+  and Admin are kept); the change is one audit event on the server. A success toasts the
+  number of Sensors changed and refreshes the Device's Sensor queries (the per-Sensor
+  buttons, pills and the warning bar follow). A non-Admin never sees the button, and the server
+  answers 403 anyway (shown inside the dialog, which stays open).
 - Live Monitoring still polls a Sensor in maintenance (it shows its last stored
   values); it is not removed from the rotation.
 

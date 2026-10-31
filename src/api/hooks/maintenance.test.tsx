@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { renderHook, waitFor, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
-import { useSetSensorMaintenance } from './maintenance';
+import { useSetDeviceMaintenance, useSetSensorMaintenance } from './maintenance';
 import { MaintenancePill, ProcessingOffPill } from '@/components/StatusPill';
 import * as authStore from '@/auth/authStore';
 import { fetchMock } from '@/test/mockFetch';
@@ -49,6 +49,49 @@ describe('useSetSensorMaintenance', () => {
 
     const { result } = renderHook(() => useSetSensorMaintenance(2, 3), { wrapper });
     result.current.mutate(true);
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect((result.current.error as { status?: number }).status).toBe(403);
+  });
+});
+
+describe('useSetDeviceMaintenance', () => {
+  beforeEach(() => {
+    authStore.setSession({ token: 'abc', principalType: 'User', expiresAt: new Date(Date.now() + 60_000).toISOString() });
+  });
+
+  it('PUTs only { enabled } to the Device-wide maintenance route - one request, no Sensor id, never a MAC address', async () => {
+    fetchMock().mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ deviceId: 2, anySensorInMaintenance: true, sensors: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+
+    const { result } = renderHook(() => useSetDeviceMaintenance(2), { wrapper });
+    result.current.mutate(true);
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(fetchMock().mock.calls).toHaveLength(1);
+    const request = fetchMock().mock.calls.at(-1)![0] as Request;
+    expect(request.method).toBe('PUT');
+    expect(new URL(request.url).pathname).toBe('/api/Devices/2/Maintenance');
+    expect(await request.clone().json()).toEqual({ enabled: true });
+  });
+
+  it('surfaces the server\'s Admin-only refusal as an error', async () => {
+    fetchMock().mockImplementation(
+      async () =>
+        new Response(JSON.stringify('You need admin privileges to set maintenance mode.'), {
+          status: 403,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+
+    const { result } = renderHook(() => useSetDeviceMaintenance(2), { wrapper });
+    result.current.mutate(false);
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect((result.current.error as { status?: number }).status).toBe(403);

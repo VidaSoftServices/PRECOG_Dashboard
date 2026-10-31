@@ -33,6 +33,7 @@ import { useAppToast } from '@/components/ToastProvider';
 import { useDevice, useUpdateDevice, useDisableDevice } from '@/api/hooks/devices';
 import { useSensors, useCreateSensor, useUpdateSensor, type SensorDto } from '@/api/hooks/sensors';
 import { useSetSensorMaintenance } from '@/api/hooks/maintenance';
+import { MaintenanceAllDialog } from './MaintenanceAllDialog';
 import { useDevicePrincipal } from '@/api/hooks/devicePrincipal';
 import { useTrainingRequests } from '@/api/hooks/training';
 import { freshnessOf, formatDateTimeWithZone, formatRelative } from '@/lib/dateTime';
@@ -376,6 +377,7 @@ export function DeviceDetailPage() {
   const [manageSetpointsOpen, setManageSetpointsOpen] = useState(false);
   const [editingSensorId, setEditingSensorId] = useState<number | null>(null);
   const [maintenanceSensorId, setMaintenanceSensorId] = useState<number | null>(null);
+  const [maintenanceAllOpen, setMaintenanceAllOpen] = useState(false);
   const [processingSensorId, setProcessingSensorId] = useState<number | null>(null);
 
   if (deviceQuery.isLoading) return <LoadingState label="Loading device…" />;
@@ -534,6 +536,15 @@ export function DeviceDetailPage() {
               </Button>
             )}
             {isAdmin && <ExportSensorMapButton device={device} sensors={sensorsQuery.data ?? []} />}
+            {isAdmin && (
+              <Button
+                icon={<Wrench24Regular />}
+                onClick={() => setMaintenanceAllOpen(true)}
+                disabled={(sensorsQuery.data ?? []).length === 0}
+              >
+                Maintenance (all Sensors)
+              </Button>
+            )}
             <Button icon={<ChartMultiple24Regular />} onClick={() => navigate(`/analytics?deviceId=${id}`)}>
               Analyze
             </Button>
@@ -716,6 +727,16 @@ export function DeviceDetailPage() {
           sensor={processingSensor}
           open={processingSensorId !== null}
           onClose={() => setProcessingSensorId(null)}
+        />
+      )}
+
+      {isAdmin && (
+        <MaintenanceAllDialog
+          key={`all-${sensorsInMaintenance}-${sensorsQuery.data?.length ?? 0}`}
+          deviceId={id}
+          sensors={sensorsQuery.data ?? []}
+          open={maintenanceAllOpen}
+          onClose={() => setMaintenanceAllOpen(false)}
         />
       )}
 

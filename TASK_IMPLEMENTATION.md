@@ -2663,3 +2663,10 @@ The Sensors header of the Device page (Admin only) now reads, left to right: **A
 
 - `schema.generated.ts` regenerated from the API's new OpenAPI document: `SignalInputData.period` is optional and ignored, `Continuous_IngestSignals` lost its 409 and its description changed (first value of a Sensor per millisecond wins, headers `X-Signals-Stored`/`X-Signals-Ignored`); `SignalOutputData.period` is documented as the epoch-millisecond of `measured`. The example timestamps in the generated comments changed with the regeneration (noise).
 - No hook, page or test depends on a stored Signal period; the contract test that every ingestion DTO requires `sensorId` still passes.
+
+## Device page: maintenance mode for all Sensors at once
+
+- New Admin-only **Maintenance (all Sensors)** button in the Sensors header of the Device page (`MaintenanceAllDialog.tsx`, `useSetDeviceMaintenance` in `hooks/maintenance.ts`) over the new API operation `PUT /api/Devices/{deviceId}/Maintenance` (`Maintenance_SetDeviceMaintenance`; the per-Sensor PUT is limited to 30 per minute, so a Device with hundreds of Sensors cannot be switched Sensor by Sensor). `schema.generated.ts` regenerated for it (example timestamps in the generated comments changed too).
+- Choices: Start (every Sensor not in maintenance yet) / End (every Sensor in maintenance); a choice that would change nothing is disabled, the only sensible one is preselected, a mixed state asks. Start needs an explicit acknowledgement (telemetry sent meanwhile is lost); End needs none. Errors (403 for a non-Admin, 429) are shown inside the dialog, which stays open.
+- Tests: `MaintenanceAllDialog.test.tsx` (preselection, acknowledgement, exactly one PUT with `{ enabled }`, mixed state, the refusal stays visible) and the hook tests in `maintenance.test.tsx`.
+- Needs the API version that has the operation (API PR "maintenance for every Sensor of a Device"); against an older API the call answers 404/405.
