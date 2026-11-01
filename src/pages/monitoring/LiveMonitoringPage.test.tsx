@@ -111,21 +111,24 @@ describe('LiveMonitoringPage and hidden Sensors', { timeout: 30_000 }, () => {
     await user.click(await screen.findByRole('button', { name: 'Enlarge chart of RMS A' }));
   }
 
-  it('the enlarged chart draws only the lines the API has values for, and shows no explanatory notice when some are missing', async () => {
+  it('the enlarged chart always lists the four limit lines in its legend, draws only the values the API has, and shows no explanatory notice', async () => {
     reference = 'none';
     mockApi([sensor(1, 'RMS A', true)]);
     await openEnlarged();
 
-    await waitFor(() => expect(drawn.labels[drawn.labels.length - 1]).toEqual(['RMS A'])); // no target, no tolerance, no limits: just the readings
+    // No target, no tolerance, no limit value: the readings, and the limit lines named in the legend (nothing is drawn for them).
+    await waitFor(() => expect(drawn.labels[drawn.labels.length - 1]).toEqual(['RMS A', 'RMS A UCL3', 'RMS A UCL2', 'RMS A LCL2', 'RMS A LCL3']));
     expect(screen.queryByText(/No control limits yet|No Target|setpoint/)).not.toBeInTheDocument();
   });
 
-  it('draws Target and Tolerance without limits when the API has stored no control limits, again without a notice', async () => {
+  it('draws Target and Tolerance but no limit values when the API has stored no control limits, again without a notice (the legend still names them)', async () => {
     reference = 'targetOnly';
     mockApi([sensor(1, 'RMS A', true)]);
     await openEnlarged();
 
-    await waitFor(() => expect(drawn.labels[drawn.labels.length - 1]).toEqual(['RMS A Target', 'RMS A Tolerance', 'RMS A']));
+    await waitFor(() =>
+      expect(drawn.labels[drawn.labels.length - 1]).toEqual(['RMS A Target', 'RMS A Tolerance', 'RMS A', 'RMS A UCL3', 'RMS A UCL2', 'RMS A LCL2', 'RMS A LCL3']),
+    );
     expect(screen.queryByText(/No control limits yet|No Target|setpoint/)).not.toBeInTheDocument();
   });
 

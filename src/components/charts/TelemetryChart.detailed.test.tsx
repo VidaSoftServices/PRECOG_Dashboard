@@ -78,19 +78,34 @@ describe('TelemetryChart detailedLimits (the Live Monitoring modal)', () => {
     expect(order[order.indexOf('Pump LCL3') - 1]).toBe('Pump LCL2');
   });
 
-  it('never fills towards a limit that is not there (that would shade down to the Actual line), and leaves out lines without values', () => {
+  it('never fills towards a limit that is not there (that would shade down to the Actual line)', () => {
     renderDetailed([{ label: 'Pump', direction: 'lowerisbetter', points: [point(0, { target: 2, upperControlLimit2S: 1.9, lowerControlLimit3S: 1.47 })] }]);
 
-    expect(labels()).toEqual(['Pump Target', 'Pump', 'Pump UCL2', 'Pump LCL3']); // no tolerance value, no UCL3, no LCL2
+    expect(dataset('Pump UCL3').data).toEqual([null]); // no UCL3 and no LCL2 value: those lines are listed but draw nothing
+    expect(dataset('Pump LCL2').data).toEqual([null]);
     expect(dataset('Pump UCL2').fill).toBeUndefined();
     expect(dataset('Pump LCL3').fill).toBeUndefined();
+  });
+
+  it('always lists UCL3, UCL2, LCL2 and LCL3 in the legend, also when the platform has stored no limit at all (nothing is drawn for them)', () => {
+    renderDetailed([{ label: 'Pump', direction: 'lowerisbetter', points: [point(0, { target: 2, tolerance: 0.05 }), point(1, { target: 2, tolerance: 0.05 })] }]);
+
+    expect(labels()).toEqual(['Pump Target', 'Pump Tolerance', 'Pump', 'Pump UCL3', 'Pump UCL2', 'Pump LCL2', 'Pump LCL3']);
+    for (const name of ['Pump UCL3', 'Pump UCL2', 'Pump LCL2', 'Pump LCL3']) expect(dataset(name).data).toEqual([null, null]);
+    expect(dataset('Pump UCL2').fill).toBeUndefined(); // and no band either
+  });
+
+  it('lists the four limits even for a Sensor with no setpoint and no limits - just Actual plus the limit lines', () => {
+    renderDetailed([{ label: 'Pump', direction: 'lowerisbetter', points: [point(0)] }]);
+
+    expect(labels()).toEqual(['Pump', 'Pump UCL3', 'Pump UCL2', 'Pump LCL2', 'Pump LCL3']);
   });
 
   it('draws a bidirectional Sensor\'s four target and tolerance lines, each tolerance beyond its own target', () => {
     const both = { targetAbove: 100, toleranceAbove: 5, targetBelow: 50, toleranceBelow: 4 };
     renderDetailed([{ label: 'Rpm', bidirectional: true, direction: 'bidirectional', points: [point(0, both)] }]);
 
-    expect(labels()).toEqual(['Rpm Target Above', 'Rpm Tolerance Above', 'Rpm Target Below', 'Rpm Tolerance Below', 'Rpm']);
+    expect(labels()).toEqual(['Rpm Target Above', 'Rpm Tolerance Above', 'Rpm Target Below', 'Rpm Tolerance Below', 'Rpm', 'Rpm UCL3', 'Rpm UCL2', 'Rpm LCL2', 'Rpm LCL3']);
     expect(dataset('Rpm Tolerance Above').data).toEqual([105]);
     expect(dataset('Rpm Tolerance Below').data).toEqual([46]);
   });

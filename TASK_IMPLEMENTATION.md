@@ -2691,7 +2691,12 @@ The Sensors header of the Device page (Admin only) now reads, left to right: **A
 
 ## Smart Analytics: the full limit set for a single Sensor
 
-- Smart Analytics' single-Device chart with exactly one selected Sensor now draws what the Live Monitoring modal draws (`detailedLimits`, the series carries the Sensor's `direction`): Target, Tolerance, Actual, and the API's UCL3, UCL2, LCL2, LCL3 with the two shaded bands, in the small chart and in the enlarged one. Before it drew only UCL3/LCL3. Several Sensors stay a clean overlay; the two-Device comparison keeps UCL3/LCL3 per series (more lines would bury two Sensors). Every value is the API's - nothing is computed in the browser, and a line without values is simply absent (no notice).
+- Smart Analytics' single-Device chart with exactly one selected Sensor now draws what the Live Monitoring modal draws (`detailedLimits`, the series carries the Sensor's `direction`): Target, Tolerance, Actual, and the API's UCL3, UCL2, LCL2, LCL3 with the two shaded bands, in the small chart and in the enlarged one. Before it drew only UCL3/LCL3. Several Sensors stay a clean overlay; the two-Device comparison keeps UCL3/LCL3 per series (more lines would bury two Sensors). Every value is the API's - nothing is computed in the browser, and a line without values draws nothing (no notice).
+
+## Detailed charts: the four limit lines are always in the legend
+
+- The user reported the legend of the Live Monitoring modal (and Smart Analytics' single-Sensor chart) lacking UCL/LCL: the chart left a limit line out when the API had no value for it, so with no limits stored the legend simply had no UCL3/UCL2/LCL2/LCL3 entries. `detailedDatasets` now always adds the four limit lines (`TelemetryChart`, `detailedLimits`), so the legend always names them, as in the original chart; with no values nothing is drawn for them and no band is shaded. Target and Tolerance still appear only where the API has a setpoint. The two-Device comparison and the small cards are unchanged.
+- Tests: `TelemetryChart.detailed.test.tsx` (legend with no limits at all, with no setpoint either, bidirectional Sensor), `LiveMonitoringPage.test.tsx`, `SmartAnalyticsPage.test.tsx`.
 - Tests: `SmartAnalyticsPage.test.tsx` (the full set for one Sensor, only what exists when the API has none, a clean overlay for several Sensors).
 
 ## Live Monitoring modal: plain hover tooltip

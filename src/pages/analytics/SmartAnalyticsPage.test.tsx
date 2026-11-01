@@ -175,11 +175,11 @@ describe('SmartAnalyticsPage and hidden Sensors', { timeout: 40_000 }, () => {
     );
   });
 
-  it('single Device, one Sensor the API has no limits for: only the lines it has values for are drawn, with no explanatory notice', async () => {
+  it('single Device, one Sensor the API has no limits for: the legend still lists the four limit lines, with no explanatory notice', async () => {
     mockApi({ 4: [sensor(1, 'RMS A', true)], 5: [sensor(1, 'RMS A', true)] });
     renderPage('/analytics?deviceId=5'); // Device 5's reading carries no target and no limits
 
-    await waitFor(() => expect(lastDrawn()).toEqual(['RMS A']));
+    await waitFor(() => expect(lastDrawn()).toEqual(['RMS A', 'RMS A UCL3', 'RMS A UCL2', 'RMS A LCL2', 'RMS A LCL3']));
     expect(screen.queryByText(/No control limits|No Target/)).not.toBeInTheDocument();
   });
 

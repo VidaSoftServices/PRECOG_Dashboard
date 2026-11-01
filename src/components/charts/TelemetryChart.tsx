@@ -121,8 +121,10 @@ const LIMIT_BAND = 'rgba(128, 128, 128, 0.12)';
 
 /**
  * The datasets of a single Sensor's detailed chart, in the order of the platform's original chart (which is also the legend's order):
- * Target and Tolerance, the Actual line, then UCL3, UCL2, LCL2, LCL3. A band is filled to the neighbouring limit ('-1'), so a limit
- * is only paired with the one it sits next to; a line without a single value is left out (no empty legend entries).
+ * Target and Tolerance (only where the API has a setpoint), the Actual line, then UCL3, UCL2, LCL2, LCL3 - the four limit lines are
+ * ALWAYS part of the chart, so the legend always names them, even before the platform has stored any value for them (nothing is drawn
+ * for such a line). A band is filled to the neighbouring limit ('-1'), so a limit is only paired with the one it sits next to, and only
+ * when both have values.
  */
 function detailedDatasets(
   s: TelemetrySeriesInput,
@@ -170,10 +172,11 @@ function detailedDatasets(
   const ucl2 = aligned.map((p) => p?.upperControlLimit2S ?? null);
   const lcl2 = aligned.map((p) => p?.lowerControlLimit2S ?? null);
   const lcl3 = aligned.map((p) => p?.lowerControlLimit3S ?? null);
-  if (has(ucl3)) out.push(plain('UCL3', ucl3, LIMIT_COLOR_3S, 1.5, [30, 15]));
-  if (has(ucl2)) out.push(plain('UCL2', ucl2, LIMIT_COLOR_2S, 1.5, [30, 15], has(ucl3) ? { fill: '-1', backgroundColor: LIMIT_BAND } : {}));
-  if (has(lcl2)) out.push(plain('LCL2', lcl2, LIMIT_COLOR_2S, 1.5, [30, 15]));
-  if (has(lcl3)) out.push(plain('LCL3', lcl3, LIMIT_COLOR_3S, 1.5, [30, 15], has(lcl2) ? { fill: '-1', backgroundColor: LIMIT_BAND } : {}));
+  // Always pushed (also with no value at all): the legend lists UCL3/UCL2/LCL2/LCL3 whether or not the platform has stored them yet.
+  out.push(plain('UCL3', ucl3, LIMIT_COLOR_3S, 1.5, [30, 15]));
+  out.push(plain('UCL2', ucl2, LIMIT_COLOR_2S, 1.5, [30, 15], has(ucl3) && has(ucl2) ? { fill: '-1', backgroundColor: LIMIT_BAND } : {}));
+  out.push(plain('LCL2', lcl2, LIMIT_COLOR_2S, 1.5, [30, 15]));
+  out.push(plain('LCL3', lcl3, LIMIT_COLOR_3S, 1.5, [30, 15], has(lcl2) && has(lcl3) ? { fill: '-1', backgroundColor: LIMIT_BAND } : {}));
   return out;
 }
 
