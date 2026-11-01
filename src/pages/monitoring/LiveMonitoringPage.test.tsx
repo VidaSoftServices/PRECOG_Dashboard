@@ -111,30 +111,31 @@ describe('LiveMonitoringPage and hidden Sensors', { timeout: 30_000 }, () => {
     await user.click(await screen.findByRole('button', { name: 'Enlarge chart of RMS A' }));
   }
 
-  it('the enlarged chart explains why it has no Target, Tolerance or control limits when the platform has calculated none', async () => {
+  it('the enlarged chart draws only the lines the API has values for, and shows no explanatory notice when some are missing', async () => {
     reference = 'none';
     mockApi([sensor(1, 'RMS A', true)]);
     await openEnlarged();
 
-    expect(await screen.findByText('No Target, Tolerance or control limits')).toBeInTheDocument();
-    expect(screen.getByText(/whether it has a setpoint or not/)).toBeInTheDocument();
+    await waitFor(() => expect(drawn.labels[drawn.labels.length - 1]).toEqual(['RMS A'])); // no target, no tolerance, no limits: just the readings
+    expect(screen.queryByText(/No control limits yet|No Target|setpoint/)).not.toBeInTheDocument();
   });
 
-  it('the enlarged chart says control limits are missing when the setpoint is there but the analysis has stored none', async () => {
+  it('draws Target and Tolerance without limits when the API has stored no control limits, again without a notice', async () => {
     reference = 'targetOnly';
     mockApi([sensor(1, 'RMS A', true)]);
     await openEnlarged();
 
-    expect(await screen.findByText('No control limits yet')).toBeInTheDocument();
-    await waitFor(() => expect(drawn.labels[drawn.labels.length - 1]).toEqual(['RMS A Target', 'RMS A Tolerance', 'RMS A'])); // only what exists is drawn
+    await waitFor(() => expect(drawn.labels[drawn.labels.length - 1]).toEqual(['RMS A Target', 'RMS A Tolerance', 'RMS A']));
+    expect(screen.queryByText(/No control limits yet|No Target|setpoint/)).not.toBeInTheDocument();
   });
 
-  it('shows no such notice when the platform has everything', async () => {
+  it('draws UCL3, UCL2, LCL2 and LCL3 as soon as the API returns them', async () => {
     mockApi([sensor(1, 'RMS A', true)]);
     await openEnlarged();
 
-    await waitFor(() => expect(drawn.labels[drawn.labels.length - 1]).toContain('RMS A UCL3'));
-    expect(screen.queryByText(/No control limits yet|No Target/)).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(drawn.labels[drawn.labels.length - 1]).toEqual(['RMS A Target', 'RMS A Tolerance', 'RMS A', 'RMS A UCL3', 'RMS A UCL2', 'RMS A LCL2', 'RMS A LCL3']),
+    );
   });
 
   it('says so when every Sensor of the Device is hidden, instead of showing an empty page', async () => {

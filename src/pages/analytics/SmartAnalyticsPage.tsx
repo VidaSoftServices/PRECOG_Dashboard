@@ -157,7 +157,7 @@ function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; sta
       const sensor = sensors.find((s) => s.id === sensorId);
       const q = queries[i];
       if (!sensor || !q) return null;
-      return { label: sensor.name || sensor.externalSensorId || `Sensor ${sensorId}`, points: q.data ?? [], bidirectional: sensor.direction === 'bidirectional', unitLabel: sensor.unitLabel };
+      return { label: sensor.name || sensor.externalSensorId || `Sensor ${sensorId}`, points: q.data ?? [], bidirectional: sensor.direction === 'bidirectional', direction: sensor.direction, unitLabel: sensor.unitLabel };
     })
     .filter((s): s is NonNullable<typeof s> => s !== null);
 
@@ -219,6 +219,9 @@ function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; sta
               series={series}
               mode={series.length > 1 ? 'compare' : 'single'}
               showControlLimits={series.length === 1}
+              // One Sensor: the platform's full reference set as the API stored it (Target, Tolerance, UCL3/UCL2/LCL2/LCL3 and their bands),
+              // like the enlarged Live Monitoring chart. Several Sensors stay a clean overlay without limits.
+              detailedLimits={series.length === 1}
               height={360}
             />
           )}

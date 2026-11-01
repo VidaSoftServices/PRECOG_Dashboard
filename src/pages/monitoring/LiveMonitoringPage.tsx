@@ -29,7 +29,6 @@ import { ErrorState } from '@/components/states/ErrorState';
 import { EmptyState } from '@/components/states/EmptyState';
 import { FreshnessPill, MaintenancePill } from '@/components/StatusPill';
 import { TelemetryChart } from '@/components/charts/TelemetryChart';
-import { missingReferenceNotice } from '@/lib/referenceData';
 import { useDevices, useDevice } from '@/api/hooks/devices';
 import { useSensors } from '@/api/hooks/sensors';
 import { useTelemetryTrailingPeriods, familyFor, isCurveFamily } from '@/api/hooks/telemetry';
@@ -134,8 +133,7 @@ function SensorLiveCard({
   const [enlarged, setEnlarged] = useState(false);
   const sensorLabel = sensor.name || sensor.externalSensorId || 'Sensor';
   // One definition for the card and the enlarged view, so the modal always shows exactly the data the card has (it moves with every refresh).
-  // Why the enlarged chart may lack its Target / Tolerance / UCL / LCL lines: the platform has not calculated them (never computed here).
-  const referenceNotice = missingReferenceNotice(trailing.data ?? []);
+  // The enlarged chart draws every Target / Tolerance / UCL / LCL line the API has a value for (never computed here); a line it has none for is simply absent.
   const chartSeries = [{ label: sensorLabel, points: trailing.data ?? [], bidirectional: sensor.direction === 'bidirectional', direction: sensor.direction, unitLabel: sensor.unitLabel }];
 
   return (
@@ -229,14 +227,6 @@ function SensorLiveCard({
                   {latest ? `${formatDateTime(latest.measured)} (${formatRelative(latest.measured)})` : 'no data'}
                 </Text>
               </div>
-              {referenceNotice && (
-                <MessageBar intent="info" style={{ marginBottom: tokens.spacingVerticalS }}>
-                  <MessageBarBody>
-                    <MessageBarTitle>{referenceNotice.title}</MessageBarTitle>
-                    {referenceNotice.text}
-                  </MessageBarBody>
-                </MessageBar>
-              )}
               <TelemetryChart series={chartSeries} height="calc(85vh - 230px)" mode="single" detailedLimits timeAxis="fullDateTime" emphasizeHover plainTooltip />
             </DialogContent>
             <DialogActions>

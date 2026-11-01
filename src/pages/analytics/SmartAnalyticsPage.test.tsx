@@ -57,7 +57,7 @@ function mockApi(sensorsByDevice: Record<number, unknown[]>, compatibility: unkn
         ? Array.from({ length: take }, (_, i) => ({ sensorId: 1, period: skip + i, measured: new Date(Date.UTC(2026, 9, 21, 0, 0, 0) + (skip + i) * 1000).toISOString(), actual: 1 }))
         : skip > 0
           ? []
-          : [{ sensorId: Number(query.get('sensorId')), period: 1, measured: '2026-10-21T10:00:00Z', actual: deviceFour ? 1.5 : 2.5, ...(deviceFour ? { upperControlLimit3S: 4, lowerControlLimit3S: -1 } : {}) }];
+          : [{ sensorId: Number(query.get('sensorId')), period: 1, measured: '2026-10-21T10:00:00Z', actual: deviceFour ? 1.5 : 2.5, ...(deviceFour ? { target: 2, tolerance: 0.5, upperControlLimit3S: 4, upperControlLimit2S: 3, lowerControlLimit2S: 0, lowerControlLimit3S: -1 } : {}) }];
     }
     return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
   });
@@ -164,6 +164,32 @@ describe('SmartAnalyticsPage and hidden Sensors', { timeout: 40_000 }, () => {
     // The compatibility result stays visible as a notice - it no longer decides the layout.
     expect(screen.getByText('Not proven compatible')).toBeInTheDocument();
     expect(screen.getByText(/drawn in one chart as you selected them; the values are not converted or aligned/)).toBeInTheDocument();
+  });
+
+  it('single Device, one Sensor: draws the API\'s full reference set - Target, Tolerance, UCL3, UCL2, LCL2 and LCL3 - and Actual', async () => {
+    mockApi({ 4: [sensor(1, 'RMS A', true)] });
+    renderPage('/analytics?deviceId=4');
+
+    await waitFor(() =>
+      expect(lastDrawn()).toEqual(['RMS A Target', 'RMS A Tolerance', 'RMS A', 'RMS A UCL3', 'RMS A UCL2', 'RMS A LCL2', 'RMS A LCL3']),
+    );
+  });
+
+  it('single Device, one Sensor the API has no limits for: only the lines it has values for are drawn, with no explanatory notice', async () => {
+    mockApi({ 4: [sensor(1, 'RMS A', true)], 5: [sensor(1, 'RMS A', true)] });
+    renderPage('/analytics?deviceId=5'); // Device 5's reading carries no target and no limits
+
+    await waitFor(() => expect(lastDrawn()).toEqual(['RMS A']));
+    expect(screen.queryByText(/No control limits|No Target/)).not.toBeInTheDocument();
+  });
+
+  it('single Device, several Sensors: a clean overlay without limit lines', async () => {
+    mockApi({ 4: [sensor(1, 'RMS A', true), sensor(2, 'RMS B', true)] });
+    const user = userEvent.setup();
+    renderPage('/analytics?deviceId=4');
+    await user.click(await screen.findByRole('checkbox', { name: /RMS B/ }));
+
+    await waitFor(() => expect(lastDrawn()).toEqual(['RMS A', 'RMS B']));
   });
 
   it('opens on the last 15 minutes, and reads the range in pages (skip/take) instead of one request', async () => {
