@@ -2683,6 +2683,12 @@ The Sensors header of the Device page (Admin only) now reads, left to right: **A
 - The compatibility result is now a notice: "Not proven compatible" (the API's exact reasons, e.g. the "Ambiguous: N source Sensors ..." message) says the lines are drawn as selected and not converted or aligned; a new "Different units" notice appears when the two Sensors' unit codes differ (one axis, no conversion). Nothing is converted silently.
 - Tests: `SmartAnalyticsPage.test.tsx` (one chart for an unproven pair, for a proven pair without the notice, and for different units with the notice; the chart's drawing is stubbed because jsdom has no canvas).
 
+## Live Monitoring modal: Tolerance, UCL2/LCL2 and shaded bands like the original chart
+
+- The enlarged chart now draws what the `main`-branch app drew: Target, Tolerance (target + tolerance when lower is better, target - tolerance when higher is better; bidirectional: Target/Tolerance Above/Below), Actual, and the server's UCL3, UCL2, LCL2, LCL3 with the UCL3-UCL2 and LCL2-LCL3 bands shaded; the legend names the lines plainly (`TelemetryChart` `detailedLimits`, `TelemetrySeriesInput.direction`, `seriesNames.ts`). The hover tooltip stays Actual + Target only. Small cards and every other chart are unchanged.
+- The modal explains a missing line instead of silently omitting it (`missingReferenceNotice`): no Target/Tolerance (no setpoint) and/or no UCL/LCL (the API calculates them for every reading while the Sensor's calculation is on, setpoint or not - decision 2026-11-01; the notice names the "Calculate" switch). Found while diagnosing "I do not see UCL/LCL": the API's analysis loop never stored them in the real one-reading-per-window flow, and they needed a setpoint and the 6th reading (both fixed in the API, see its CLAUDE.md "Analysis loop fixed"; switching calculation off and on makes the API fill in the readings that have none).
+- Tests: `TelemetryChart.detailed.test.tsx` (order, tolerance sides, unknown direction, bands, missing limits, bidirectional, off by default, plain names), `referenceData.test.ts` and `LiveMonitoringPage.test.tsx` (the modal gets the detailed set and explains what is missing, the card keeps its plain chart).
+
 ## Live Monitoring modal: plain hover tooltip
 
 - The enlarged Live Monitoring chart's tooltip lists only Actual and Target with their values and unit (`TelemetryChart` `plainTooltip`): no Sensor name, no UCL3/LCL3 lines (still drawn and in the legend). Other charts are unchanged. Tests: `TelemetryChart.lines.test.tsx`.

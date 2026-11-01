@@ -18,6 +18,7 @@ import type { TelemetryPoint } from '@/api/hooks/telemetry';
 import { seriesPalette, seriesDashPatterns, anomalyColors } from './palette';
 import { formatDateTime, formatShortDateTime, formatTime } from '@/lib/dateTime';
 import { seriesAverage } from '@/lib/seriesAverage';
+import { plainLegendName, plainTooltipName } from './seriesNames';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
@@ -52,6 +53,8 @@ export interface TelemetrySeriesInput {
   label: string;
   points: TelemetryPoint[];
   bidirectional?: boolean;
+  /** The Sensor's direction ('lowerisbetter' | 'higherisbetter' | 'bidirectional'); decides on which side of the target the tolerance line is drawn. */
+  direction?: string | null;
   /** Display label of the series' unit, exactly as the API returns it (`SensorDto.unitLabel`). Never derived from the metric name; omit when the Sensor has none. */
   unitLabel?: string | null;
 }
@@ -89,6 +92,14 @@ export interface TelemetryChartProps {
    * (and unit) - not the Sensor's name and not the control-limit lines, which stay drawn but are left out of the tooltip.
    */
   plainTooltip?: boolean;
+  /**
+   * For a chart of ONE Sensor in 'single' mode (the Live Monitoring modal), drawn like the platform's original Issue/real-time chart:
+   * Target and Tolerance (the target compensated by the tolerance: target + tolerance when lower is better, target - tolerance when
+   * higher is better; a bidirectional Sensor gets Target Above/Below and Tolerance Above/Below), the Actual line, and the server's
+   * UCL3, UCL2, LCL2 and LCL3 with the two bands between UCL3-UCL2 and LCL2-LCL3 shaded. The legend names the lines plainly
+   * ("Actual", "Target", "UCL3", ...) without the Sensor's name. Every value is the API's; only target +/- tolerance is added up here.
+   */
+  detailedLimits?: boolean;
   /** Called when the chart is clicked anywhere except on its legend (which keeps toggling series); the pointer shows a zoom cursor. */
   onEnlarge?: () => void;
 }
@@ -103,12 +114,67 @@ export function sharedUnitLabel(series: TelemetrySeriesInput[]): string | undefi
   return labels.size === 1 && everySeriesHasOne ? [...labels][0] : undefined;
 }
 
-/** "Actual" for a series' own line, "Target" for its target line, undefined for every other dataset (limits, average) - the plain tooltip lists only those two. */
-function plainTooltipName(series: TelemetrySeriesInput[], datasetLabel: string | undefined): 'Actual' | 'Target' | undefined {
-  if (!datasetLabel) return undefined;
-  if (series.some((s) => s.label === datasetLabel)) return 'Actual';
-  if (series.some((s) => datasetLabel === `${s.label} Target`)) return 'Target';
-  return undefined;
+/** Greys of the platform's original chart: the 3-sigma limits darker, the 2-sigma limits lighter, the bands between them lightly shaded. */
+const LIMIT_COLOR_3S = '#808080';
+const LIMIT_COLOR_2S = '#B8B8B8';
+const LIMIT_BAND = 'rgba(128, 128, 128, 0.12)';
+
+/**
+ * The datasets of a single Sensor's detailed chart, in the order of the platform's original chart (which is also the legend's order):
+ * Target and Tolerance, the Actual line, then UCL3, UCL2, LCL2, LCL3. A band is filled to the neighbouring limit ('-1'), so a limit
+ * is only paired with the one it sits next to; a line without a single value is left out (no empty legend entries).
+ */
+function detailedDatasets(
+  s: TelemetrySeriesInput,
+  aligned: (TelemetryPoint | null)[],
+  actual: ChartData<'line'>['datasets'][number],
+  emphasizeHover: boolean,
+): ChartData<'line'>['datasets'] {
+  const name = (suffix: string) => `${s.label} ${suffix}`;
+  const plain = (suffix: string, data: (number | null)[], color: string, width: number, dash: number[], extra: object = {}) => ({
+    label: name(suffix),
+    data,
+    borderColor: color,
+    borderDash: dash,
+    borderWidth: width,
+    pointRadius: 0,
+    ...(emphasizeHover ? { pointHoverRadius: 0 } : {}),
+    ...extra,
+  });
+  const has = (values: (number | null)[]) => values.some((v) => v !== null);
+  const sum = (a: number | null | undefined, b: number | null | undefined, sign: 1 | -1) => (a != null && b != null ? a + sign * b : null);
+  const out: ChartData<'line'>['datasets'] = [];
+
+  if (s.bidirectional) {
+    // Both sides have their own target and tolerance: the tolerance lies beyond the target on its own side.
+    const lines: [string, (number | null)[], string][] = [
+      ['Target Above', aligned.map((p) => p?.targetAbove ?? null), '#6FB1E8'],
+      ['Tolerance Above', aligned.map((p) => sum(p?.targetAbove, p?.toleranceAbove, 1)), '#0B3C78'],
+      ['Target Below', aligned.map((p) => p?.targetBelow ?? null), anomalyColors.warning],
+      ['Tolerance Below', aligned.map((p) => sum(p?.targetBelow, p?.toleranceBelow, -1)), anomalyColors.critical],
+    ];
+    for (const [suffix, values, color] of lines) if (has(values)) out.push(plain(suffix, values, color, 2.5, [5, 5]));
+  } else {
+    const target = aligned.map((p) => p?.target ?? null);
+    if (has(target)) out.push(plain('Target', target, anomalyColors.warning, 3, [5, 5]));
+    // The tolerance line is the target compensated by the tolerance, on the side where a deviation is bad. Without a known direction
+    // it is not drawn rather than guessed.
+    const sign = s.direction === 'lowerisbetter' ? 1 : s.direction === 'higherisbetter' ? -1 : null;
+    const tolerance = sign === null ? [] : aligned.map((p) => sum(p?.target, p?.tolerance, sign));
+    if (has(tolerance)) out.push(plain('Tolerance', tolerance, anomalyColors.critical, 3, [5, 5]));
+  }
+
+  out.push(actual);
+
+  const ucl3 = aligned.map((p) => p?.upperControlLimit3S ?? null);
+  const ucl2 = aligned.map((p) => p?.upperControlLimit2S ?? null);
+  const lcl2 = aligned.map((p) => p?.lowerControlLimit2S ?? null);
+  const lcl3 = aligned.map((p) => p?.lowerControlLimit3S ?? null);
+  if (has(ucl3)) out.push(plain('UCL3', ucl3, LIMIT_COLOR_3S, 1.5, [30, 15]));
+  if (has(ucl2)) out.push(plain('UCL2', ucl2, LIMIT_COLOR_2S, 1.5, [30, 15], has(ucl3) ? { fill: '-1', backgroundColor: LIMIT_BAND } : {}));
+  if (has(lcl2)) out.push(plain('LCL2', lcl2, LIMIT_COLOR_2S, 1.5, [30, 15]));
+  if (has(lcl3)) out.push(plain('LCL3', lcl3, LIMIT_COLOR_3S, 1.5, [30, 15], has(lcl2) ? { fill: '-1', backgroundColor: LIMIT_BAND } : {}));
+  return out;
 }
 
 /** The unit label of the series a dataset belongs to; derived datasets (limits, target) are named `<series label> UCL3` etc. */
@@ -169,6 +235,7 @@ export function TelemetryChart({
   emphasizeHover = false,
   averageLine = false,
   plainTooltip = false,
+  detailedLimits = false,
   onEnlarge,
 }: TelemetryChartProps) {
   const styles = useStyles();
@@ -193,6 +260,26 @@ export function TelemetryChart({
       const manyPoints = s.points.length > MANY_POINTS;
       const byLabel = new Map(s.points.filter((p) => p.measured).map((p) => [p.measured!, p]));
       const aligned = labels.map((label) => byLabel.get(label) ?? null);
+
+      const actualDataset: ChartData<'line'>['datasets'][number] = {
+        label: s.label,
+        data: aligned.map((p) => p?.actual ?? null),
+        borderColor: color,
+        backgroundColor: color,
+        borderDash: dash,
+        spanGaps: false,
+        tension: manyPoints ? 0 : 0.2,
+        // A long range (a day of 5-second readings is ~17,000 points) is drawn as a line: markers only where a point is anomalous.
+        pointRadius: aligned.map((p) => (p && (!manyPoints || anomalyLevel(p) > 0) ? POINT_RADIUS : 0)),
+        ...(emphasizeHover ? { pointHoverRadius: POINT_RADIUS * 5, pointHoverBorderWidth: 2 } : {}),
+        pointBackgroundColor: aligned.map((p) => (p ? anomalyPointColor(p, color) : color)),
+        borderWidth: 2,
+      };
+
+      if (detailedLimits && mode === 'single') {
+        datasets.push(...detailedDatasets(s, aligned, actualDataset, emphasizeHover));
+        return;
+      }
 
       // The control limits are the server's own calculation (the analysis stores UCL3/LCL3 per point); a line is drawn only when
       // the series has such values. With several series each pair of limits takes its series' colour so it is clear whose they are.
@@ -245,20 +332,7 @@ export function TelemetryChart({
         });
       }
 
-      datasets.push({
-        label: s.label,
-        data: aligned.map((p) => p?.actual ?? null),
-        borderColor: color,
-        backgroundColor: color,
-        borderDash: dash,
-        spanGaps: false,
-        tension: manyPoints ? 0 : 0.2,
-        // A long range (a day of 5-second readings is ~17,000 points) is drawn as a line: markers only where a point is anomalous.
-        pointRadius: aligned.map((p) => (p && (!manyPoints || anomalyLevel(p) > 0) ? POINT_RADIUS : 0)),
-        ...(emphasizeHover ? { pointHoverRadius: POINT_RADIUS * 5, pointHoverBorderWidth: 2 } : {}),
-        pointBackgroundColor: aligned.map((p) => (p ? anomalyPointColor(p, color) : color)),
-        borderWidth: 2,
-      });
+      datasets.push(actualDataset);
     });
 
     const chartData: ChartData<'line'> = { labels, datasets };
@@ -285,7 +359,18 @@ export function TelemetryChart({
       plugins: {
         title: { display: !!title, text: title },
         // A compact chart's legend only names the lines: clicking it must not hide one.
-        legend: { position: 'top', ...(compact ? { onClick: () => undefined } : {}) },
+        legend: {
+          position: 'top',
+          ...(compact ? { onClick: () => undefined } : {}),
+          ...(detailedLimits && mode === 'single'
+            ? {
+                labels: {
+                  generateLabels: (chart: ChartJS) =>
+                    ChartJS.defaults.plugins.legend.labels.generateLabels(chart).map((item) => ({ ...item, text: plainLegendName(series, item.text) })),
+                },
+              }
+            : {}),
+        },
         tooltip: {
           enabled: !compact,
           mode: 'index',
@@ -323,7 +408,7 @@ export function TelemetryChart({
     };
 
     return { data: chartData, options: chartOptions };
-  }, [series, mode, showControlLimits, averageLine, plainTooltip, title, timeAxis, compact, emphasizeHover, enlargeable]);
+  }, [series, mode, showControlLimits, averageLine, plainTooltip, detailedLimits, title, timeAxis, compact, emphasizeHover, enlargeable]);
 
   const isEmpty = series.every((s) => s.points.length === 0);
 

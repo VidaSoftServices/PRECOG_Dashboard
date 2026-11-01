@@ -382,7 +382,7 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
             />
             <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
               The dashed horizontal line of each Sensor is the average of the plotted readings. UCL3 / LCL3 are the control limits the platform calculated and
-              stored for that Sensor; they appear only where it has them (a Sensor with a setpoint and calculation switched on).
+              stored for that Sensor; they appear only where the Sensor has them (calculation switched on - a setpoint is not needed).
             </Text>
           </Card>
         </>

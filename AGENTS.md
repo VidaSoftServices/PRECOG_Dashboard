@@ -110,7 +110,9 @@ provide.
   an API response; the frontend may only compute presentation-only values
   (visible chart range, local sort order, formatting, cursor position, and
   the plain average of exactly the points a chart plots - the comparison
-  chart's average line, named and described as that) and must label them as
+  chart's average line, named and described as that - and target +/- tolerance
+  for the "Tolerance" reference line of the single-Sensor Live Monitoring
+  chart, as the original chart drew it) and must label them as
   such where confusion is plausible. Control limits (UCL3/LCL3) are never
   computed here: they are drawn only from the values the API returns.
 - No raw HTML rendering of API-sourced, User-sourced, category, technician,
