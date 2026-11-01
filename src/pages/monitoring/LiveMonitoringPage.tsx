@@ -226,7 +226,7 @@ function SensorLiveCard({
                   {latest ? `${formatDateTime(latest.measured)} (${formatRelative(latest.measured)})` : 'no data'}
                 </Text>
               </div>
-              <TelemetryChart series={chartSeries} height="calc(85vh - 230px)" mode="single" showControlLimits timeAxis="fullDateTime" emphasizeHover />
+              <TelemetryChart series={chartSeries} height="calc(85vh - 230px)" mode="single" showControlLimits timeAxis="fullDateTime" emphasizeHover plainTooltip />
             </DialogContent>
             <DialogActions>
               <Button appearance="primary" onClick={() => setEnlarged(false)}>

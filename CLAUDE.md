@@ -129,7 +129,7 @@ widths and `type="overlay"` (triggered by a `Hamburger`) below 1200px, using
 `DeviceListPage.tsx` demonstrates the DataGrid-desktop / card-list-mobile
 pattern that other dense-table pages should follow as they're built out.
 `SmartAnalyticsPage.tsx`'s single-Device overlay layout and its two-Device
-incompatible-comparison side-by-side panels are a second reference
+incompatible-comparison side-by-side panels (since replaced by one shared chart, see "Sensor and Device comparison") are a second reference
 instance of the same pattern (`useBreakpoint() === 'desktop'` switches
 between a multi-column grid and a stacked single column) — both were
 originally built with a mobile-layout style defined but never actually
@@ -370,7 +370,8 @@ holds the real value for local development against the Dockerized API.
 
 ### Performance constraints
 
-- Every list read is bounded (`take`/`skip`, capped Sensor-overlay count).
+- Every list read is bounded (`take`/`skip`, capped Sensor-overlay count; a paged
+  telemetry range stops at 20,000 readings per series).
 - No ML/anomaly/similarity/`GetElbow` computation happens in the browser —
   see AGENTS.md's rule; every such value is rendered directly from an API
   response.
@@ -1089,18 +1090,50 @@ list, explicitly labeled as a local filter over that bounded set, never
 implying a full-history server search (see "Missing backend capabilities").
 Backend-authoritative logic (anomaly, review state, category, similarity)
 is always rendered from the API; the only presentation-only calculations
-are the selected chart range, local Issue-list filtering, and formatting.
+are the selected chart range, local Issue-list filtering, formatting, and the
+**average line** of the two-Device comparison (the plain arithmetic mean of
+exactly the readings that are plotted - `src/lib/seriesAverage.ts`; labelled
+"average" in the legend and in the text summary, which also says over how many
+points; it covers what was loaded when a long range was cut off).
+
+**Range and loading.** Smart Analytics opens on the **last 15 minutes** (up to
+now; `DEFAULT_RANGE_MINUTES` in `SmartAnalyticsPage.tsx`); a **Last 15 minutes** button returns to it after the page has been open
+for a while, and the Start/End fields choose any other range. A Signal read is
+made **page by page, newest first** (`useTelemetryDateRange` with `maxPoints`
+and `readAllPages`: pages of 5000, `skip` = points already loaded, an empty page
+ends the read), up to **20,000 readings per series** - a day of a 5-second
+Sensor is about 17,300, so a whole day fits (the default window is only ~180
+readings; the paging matters when a longer range is chosen). A longer range is cut off at its
+OLDEST end and the page says so ("Newest 20,000 readings shown"). Before this a
+single request of 2000 readings was made, i.e. only the newest ~2.8 hours of a
+5-second Sensor. A very long series is drawn as a plain line (markers only for
+anomalous points, no animation). Curve (periodic) reads are unchanged: one
+request.
 
 ## Sensor and Device comparison
 
 Same-Device Sensor comparison overlays up to 4 Sensors with distinct
 color+line-dash pairs per series (never color alone). Two-Device comparison
-proves compatibility live via `KnowledgeSharing/Compatibility` before
-overlaying anything — a proven-compatible pair gets one overlaid chart; an
-unproven pair gets two independent side-by-side panels instead, with the
-exact rejection reason(s) shown, never a silent normalization/conversion.
-See "Knowledge sharing" above for the comparison-has-no-side-effects rule
-and the Admin-only transition link.
+draws the two chosen Sensors (one per Device) in **ONE chart, always** - the
+series are labelled "Device · Sensor", so two Sensors with the same name stay
+apart, and each carries its own unit label and direction. The live
+`KnowledgeSharing/Compatibility` result is a **notice, not a gate**: an
+unproven pair shows the API's exact rejection reason(s) ("Not proven
+compatible", e.g. several source Sensors fit one target stream) and says that
+the lines are drawn as selected and not converted or aligned; Sensors whose
+unit codes differ additionally get a "Different units" notice, because both
+lines then share one axis without conversion (compare the shape, not the
+values). Before 2026-10-31 an unproven pair got two independent side-by-side
+panels instead; that was dropped because a comparison is only useful with both
+lines on the same axes, and the Admin picks the pair themselves. Nothing is
+ever normalized or converted silently. Each of the two series also gets a
+dashed horizontal **average** line (the mean of its plotted readings, in the
+series' colour) and the platform's own **UCL3 / LCL3** control limits (the
+values the analysis calculated and stored per reading, drawn in the series'
+colour, only where the Sensor has them - a Sensor with a setpoint and
+calculation switched on; no empty legend entries otherwise). The single-Device
+overlay still shows the limits only for a single selected Sensor. See "Knowledge sharing" above for the
+comparison-has-no-side-effects rule and the Admin-only transition link.
 
 ## Authentication and security
 
@@ -1313,7 +1346,7 @@ The Sensor Policies page's **New aggregation level** form (`NewPolicyForm` in `S
 
 On the Live Monitoring cards the chart's x axis shows only the clock time (**HH:mm:ss**, `formatTime` in `src/lib/dateTime.ts`; `TelemetryChart`'s new `timeAxis='time'` option - other pages keep the month-day + time ticks); the tooltip of a point still carries the full date and time. **Clicking a card's chart opens it large in a modal window** (`Dialog`, 85% of the window width with a chart about 85vh - 230 px tall, so roughly 15% stays free around it; control limits, the latest value and its full timestamp; the same per-Sensor **refresh** button as the card sits top right next to the X, and Close / Escape also leave it). The modal reads the same data as the card, so it moves with every refresh of that Sensor. The keyboard and screen-reader route is the **Enlarge** button in the card header (`aria-label="Enlarge chart of {Sensor}"`); the clickable chart area is a mouse convenience only. Checked in a real Chromium (mocked API): time-only ticks, click opens the modal, Escape and Close leave it, the button opens it.
 
-Live Monitoring chart details (follow-up): the **small card charts** are `TelemetryChart compact` - no tooltip on hover, a legend that cannot be clicked to hide a line, and no text under the chart (the text summary stays in the page for screen readers, visually hidden; the card's "Dashboard checked ..." line is gone too). The **enlarged chart** uses `timeAxis='fullDateTime'` (x ticks `yy-MM-dd HH:mm:ss`, `formatShortDateTime`) and `emphasizeHover`: hovering anywhere along the chart enlarges the marker of the point the tooltip shows to five times its size (radius 3 -> 15; interaction mode index, so the cursor need not sit on the point; the target and control-limit lines get no hover dot of their own).
+Live Monitoring chart details (follow-up): the **small card charts** are `TelemetryChart compact` - no tooltip on hover, a legend that cannot be clicked to hide a line, and no text under the chart (the text summary stays in the page for screen readers, visually hidden; the card's "Dashboard checked ..." line is gone too). The **enlarged chart's hover tooltip** lists only **Actual** and **Target** with their values (and the unit) - not the Sensor's name and not the UCL3/LCL3 lines, which stay drawn and in the legend (`TelemetryChart`'s `plainTooltip`, used only by this modal; every other chart keeps naming each line). The **enlarged chart** uses `timeAxis='fullDateTime'` (x ticks `yy-MM-dd HH:mm:ss`, `formatShortDateTime`) and `emphasizeHover`: hovering anywhere along the chart enlarges the marker of the point the tooltip shows to five times its size (radius 3 -> 15; interaction mode index, so the cursor need not sit on the point; the target and control-limit lines get no hover dot of their own).
 
 ## Smart Analytics: Sensor filter and enlargeable charts
 

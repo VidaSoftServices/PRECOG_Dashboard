@@ -108,8 +108,11 @@ provide.
   canonical grouping, category-suggestion, or knowledge-sharing
   compatibility logic. Every one of those values is rendered directly from
   an API response; the frontend may only compute presentation-only values
-  (visible chart range, local sort order, formatting, cursor position) and
-  must label them as such where confusion is plausible.
+  (visible chart range, local sort order, formatting, cursor position, and
+  the plain average of exactly the points a chart plots - the comparison
+  chart's average line, named and described as that) and must label them as
+  such where confusion is plausible. Control limits (UCL3/LCL3) are never
+  computed here: they are drawn only from the values the API returns.
 - No raw HTML rendering of API-sourced, User-sourced, category, technician,
   or Ollama text. Render as text content, never via `dangerouslySetInnerHTML`
   or equivalent.

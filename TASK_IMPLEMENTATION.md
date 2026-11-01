@@ -2676,3 +2676,20 @@ The Sensors header of the Device page (Admin only) now reads, left to right: **A
 - New per-Sensor **Visible** switch (API `Sensor.Visible`, `SensorDto.visible`, `UpdateSensorRequest.visible`, `CreateSensorRequest.visible`; `schema.generated.ts` regenerated). Device page: an Admin-only Visible `Switch` beside Calculate (`VisibilityDialog`), a `HiddenPill` for everybody. Live Monitoring and Smart Analytics (single and comparison pickers) leave hidden Sensors out and say how many are hidden; Issues, the Device page, exports and every other page never filter on it (`src/lib/sensorVisibility.ts` is only called by those two pages).
 - Import / export like Calculate: the `Visible` column (template, parser with the same boolean words, dialog default and preview column, existing-Sensor update only for a filled and different cell, `Export all sensors`, Data sets workbook sheet and Overview row).
 - Tests added/updated: see CLAUDE.md "Per-Sensor visible switch". Typecheck and the whole suite pass.
+
+## Smart Analytics: the two chosen Sensors always share one chart
+
+- Two-Device comparison no longer falls back to two side-by-side panels when the API cannot prove the pair compatible: the two chosen Sensors are always drawn in **one** chart (`mode="compare"`), series labelled "Device · Sensor" with each Sensor's own unit label and direction; the Enlarge button and its modal show the same single chart.
+- The compatibility result is now a notice: "Not proven compatible" (the API's exact reasons, e.g. the "Ambiguous: N source Sensors ..." message) says the lines are drawn as selected and not converted or aligned; a new "Different units" notice appears when the two Sensors' unit codes differ (one axis, no conversion). Nothing is converted silently.
+- Tests: `SmartAnalyticsPage.test.tsx` (one chart for an unproven pair, for a proven pair without the notice, and for different units with the notice; the chart's drawing is stubbed because jsdom has no canvas).
+
+## Live Monitoring modal: plain hover tooltip
+
+- The enlarged Live Monitoring chart's tooltip lists only Actual and Target with their values and unit (`TelemetryChart` `plainTooltip`): no Sensor name, no UCL3/LCL3 lines (still drawn and in the legend). Other charts are unchanged. Tests: `TelemetryChart.lines.test.tsx`.
+
+## Smart Analytics: last 15 minutes, paged reads, average line and UCL3/LCL3 in the comparison
+
+- Smart Analytics opens on the last 15 minutes (it was 7 days; first set to 24 hours, then narrowed to 15 minutes on request) and has a "Last 15 minutes" button. Signal reads are paged (`maxPoints` = 20,000 per series, pages of 5000, newest first; `readAllPages` in `hooks/telemetry.ts`) because the single request of 2000 readings showed only the newest ~2.8 hours of a 5-second Sensor; a "Newest 20,000 readings shown" notice appears when a series hit the cap. Very long series are drawn as a plain line without animation.
+- Two-Device comparison: each series gets a dashed horizontal average line (`averageLine`, `src/lib/seriesAverage.ts`; also in the text summary) and the platform's UCL3/LCL3 where the Sensor has them (`showControlLimits` now works in every mode; limits are only drawn for a series that has values). Loading and error states for the two reads were added.
+- The average is the only new presentation-only calculation (documented in CLAUDE.md and AGENTS.md); the control limits are never computed in the browser.
+- Tests: `seriesAverage.test.ts`, `telemetry.paging.test.tsx`, `TelemetryChart.lines.test.tsx`, `SmartAnalyticsPage.test.tsx` (15-minute default and paged requests, average and limit datasets, the cap notice).

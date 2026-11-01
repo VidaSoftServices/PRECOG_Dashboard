@@ -74,10 +74,34 @@ const useStyles = makeStyles({
   },
 });
 
-function defaultRange() {
+/** How far back Smart Analytics opens, and "Last 15 minutes" returns to. */
+const DEFAULT_RANGE_MINUTES = 15;
+
+/** The range Smart Analytics opens with, and "Last 15 minutes" returns to: the 15 minutes up to now. */
+function lastFifteenMinutes() {
   const end = new Date();
-  const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const start = new Date(end.getTime() - DEFAULT_RANGE_MINUTES * 60 * 1000);
   return { start, end };
+}
+
+/**
+ * Most readings one chart series loads (read newest first, in pages): a day of a 5-second Sensor is about 17,300, so a whole day fits; a
+ * longer range is cut off at its oldest end and the page says so. Keeps every read bounded.
+ */
+const MAX_CHART_POINTS = 20_000;
+
+/** A notice when a series hit the cap: the range holds older readings than the chart shows. */
+function TruncationNotice({ labels, lengths }: { labels: string[]; lengths: number[] }) {
+  const cut = labels.filter((_, i) => (lengths[i] ?? 0) >= MAX_CHART_POINTS);
+  if (cut.length === 0) return null;
+  return (
+    <MessageBar intent="info" style={{ marginBottom: tokens.spacingVerticalM }}>
+      <MessageBarBody>
+        <MessageBarTitle>Newest {MAX_CHART_POINTS.toLocaleString('en-US')} readings shown</MessageBarTitle>
+        The selected range holds more readings of {cut.join(', ')} than one chart loads; the oldest ones are left out. Choose a shorter range to see them.
+      </MessageBarBody>
+    </MessageBar>
+  );
 }
 
 /** Single-Device, multiple-Sensor overlay mode (decision #16). */
@@ -114,7 +138,7 @@ function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; sta
       sensorId,
       startDate: toApiIso(start),
       endDate: toApiIso(end),
-      take: 2000,
+      maxPoints: MAX_CHART_POINTS,
     });
   });
 
@@ -187,6 +211,9 @@ function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; sta
           {anyLoading && <LoadingState label="Loading telemetry…" />}
           {firstError && <ErrorState error={firstError.error} />}
           {!anyLoading && !firstError && (
+            <TruncationNotice labels={series.map((s) => s.label)} lengths={series.map((s) => s.points.length)} />
+          )}
+          {!anyLoading && !firstError && (
             <EnlargeableTelemetryChart
               title={series.map((s) => s.label).join(' · ') || 'Telemetry'}
               series={series}
@@ -237,7 +264,6 @@ function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; sta
 /** Two-Device comparison mode with compatibility-aware Sensor mapping (decision #17). */
 function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { deviceIdA: number; deviceIdB: number; start: Date; end: Date }) {
   const styles = useStyles();
-  const breakpoint = useBreakpoint();
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const sensorsA = useSensors(deviceIdA);
@@ -270,13 +296,22 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
   const familyA = familyFor((deviceA.data?.applicationMode as 'continuous' | 'periodic') ?? 'continuous', sensorsA.data?.find((s) => s.id === effectiveSensorA)?.direction);
   const familyB = familyFor((deviceB.data?.applicationMode as 'continuous' | 'periodic') ?? 'continuous', sensorsB.data?.find((s) => s.id === effectiveSensorB)?.direction);
 
-  const dataA = useTelemetryDateRange({ family: familyA, deviceId: deviceIdA, sensorId: effectiveSensorA, startDate: toApiIso(start), endDate: toApiIso(end), take: 2000 });
-  const dataB = useTelemetryDateRange({ family: familyB, deviceId: deviceIdB, sensorId: effectiveSensorB, startDate: toApiIso(start), endDate: toApiIso(end), take: 2000 });
+  const dataA = useTelemetryDateRange({ family: familyA, deviceId: deviceIdA, sensorId: effectiveSensorA, startDate: toApiIso(start), endDate: toApiIso(end), maxPoints: MAX_CHART_POINTS });
+  const dataB = useTelemetryDateRange({ family: familyB, deviceId: deviceIdB, sensorId: effectiveSensorB, startDate: toApiIso(start), endDate: toApiIso(end), maxPoints: MAX_CHART_POINTS });
 
   const stream = compatibility.data?.streams?.find(
     (s) => s.sourceSensorId === effectiveSensorA || s.targetSensorId === effectiveSensorB,
   );
   const provenCompatible = compatibility.data?.fullyCompatible || stream?.compatible;
+
+  // The two chosen Sensors ALWAYS share one chart, whether or not the API could prove them compatible: you picked the pair, and a
+  // comparison is only useful when both lines are on the same axes. Compatibility is a notice, not a gate - and nothing is ever
+  // converted: when the units differ the values are drawn as they are, and the notice below says so.
+  const sensorA = sensorsA.data?.find((s) => s.id === effectiveSensorA);
+  const sensorB = sensorsB.data?.find((s) => s.id === effectiveSensorB);
+  const labelA = `${deviceA.data?.deviceName ?? 'Device A'} · ${sensorA?.name || sensorA?.externalSensorId || 'Sensor'}`;
+  const labelB = `${deviceB.data?.deviceName ?? 'Device B'} · ${sensorB?.name || sensorB?.externalSensorId || 'Sensor'}`;
+  const unitsDiffer = !!(sensorA?.unitCode && sensorB?.unitCode && sensorA.unitCode !== sensorB.unitCode);
 
   if (sensorsA.isLoading || sensorsB.isLoading || compatibility.isLoading) return <LoadingState label="Checking compatibility…" />;
 
@@ -312,34 +347,45 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
           <MessageBarBody>
             <MessageBarTitle>Not proven compatible</MessageBarTitle>
             {stream?.failures?.join(' ') ??
-              'These Sensors have not been proven compatible (matching SensorType, convertible units, and matching aggregation configuration). Shown side by side rather than overlaid.'}
+              'These Sensors have not been proven compatible (matching SensorType, convertible units, and matching aggregation configuration).'}{' '}
+            They are drawn in one chart as you selected them; the values are not converted or aligned.
+          </MessageBarBody>
+        </MessageBar>
+      )}
+      {unitsDiffer && (
+        <MessageBar intent="warning" style={{ marginBottom: tokens.spacingVerticalM }}>
+          <MessageBarBody>
+            <MessageBarTitle>Different units</MessageBarTitle>
+            {labelA} is in {sensorA?.unitLabel ?? sensorA?.unitCode}, {labelB} in {sensorB?.unitLabel ?? sensorB?.unitCode}. Both lines share one axis without
+            conversion, so compare their shape, not their values.
           </MessageBarBody>
         </MessageBar>
       )}
 
-      {provenCompatible ? (
-        <Card className={styles.card}>
-          <EnlargeableTelemetryChart
-            title={`${deviceA.data?.deviceName ?? 'Device A'} · ${deviceB.data?.deviceName ?? 'Device B'}`}
-            series={[
-              { label: `${deviceA.data?.deviceName ?? 'Device A'}`, points: dataA.data ?? [] },
-              { label: `${deviceB.data?.deviceName ?? 'Device B'}`, points: dataB.data ?? [] },
-            ]}
-            mode="compare"
-            height={380}
-          />
-        </Card>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: breakpoint === 'desktop' ? '1fr 1fr' : '1fr', gap: tokens.spacingHorizontalM }}>
+      {(dataA.isLoading || dataB.isLoading) && <LoadingState label="Loading telemetry…" />}
+      {dataA.isError && <ErrorState error={dataA.error} />}
+      {dataB.isError && <ErrorState error={dataB.error} />}
+      {!dataA.isLoading && !dataB.isLoading && !dataA.isError && !dataB.isError && (
+        <>
+          <TruncationNotice labels={[labelA, labelB]} lengths={[dataA.data?.length ?? 0, dataB.data?.length ?? 0]} />
           <Card className={styles.card}>
-            <Body1Strong>{deviceA.data?.deviceName ?? 'Device A'}</Body1Strong>
-            <EnlargeableTelemetryChart title={deviceA.data?.deviceName ?? 'Device A'} series={[{ label: 'A', points: dataA.data ?? [] }]} mode="single" height={300} />
+            <EnlargeableTelemetryChart
+              title={`${labelA} and ${labelB}`}
+              series={[
+                { label: labelA, points: dataA.data ?? [], bidirectional: sensorA?.direction === 'bidirectional', unitLabel: sensorA?.unitLabel },
+                { label: labelB, points: dataB.data ?? [], bidirectional: sensorB?.direction === 'bidirectional', unitLabel: sensorB?.unitLabel },
+              ]}
+              mode="compare"
+              averageLine
+              showControlLimits
+              height={380}
+            />
+            <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+              The dashed horizontal line of each Sensor is the average of the plotted readings. UCL3 / LCL3 are the control limits the platform calculated and
+              stored for that Sensor; they appear only where it has them (a Sensor with a setpoint and calculation switched on).
+            </Text>
           </Card>
-          <Card className={styles.card}>
-            <Body1Strong>{deviceB.data?.deviceName ?? 'Device B'}</Body1Strong>
-            <EnlargeableTelemetryChart title={deviceB.data?.deviceName ?? 'Device B'} series={[{ label: 'B', points: dataB.data ?? [] }]} mode="single" height={300} />
-          </Card>
-        </div>
+        </>
       )}
 
       {isAdmin && (
@@ -360,7 +406,7 @@ export function SmartAnalyticsPage() {
   const styles = useStyles();
   const [mode, setMode] = useState<'single' | 'compare'>('single');
   const [deviceIdB, setDeviceIdB] = useNumberSearchParam('compareDeviceId');
-  const [range, setRange] = useState(defaultRange);
+  const [range, setRange] = useState(lastFifteenMinutes);
 
   const devicesQuery = useDevices();
   const devices = devicesQuery.data ?? [];
@@ -408,6 +454,7 @@ export function SmartAnalyticsPage() {
           </div>
         )}
 
+        <Button onClick={() => setRange(lastFifteenMinutes())}>Last 15 minutes</Button>
         <DateTimeField label="Start" value={range.start} onChange={(d) => d && setRange((r) => ({ ...r, start: d }))} maxDate={range.end} />
         <DateTimeField label="End" value={range.end} onChange={(d) => d && setRange((r) => ({ ...r, end: d }))} minDate={range.start} validationMessage={validationMessage} />
       </div>

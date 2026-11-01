@@ -262,34 +262,70 @@ interface DateRangeArgs {
   endDate: string;
   skip?: number;
   take?: number;
+  /**
+   * Read the range page by page (newest first) until this many points are loaded or the range is exhausted, instead of one request
+   * of `take` points. The cap keeps the read bounded; when it is reached the OLDEST points of the range are left out. Only the
+   * continuous families (Signal, BiSignal) are paged; a curve read stays one request.
+   */
+  maxPoints?: number;
+  /** Points requested per page when `maxPoints` is set (default {@link TELEMETRY_PAGE_SIZE}); the server clamps it to its own page limit. */
+  pageSize?: number;
+}
+
+/** Points per request when a range is read in pages; the API's documented `MaxPageSize` clamp is 5000. */
+export const TELEMETRY_PAGE_SIZE = 5000;
+
+/**
+ * Reads a range page after page: `skip` is the number of points already loaded (the API pages over distinct periods and returns one
+ * row each), and a page with no row ends the range - so a server that clamps `take` below `pageSize` still gives every point instead
+ * of stopping at the first short page. Stops at `maxPoints` at the latest.
+ */
+export async function readAllPages(
+  readPage: (skip: number, take: number) => Promise<TelemetryPoint[]>,
+  maxPoints: number,
+  pageSize: number = TELEMETRY_PAGE_SIZE,
+): Promise<TelemetryPoint[]> {
+  const all: TelemetryPoint[] = [];
+  while (all.length < maxPoints) {
+    const page = await readPage(all.length, Math.min(pageSize, maxPoints - all.length));
+    if (page.length === 0) break;
+    all.push(...page);
+  }
+  return all;
 }
 
 /** The primary read for Smart Analytics - a human-picked wall-clock time range, not period numbers. Server clamps the span (documented MaxQueryRangeDays); a 400 here surfaces as a normal ErrorState, not a special case. */
-export function useTelemetryDateRange({ family, deviceId, sensorId, startDate, endDate, skip, take }: DateRangeArgs) {
+export function useTelemetryDateRange({ family, deviceId, sensorId, startDate, endDate, skip, take, maxPoints, pageSize }: DateRangeArgs) {
   return useQuery({
     queryKey: queryKeys.telemetryDateRange(family, deviceId ?? -1, sensorId ?? -1, startDate, endDate),
     queryFn: async ({ signal }): Promise<TelemetryPoint[]> => {
       switch (family) {
-        case 'continuous':
-          return normalizeFlat(
-            sensorId!,
-            unwrap(
-              await apiClient.GET('/api/Continuous/MeasuredDateRange', {
-                params: { query: { deviceId, sensorId, startDate, endDate, skip, take } },
-                signal,
-              }),
-            ),
-          );
-        case 'bidirectionalContinuous':
-          return normalizeFlat(
-            sensorId!,
-            unwrap(
-              await apiClient.GET('/api/BiDirectionalContinuous/MeasuredDateRange', {
-                params: { query: { deviceId, sensorId, startDate, endDate, skip, take } },
-                signal,
-              }),
-            ),
-          );
+        case 'continuous': {
+          const readPage = async (s?: number, t?: number) =>
+            normalizeFlat(
+              sensorId!,
+              unwrap(
+                await apiClient.GET('/api/Continuous/MeasuredDateRange', {
+                  params: { query: { deviceId, sensorId, startDate, endDate, skip: s, take: t } },
+                  signal,
+                }),
+              ),
+            );
+          return maxPoints ? readAllPages(readPage, maxPoints, pageSize) : readPage(skip, take);
+        }
+        case 'bidirectionalContinuous': {
+          const readPage = async (s?: number, t?: number) =>
+            normalizeFlat(
+              sensorId!,
+              unwrap(
+                await apiClient.GET('/api/BiDirectionalContinuous/MeasuredDateRange', {
+                  params: { query: { deviceId, sensorId, startDate, endDate, skip: s, take: t } },
+                  signal,
+                }),
+              ),
+            );
+          return maxPoints ? readAllPages(readPage, maxPoints, pageSize) : readPage(skip, take);
+        }
         case 'periodic':
           return normalizeCurve(
             unwrap(

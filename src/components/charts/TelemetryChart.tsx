@@ -17,6 +17,7 @@ import { Text, makeStyles, tokens } from '@fluentui/react-components';
 import type { TelemetryPoint } from '@/api/hooks/telemetry';
 import { seriesPalette, seriesDashPatterns, anomalyColors } from './palette';
 import { formatDateTime, formatShortDateTime, formatTime } from '@/lib/dateTime';
+import { seriesAverage } from '@/lib/seriesAverage';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
@@ -77,6 +78,17 @@ export interface TelemetryChartProps {
   compact?: boolean;
   /** Hovering a point enlarges its marker five times, so it is clear which value the tooltip shows. */
   emphasizeHover?: boolean;
+  /**
+   * Draws each series' AVERAGE as a thin horizontal line in the series' colour (named `<series label> average`), and the text summary
+   * states it. It is the plain arithmetic mean of exactly the points that are plotted (points without a value are not counted) - a
+   * descriptive statistic of what is on screen, not a platform calculation; when a long range was cut off, it covers what was loaded.
+   */
+  averageLine?: boolean;
+  /**
+   * For a chart of ONE Sensor (the Live Monitoring modal): the hover tooltip lists only "Actual" and "Target" with their values
+   * (and unit) - not the Sensor's name and not the control-limit lines, which stay drawn but are left out of the tooltip.
+   */
+  plainTooltip?: boolean;
   /** Called when the chart is clicked anywhere except on its legend (which keeps toggling series); the pointer shows a zoom cursor. */
   onEnlarge?: () => void;
 }
@@ -89,6 +101,14 @@ export function sharedUnitLabel(series: TelemetrySeriesInput[]): string | undefi
   const labels = new Set(series.map((s) => s.unitLabel).filter((l): l is string => !!l));
   const everySeriesHasOne = series.every((s) => !!s.unitLabel);
   return labels.size === 1 && everySeriesHasOne ? [...labels][0] : undefined;
+}
+
+/** "Actual" for a series' own line, "Target" for its target line, undefined for every other dataset (limits, average) - the plain tooltip lists only those two. */
+function plainTooltipName(series: TelemetrySeriesInput[], datasetLabel: string | undefined): 'Actual' | 'Target' | undefined {
+  if (!datasetLabel) return undefined;
+  if (series.some((s) => s.label === datasetLabel)) return 'Actual';
+  if (series.some((s) => datasetLabel === `${s.label} Target`)) return 'Target';
+  return undefined;
 }
 
 /** The unit label of the series a dataset belongs to; derived datasets (limits, target) are named `<series label> UCL3` etc. */
@@ -107,14 +127,21 @@ function isInsideLegend(chart: ChartJS, x: number | null, y: number | null): boo
   return x >= legend.left && x <= legend.right && y >= legend.top && y <= legend.bottom;
 }
 
+/** Above this many points a series is drawn as a plain line (markers only for anomalous points) and without animation. */
+const MANY_POINTS = 1500;
+
+function anomalyLevel(point: TelemetryPoint): number {
+  return point.anomaly ?? Math.max(point.anomalyAbove ?? 0, point.anomalyBelow ?? 0);
+}
+
 function anomalyPointColor(point: TelemetryPoint, base: string): string {
-  const level = point.anomaly ?? Math.max(point.anomalyAbove ?? 0, point.anomalyBelow ?? 0);
+  const level = anomalyLevel(point);
   if (level === 2) return anomalyColors.critical;
   if (level === 1) return anomalyColors.warning;
   return base;
 }
 
-function summarize(series: TelemetrySeriesInput[]): string {
+function summarize(series: TelemetrySeriesInput[], averageLine: boolean): string {
   if (series.length === 0 || series.every((s) => s.points.length === 0)) return 'No data in range.';
   const parts = series.map((s) => {
     const points = s.points.filter((p) => p.actual != null);
@@ -123,7 +150,9 @@ function summarize(series: TelemetrySeriesInput[]): string {
     const criticalCount = points.filter((p) => (p.anomaly ?? Math.max(p.anomalyAbove ?? 0, p.anomalyBelow ?? 0)) === 2).length;
     const warningCount = points.filter((p) => (p.anomaly ?? Math.max(p.anomalyAbove ?? 0, p.anomalyBelow ?? 0)) === 1).length;
     const anomalyPart = criticalCount || warningCount ? `, ${criticalCount} critical / ${warningCount} warning point(s)` : '';
-    return `${s.label}: latest ${last.actual}${s.unitLabel ? ` ${s.unitLabel}` : ''} at ${formatDateTime(last.measured)}${anomalyPart}`;
+    const average = averageLine ? seriesAverage(points) : null;
+    const averagePart = average ? `, average ${Number(average.value.toPrecision(4))}${s.unitLabel ? ` ${s.unitLabel}` : ''} over ${average.count} points` : '';
+    return `${s.label}: latest ${last.actual}${s.unitLabel ? ` ${s.unitLabel}` : ''} at ${formatDateTime(last.measured)}${anomalyPart}${averagePart}`;
   });
   return parts.join(' · ');
 }
@@ -138,6 +167,8 @@ export function TelemetryChart({
   timeAxis = 'dateTime',
   compact = false,
   emphasizeHover = false,
+  averageLine = false,
+  plainTooltip = false,
   onEnlarge,
 }: TelemetryChartProps) {
   const styles = useStyles();
@@ -159,30 +190,44 @@ export function TelemetryChart({
     series.forEach((s, seriesIndex) => {
       const color = seriesPalette[seriesIndex % seriesPalette.length]!;
       const dash = seriesDashPatterns[seriesIndex % seriesDashPatterns.length];
+      const manyPoints = s.points.length > MANY_POINTS;
       const byLabel = new Map(s.points.filter((p) => p.measured).map((p) => [p.measured!, p]));
       const aligned = labels.map((label) => byLabel.get(label) ?? null);
 
-      if (mode === 'single' && showControlLimits) {
-        datasets.push(
-          {
-            label: `${s.label} UCL3`,
-            data: aligned.map((p) => p?.upperControlLimit3S ?? null),
-            borderColor: tokens.colorNeutralStroke2,
-            borderDash: [6, 4],
+      // The control limits are the server's own calculation (the analysis stores UCL3/LCL3 per point); a line is drawn only when
+      // the series has such values. With several series each pair of limits takes its series' colour so it is clear whose they are.
+      if (showControlLimits) {
+        const limitColor = series.length > 1 ? color : tokens.colorNeutralStroke2;
+        const limitDash = series.length > 1 ? [2, 3] : [6, 4];
+        const upper = aligned.map((p) => p?.upperControlLimit3S ?? null);
+        const lower = aligned.map((p) => p?.lowerControlLimit3S ?? null);
+        for (const [name, values] of [['UCL3', upper], ['LCL3', lower]] as const) {
+          if (!values.some((v) => v !== null)) continue;
+          datasets.push({
+            label: `${s.label} ${name}`,
+            data: values,
+            borderColor: limitColor,
+            borderDash: limitDash,
             pointRadius: 0,
             ...(emphasizeHover ? { pointHoverRadius: 0 } : {}),
             borderWidth: 1,
-          },
-          {
-            label: `${s.label} LCL3`,
-            data: aligned.map((p) => p?.lowerControlLimit3S ?? null),
-            borderColor: tokens.colorNeutralStroke2,
-            borderDash: [6, 4],
+          });
+        }
+      }
+
+      if (averageLine) {
+        const average = seriesAverage(s.points);
+        if (average) {
+          datasets.push({
+            label: `${s.label} average`,
+            data: labels.map(() => average.value),
+            borderColor: color,
+            borderDash: [10, 4],
             pointRadius: 0,
             ...(emphasizeHover ? { pointHoverRadius: 0 } : {}),
-            borderWidth: 1,
-          },
-        );
+            borderWidth: 1.5,
+          });
+        }
       }
 
       if (mode === 'single') {
@@ -207,8 +252,9 @@ export function TelemetryChart({
         backgroundColor: color,
         borderDash: dash,
         spanGaps: false,
-        tension: 0.2,
-        pointRadius: aligned.map((p) => (p ? POINT_RADIUS : 0)),
+        tension: manyPoints ? 0 : 0.2,
+        // A long range (a day of 5-second readings is ~17,000 points) is drawn as a line: markers only where a point is anomalous.
+        pointRadius: aligned.map((p) => (p && (!manyPoints || anomalyLevel(p) > 0) ? POINT_RADIUS : 0)),
         ...(emphasizeHover ? { pointHoverRadius: POINT_RADIUS * 5, pointHoverBorderWidth: 2 } : {}),
         pointBackgroundColor: aligned.map((p) => (p ? anomalyPointColor(p, color) : color)),
         borderWidth: 2,
@@ -234,7 +280,8 @@ export function TelemetryChart({
             },
           }
         : {}),
-      animation: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? false : undefined,
+      // No animation for a very long range (it only delays the first paint), or when the user prefers reduced motion.
+      animation: window.matchMedia('(prefers-reduced-motion: reduce)').matches || series.some((s) => s.points.length > MANY_POINTS) ? false : undefined,
       plugins: {
         title: { display: !!title, text: title },
         // A compact chart's legend only names the lines: clicking it must not hide one.
@@ -243,12 +290,16 @@ export function TelemetryChart({
           enabled: !compact,
           mode: 'index',
           intersect: false,
+          // Only the measured value and its target; the limits (and any other derived line) are not listed.
+          ...(plainTooltip ? { filter: (item: { dataset: { label?: string } }) => plainTooltipName(series, item.dataset.label) !== undefined } : {}),
           callbacks: {
             ...(timeAxis !== 'dateTime' ? { title: (items) => (items[0] ? formatDateTime(items[0].label) : '') } : {}),
             // The unit comes from the API metadata of the series, never from the metric name.
             label(context) {
               const unit = unitLabelOfDataset(series, context.dataset.label);
-              return `${context.dataset.label ?? ''}: ${context.formattedValue}${unit ? ` ${unit}` : ''}`;
+              const value = `${context.formattedValue}${unit ? ` ${unit}` : ''}`;
+              if (plainTooltip) return `${plainTooltipName(series, context.dataset.label) ?? context.dataset.label ?? ''}: ${value}`;
+              return `${context.dataset.label ?? ''}: ${value}`;
             },
           },
         },
@@ -272,7 +323,7 @@ export function TelemetryChart({
     };
 
     return { data: chartData, options: chartOptions };
-  }, [series, mode, showControlLimits, title, timeAxis, compact, emphasizeHover, enlargeable]);
+  }, [series, mode, showControlLimits, averageLine, plainTooltip, title, timeAxis, compact, emphasizeHover, enlargeable]);
 
   const isEmpty = series.every((s) => s.points.length === 0);
 
@@ -287,7 +338,7 @@ export function TelemetryChart({
       </div>
       {!isEmpty && (
         <Text id={summaryId} size={200} className={compact ? styles.summaryHidden : styles.summary}>
-          {summarize(series)}
+          {summarize(series, averageLine)}
         </Text>
       )}
     </div>
