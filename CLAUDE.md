@@ -936,12 +936,37 @@ cannot raise false Issues. Data sent meanwhile cannot be recovered.
 
 ## Live Monitoring
 
+> **SUPERSEDED in part (2026-11-02): one batched request every 5 seconds.** What follows describes the earlier design - a round-robin that
+> fetched ONE Sensor per tick - and is kept for its reasoning (rate limit, 429 handling, the `fetchQuery` overrides). **What changed:**
+> the API now has `GET /api/Continuous/MeasuredTrailingPeriodsBatch` (`deviceId`, `sensorIds` repeated, `endDate`, `periods`: the newest
+> readings of SEVERAL Sensors of one Device as one flat list, one request for any number of Sensors, read with one SQL statement - see the API's CLAUDE.md,
+> "Batched trailing read", for the production incident behind it). `useLiveMonitoringSchedule.ts` therefore makes **ONE request per
+> `POLL_INTERVALS_MS.liveMonitoringCycle` = 5 s for EVERY Sensor on screen** (the filtered, shown, non-curve Sensors of the current page: 10 /
+> 25 / 50), not one request per tick for one Sensor. That is **12 requests a minute whatever the number of Sensors - a tenth of the
+> `LargeTelemetryRead` budget** (240 per 120 s per client IP), where the rotation used 60/min at its last 1 s setting. There is no
+> per-Sensor rotation, `nextRotationIndex`, "each one about every N s" or sequential "Refresh shown" any more:
+> - `fetchAndCacheTelemetryTrailingBatch` (`telemetry.ts`) sends the one request for the Signal Sensors and writes each Sensor's readings,
+>   **oldest first**, into the very query its card subscribes to (`useTelemetryTrailingPeriods`' key), through one shared promise per
+>   Sensor's `fetchQuery` (`retry: false`, `staleTime: 0`), so every card keeps its own data / loading / error state and a failure or a 429
+>   reaches all of them; a Sensor without data gets an empty list. A **bidirectional** Sensor (a different table, no batch endpoint yet) is
+>   still read one by one in the same cycle; curve Sensors are never fetched.
+> - **Oldest first is also a fix**: the API returns the readings newest first and the card takes the last element as "the latest reading",
+>   so before it showed the oldest of its 20 readings (about 100 s old). `normalizeTrailing` puts them in time order.
+> - The schedule is the **sole** requester: a self-rescheduling `setTimeout` (never `setInterval`), never two requests in flight, a 429 starts
+>   the one shared cooldown (`Retry-After`, bounded fallback backoff), paused when the tab is hidden or the switch is off. A manual refresh
+>   (the circular arrow of a card, "Refresh shown", the modal's refresh icon) is **one batched request for the Sensor(s) asked for**; it waits
+>   for a scheduled request already on its way, a second manual refresh is ignored while one runs, and a 429 starts the same cooldown.
+> - **A cancelled request is not a failure**: when the schedule restarts (a page / filter / Device switch, an unmount - React StrictMode does it on every mount in development) the shared request is aborted, and `fetchAndCacheTelemetryTrailingBatch` rethrows the abort WITHOUT touching any card's query; before this every card stored the `AbortError` as its own error ("Couldn't load this ... signal is aborted without reason"). Only a real failure (429, 500, network) is written into the cards' queries, and a success with `setQueryData`.
+> - The switch reads **"Refresh every 5 seconds"** (the number comes from the constant). The enlarged chart still reads the card's data.
+>   The state names changed: `manualSensorIds` (replaces `manualSensorId`), no `activeSensorId`, no `manualProgress` ("Refreshing…").
+> - Tests: `useLiveMonitoringSchedule.test.tsx`, `telemetry.trailingBatch.test.tsx`, `LiveMonitoringPage.test.tsx` (one request with the Sensors as
+>   a parameter, no per-Sensor request, the newest reading is the latest, the switch text, the card's refresh asks for that one Sensor).
+> The rate-limit and 429 reasoning below still applies; ignore every number that says one Sensor per tick or 3 s.
+
 The supported mechanism is **bounded polling of `MeasuredTrailingPeriods`**
 — there is no push/SSE/WebSocket capability anywhere in the API, confirmed
-during the original assessment, and none is invented here. No batched
-multiple-Sensor endpoint exists either (confirmed by a dedicated read-only
-audit of every `ContinuousController`/`BiDirectionalContinuousController`
-route) — every read is necessarily one Sensor at a time.
+during the original assessment, and none is invented here. At the time of that audit no batched
+multiple-Sensor endpoint existed (every read was one Sensor at a time); `MeasuredTrailingPeriodsBatch` was added on 2026-11-02, see above.
 
 **The rate-limit ceiling this page must live inside, confirmed from
 read-only backend source, not assumed**: `MeasuredTrailingPeriods` on both

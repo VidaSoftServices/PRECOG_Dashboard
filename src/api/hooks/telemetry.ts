@@ -1,5 +1,5 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query';
-import { apiClient, unwrap } from '@/api/client';
+import { apiClient, isAbort, unwrap } from '@/api/client';
 import { queryKeys } from '@/api/queryKeys';
 import type { components } from '@/api/schema.generated';
 import { toApiIso } from '@/lib/dateTime';
@@ -51,6 +51,17 @@ function normalizeFlat(
   return rows.map((row) => ({ ...row, sensorId, period: row.period ?? undefined }));
 }
 
+/**
+ * The trailing readings of one Sensor, OLDEST first. The API returns them newest first; Live Monitoring's card takes the last element
+ * as "the latest reading" and a chart draws left to right, so they are put in time order here, once.
+ */
+function normalizeTrailing(
+  sensorId: number,
+  rows: (components['schemas']['SignalOutputData'] | components['schemas']['BiSignalOutputData'])[],
+): TelemetryPoint[] {
+  return normalizeFlat(sensorId, rows).sort((a, b) => Date.parse(a.measured ?? '') - Date.parse(b.measured ?? ''));
+}
+
 function normalizeCurve(
   rows: (components['schemas']['CurveOutputData'] | components['schemas']['BiCurveOutputData'])[],
 ): TelemetryPoint[] {
@@ -98,7 +109,7 @@ async function fetchTelemetryTrailingPeriods(
         signal,
       }),
     );
-    return normalizeFlat(sensorId!, data);
+    return normalizeTrailing(sensorId!, data);
   }
   const data = unwrap(
     await apiClient.GET('/api/Continuous/MeasuredTrailingPeriods', {
@@ -106,7 +117,37 @@ async function fetchTelemetryTrailingPeriods(
       signal,
     }),
   );
-  return normalizeFlat(sensorId!, data);
+  return normalizeTrailing(sensorId!, data);
+}
+
+/** A Sensor of the Device and the telemetry family it is read as (see `familyFor`). */
+export interface TrailingBatchSensor {
+  id: number;
+  family: TelemetryFamily;
+}
+
+/**
+ * ONE request for the newest readings of several Signal Sensors of one Device: `GET /api/Continuous/MeasuredTrailingPeriodsBatch`
+ * (the API reads them in one request whatever their number). Returns the readings per requested Sensor id, oldest first;
+ * a Sensor without data maps to an empty list. `endDate` is "now", as for the single read.
+ */
+async function fetchTelemetryTrailingBatchRows(
+  deviceId: number,
+  sensorIds: number[],
+  periods: number,
+  signal?: AbortSignal,
+): Promise<Map<number, TelemetryPoint[]>> {
+  const data = unwrap(
+    await apiClient.GET('/api/Continuous/MeasuredTrailingPeriodsBatch', {
+      params: { query: { deviceId, sensorIds, endDate: toApiIso(new Date()), periods } },
+      signal,
+    }),
+  );
+  const bySensor = new Map<number, typeof data>(sensorIds.map((id) => [id, []]));
+  for (const row of data) {
+    if (row.sensorId != null) bySensor.get(row.sensorId)?.push(row);
+  }
+  return new Map([...bySensor].map(([id, rows]) => [id, normalizeTrailing(id, rows)]));
 }
 
 /**
@@ -123,13 +164,13 @@ async function fetchTelemetryTrailingPeriods(
  * (`enabled`/`refetchInterval`/`refetchOnWindowFocus`/`refetchOnReconnect`/
  * `retry` are all off/false unconditionally). Every real Live Monitoring
  * telemetry request is dispatched by exactly one place,
- * `useLiveMonitoringSchedule.ts`'s orchestrator, via `queryClient.fetchQuery`
- * for one Sensor at a time - this hook only *subscribes* to whatever that
- * orchestrator last wrote into the cache for this Sensor's query key, so
- * `SensorLiveCard` keeps its familiar `data`/`isLoading`/`isFetching`/`error`
- * shape without 25 independent components each deciding for themselves when
- * to hit the network. See CLAUDE.md's "Live Monitoring" section for the full
- * rate-limit math this design is built around.
+ * `useLiveMonitoringSchedule.ts`'s orchestrator, as ONE batched request for
+ * every Sensor on screen (`fetchAndCacheTelemetryTrailingBatch`) - this hook
+ * only *subscribes* to whatever that orchestrator last wrote into the cache
+ * for this Sensor's query key, so `SensorLiveCard` keeps its familiar
+ * `data`/`isLoading`/`isFetching`/`error` shape without 50 independent
+ * components each deciding for themselves when to hit the network. See
+ * CLAUDE.md's "Live Monitoring" section for the rate-limit math.
  */
 export function useTelemetryTrailingPeriods({ family, deviceId, sensorId, periods }: TrailingArgs) {
   return useQuery({
@@ -189,6 +230,60 @@ export function fetchAndCacheTelemetryTrailingPeriods(
     retry: false,
     staleTime: 0,
   });
+}
+
+/**
+ * Live Monitoring's one refresh of every Sensor on screen: ONE batched request for all the Signal Sensors (the cards of the others,
+ * bidirectional Sensors, are read one by one as before - there are normally none), written into the very query each card subscribes to
+ * (`useTelemetryTrailingPeriods`' key), so a card keeps its familiar data / loading / error state. Every Sensor's query shares the one
+ * request, so a failure (or a 429) reaches all of them and this function throws the first error for the orchestrator to inspect.
+ * `retry: false` and `staleTime: 0` are load-bearing for the same reasons as in `fetchAndCacheTelemetryTrailingPeriods`.
+ */
+export async function fetchAndCacheTelemetryTrailingBatch(
+  queryClient: QueryClient,
+  { deviceId, sensors, periods }: { deviceId: number; sensors: TrailingBatchSensor[]; periods: number },
+  signal?: AbortSignal,
+): Promise<void> {
+  const signalSensors = sensors.filter((s) => !isBidirectionalFamily(s.family) && !isCurveFamily(s.family));
+  const bidirectional = sensors.filter((s) => isBidirectionalFamily(s.family) && !isCurveFamily(s.family));
+  const failures: unknown[] = [];
+
+  if (signalSensors.length > 0) {
+    let rows: Map<number, TelemetryPoint[]> | undefined;
+    let failure: unknown;
+    try {
+      rows = await fetchTelemetryTrailingBatchRows(deviceId, signalSensors.map((s) => s.id), periods, signal);
+    } catch (err) {
+      // A request the caller cancelled (the schedule restarting, a page / filter / Device switch, an unmount - React StrictMode does it on
+      // every mount in development) is not a failure: rethrow it WITHOUT touching any query, or every card would store the AbortError as
+      // its own error ("signal is aborted without reason") instead of keeping what it showed.
+      if (isAbort(err) || signal?.aborted) throw err;
+      failure = err;
+    }
+    const keyOf = (s: TrailingBatchSensor) => queryKeys.telemetryTrailing(s.family, deviceId, s.id, periods);
+    if (rows) {
+      for (const s of signalSensors) queryClient.setQueryData(keyOf(s), rows.get(s.id) ?? []);
+    } else {
+      // A real failure (a 429, a 500, the network) lands on every Sensor's own query, so each card shows it.
+      await Promise.allSettled(
+        signalSensors.map((s) =>
+          queryClient.fetchQuery({ queryKey: keyOf(s), queryFn: () => Promise.reject(failure), retry: false, staleTime: 0 }),
+        ),
+      );
+      failures.push(failure);
+    }
+  }
+
+  for (const sensor of bidirectional) {
+    if (signal?.aborted) break;
+    try {
+      await fetchAndCacheTelemetryTrailingPeriods(queryClient, { family: sensor.family, deviceId, sensorId: sensor.id, periods }, signal);
+    } catch (err) {
+      failures.push(err);
+    }
+  }
+
+  if (failures.length > 0) throw failures[0];
 }
 
 interface PeriodRangeArgs {
