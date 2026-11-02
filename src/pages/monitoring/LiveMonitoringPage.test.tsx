@@ -157,4 +157,13 @@ describe('LiveMonitoringPage and hidden Sensors', { timeout: 30_000 }, () => {
 
     expect(await screen.findByText('No sensors on this Device')).toBeInTheDocument();
   });
+
+  it('does not show the page title on screen, but keeps it as the page heading for assistive technology', async () => {
+    mockApi([sensor(1, 'RMS A', true)]);
+    const { container } = renderPage();
+
+    await screen.findByText(/Current operational state/); // the description and the rest of the page are there
+    expect(container.querySelector('.fui-Title2')).toBeNull(); // no visible title
+    expect(screen.getByRole('heading', { level: 1, name: 'Live Monitoring' })).toBeInTheDocument(); // still the h1
+  });
 });

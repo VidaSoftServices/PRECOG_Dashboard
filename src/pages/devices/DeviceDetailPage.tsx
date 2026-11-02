@@ -408,6 +408,7 @@ export function DeviceDetailPage() {
     <>
       <PageHeader
         title={device.deviceName || device.externalDeviceId || `Device ${device.id}`}
+        titleDisplay="compact"
         description={`${device.applicationMode} · ${device.externalDeviceId}`}
         actions={
           isAdmin && (

@@ -71,7 +71,7 @@ export function OverviewPage() {
 
   return (
     <>
-      <PageHeader title="Overview" description="Operational summary for your accessible Devices." />
+      <PageHeader title="Overview" titleDisplay="large" description="Operational summary for your accessible Devices." />
 
       <div className={styles.grid}>
         <Card className={styles.card} {...activateProps(() => navigate('/devices'))} style={{ cursor: 'pointer' }}>

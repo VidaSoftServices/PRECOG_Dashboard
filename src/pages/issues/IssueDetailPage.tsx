@@ -285,6 +285,7 @@ export function IssueDetailPage() {
     <>
       <PageHeader
         title={`Issue #${issue.issueKey}`}
+        titleDisplay="compact"
         description={`${formatDateTime(issue.measuredAtFrom)} → ${formatDateTime(issue.measuredAtTo)}`}
         actions={
           issue.reviewState !== 'PendingReview' &&

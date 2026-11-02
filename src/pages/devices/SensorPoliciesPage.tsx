@@ -479,6 +479,7 @@ export function SensorPoliciesPage() {
     <>
       <PageHeader
         title={`${sensorQuery.data?.name || sensorQuery.data?.externalSensorId} · Sensor configuration`}
+        titleDisplay="compact"
         description={`${sensorQuery.data?.direction ?? ''} ${sensorQuery.data?.sensorType ? '· ' + sensorQuery.data.sensorType : ''}`}
       />
 

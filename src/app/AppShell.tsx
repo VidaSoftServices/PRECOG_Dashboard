@@ -24,6 +24,7 @@ import {
   MenuItemRadio,
   Text,
   makeStyles,
+  mergeClasses,
   tokens,
   type MenuCheckedValueChangeData,
 } from '@fluentui/react-components';
@@ -82,12 +83,35 @@ const useStyles = makeStyles({
   content: {
     flex: 1,
     padding: tokens.spacingVerticalL,
+    // The page title is gone from the top of most pages, so the content starts closer to the breadcrumb.
+    paddingTop: tokens.spacingVerticalS,
     overflowX: 'hidden',
     maxWidth: '100%',
     boxSizing: 'border-box',
   },
   breadcrumbBar: {
     padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM} 0`,
+  },
+  // The breadcrumb is the page's title now (the big page heading was removed): it is as large as that heading was (Fluent Title2). A deep
+  // path wraps instead of running off the page.
+  crumbList: {
+    flexWrap: 'wrap',
+    // The crumb button has its own side padding: pull it back so the first crumb lines up with the page content below.
+    marginLeft: '-6px',
+  },
+  crumbLarge: {
+    fontSize: tokens.fontSizeHero700,
+    lineHeight: tokens.lineHeightHero700,
+    minHeight: tokens.lineHeightHero700,
+  },
+  // On a narrow screen the title-sized breadcrumb would not fit, so it is one step smaller (Fluent Subtitle1).
+  crumbSmall: {
+    fontSize: tokens.fontSizeBase500,
+    lineHeight: tokens.lineHeightBase500,
+    minHeight: tokens.lineHeightBase500,
+  },
+  crumbCurrent: {
+    fontWeight: tokens.fontWeightSemibold,
   },
 });
 
@@ -228,7 +252,7 @@ export function AppShell() {
 
         {crumbs.length > 0 && (
           <div className={styles.breadcrumbBar}>
-            <Breadcrumb>
+            <Breadcrumb size="large" list={{ className: styles.crumbList }}>
               {crumbs.map((crumb, index) => (
                 // BreadcrumbDivider renders its own <li>, same as
                 // BreadcrumbItem - nesting one inside the other (as this
@@ -239,6 +263,7 @@ export function AppShell() {
                   {index > 0 && <BreadcrumbDivider />}
                   <BreadcrumbItem>
                     <BreadcrumbButton
+                      className={mergeClasses(isCompact ? styles.crumbSmall : styles.crumbLarge, index === crumbs.length - 1 && styles.crumbCurrent)}
                       current={index === crumbs.length - 1}
                       onClick={() => navigate(crumb.path)}
                     >

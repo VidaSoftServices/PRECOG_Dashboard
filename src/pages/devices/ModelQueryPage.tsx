@@ -28,6 +28,7 @@ export function ModelQueryPage() {
     <>
       <PageHeader
         title={`Model query · ${deviceQuery.data?.deviceName ?? ''}`}
+        titleDisplay="compact"
         description="Ranks historically similar canonical Issues against this Device's active model. Similarity, not a probability of failure."
         actions={
           <Button icon={<Search24Regular />} appearance="primary" disabled={runQuery.isPending} onClick={() => runQuery.mutate(undefined)}>
