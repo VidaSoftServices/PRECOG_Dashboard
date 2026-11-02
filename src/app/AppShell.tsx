@@ -83,17 +83,22 @@ const useStyles = makeStyles({
   content: {
     flex: 1,
     padding: tokens.spacingVerticalL,
-    // The page title is gone from the top of most pages, so the content starts closer to the breadcrumb.
-    paddingTop: tokens.spacingVerticalS,
+    // The page title is gone from the top of most pages and the breadcrumb sits in the top bar, so the content starts a little closer to it.
+    paddingTop: tokens.spacingVerticalM,
     overflowX: 'hidden',
     maxWidth: '100%',
     boxSizing: 'border-box',
   },
-  breadcrumbBar: {
-    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM} 0`,
+  // The left of the top bar: the navigation button (narrow screens) and the breadcrumb, which is the page's title.
+  topBarLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: tokens.spacingHorizontalS,
+    flex: '1 1 auto',
+    minWidth: 0,
   },
-  // The breadcrumb is the page's title now (the big page heading was removed): it is as large as that heading was (Fluent Title2). A deep
-  // path wraps instead of running off the page.
+  // The breadcrumb is the page's title now (the big page heading was removed) and sits in the top bar: it is as large as that heading was
+  // (Fluent Title2). A deep path wraps instead of running off the page.
   crumbList: {
     flexWrap: 'wrap',
     // The crumb button has its own side padding: pull it back so the first crumb lines up with the page content below.
@@ -223,11 +228,34 @@ export function AppShell() {
       </NavDrawer>
 
       <div className={styles.main}>
-        <Toolbar className={styles.topBar}>
-          <div className={styles.brand}>
+        <div className={styles.topBar}>
+          <div className={styles.topBarLeft}>
             {isCompact && <Hamburger onClick={() => setDrawerOpen((v) => !v)} aria-label="Toggle navigation" />}
+            {crumbs.length > 0 && (
+              <Breadcrumb size="large" list={{ className: styles.crumbList }}>
+                {crumbs.map((crumb, index) => (
+                  // BreadcrumbDivider renders its own <li>, same as
+                  // BreadcrumbItem - nesting one inside the other (as this
+                  // used to) produced an invalid <li> inside <li> and tripped
+                  // React's hydration-mismatch warning. They must be siblings
+                  // within the <Breadcrumb>'s list.
+                  <Fragment key={crumb.path}>
+                    {index > 0 && <BreadcrumbDivider />}
+                    <BreadcrumbItem>
+                      <BreadcrumbButton
+                        className={mergeClasses(isCompact ? styles.crumbSmall : styles.crumbLarge, index === crumbs.length - 1 && styles.crumbCurrent)}
+                        current={index === crumbs.length - 1}
+                        onClick={() => navigate(crumb.path)}
+                      >
+                        {crumb.label}
+                      </BreadcrumbButton>
+                    </BreadcrumbItem>
+                  </Fragment>
+                ))}
+              </Breadcrumb>
+            )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: tokens.spacingHorizontalS }}>
+          <Toolbar aria-label="Page actions" style={{ display: 'flex', alignItems: 'center', gap: tokens.spacingHorizontalS }}>
             <ThemeMenu />
             <ToolbarDivider />
             <Menu>
@@ -247,34 +275,8 @@ export function AppShell() {
                 </MenuList>
               </MenuPopover>
             </Menu>
-          </div>
-        </Toolbar>
-
-        {crumbs.length > 0 && (
-          <div className={styles.breadcrumbBar}>
-            <Breadcrumb size="large" list={{ className: styles.crumbList }}>
-              {crumbs.map((crumb, index) => (
-                // BreadcrumbDivider renders its own <li>, same as
-                // BreadcrumbItem - nesting one inside the other (as this
-                // used to) produced an invalid <li> inside <li> and tripped
-                // React's hydration-mismatch warning. They must be siblings
-                // within the <Breadcrumb>'s list.
-                <Fragment key={crumb.path}>
-                  {index > 0 && <BreadcrumbDivider />}
-                  <BreadcrumbItem>
-                    <BreadcrumbButton
-                      className={mergeClasses(isCompact ? styles.crumbSmall : styles.crumbLarge, index === crumbs.length - 1 && styles.crumbCurrent)}
-                      current={index === crumbs.length - 1}
-                      onClick={() => navigate(crumb.path)}
-                    >
-                      {crumb.label}
-                    </BreadcrumbButton>
-                  </BreadcrumbItem>
-                </Fragment>
-              ))}
-            </Breadcrumb>
-          </div>
-        )}
+          </Toolbar>
+        </div>
 
         <main className={styles.content}>
           <SelectedDeviceProvider>{hasAuthorizedCompany ? <Outlet /> : <NoCompanyState />}</SelectedDeviceProvider>
