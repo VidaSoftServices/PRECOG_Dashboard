@@ -131,6 +131,17 @@ describe('SmartAnalyticsPage and hidden Sensors', { timeout: 40_000 }, () => {
     await waitFor(() => expect(lastDrawn().every((label) => label.startsWith('RMS B'))).toBe(true)); // only the chosen Sensor is drawn
   });
 
+  it('puts the chart above the Sensor list (the KPIs), in Single Sensor and in Multi Sensor mode', async () => {
+    mockApi({ 4: [sensor(1, 'RMS A', true), sensor(2, 'RMS B', true)] });
+    const user = userEvent.setup();
+    renderPage('/analytics?deviceId=4');
+    const isBefore = (first: Element, second: Element) => Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+    expect(isBefore(await screen.findByTestId('chart-canvas'), await screen.findByRole('radio', { name: /RMS A/ }))).toBe(true);
+    await user.click(screen.getByRole('radio', { name: 'Multi Sensor' }));
+    expect(isBefore(await screen.findByTestId('chart-canvas'), await screen.findByRole('checkbox', { name: /RMS A/ }))).toBe(true);
+  });
+
   it('Multi Sensor mode: a checkbox list, up to 4 Sensors overlaid; the Sensor chosen before stays checked, and back in Single Sensor mode the first stays', async () => {
     mockApi({ 4: [sensor(1, 'RMS A', true), sensor(2, 'RMS B', true), sensor(3, 'RMS C', true)] });
     const user = userEvent.setup();

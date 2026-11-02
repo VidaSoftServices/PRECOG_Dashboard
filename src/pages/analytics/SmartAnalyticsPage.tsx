@@ -56,7 +56,8 @@ const useStyles = makeStyles({
     flexDirection: 'column',
     gap: tokens.spacingVerticalXXS,
     // A Device can have hundreds of Sensors: the list scrolls instead of pushing the chart far down the page.
-    maxHeight: '260px',
+    // 40% lower than before (260 px): with the chart above it, the list only needs to be a short, scrollable strip.
+    maxHeight: '156px',
     overflowY: 'auto',
   },
   card: {
@@ -178,7 +179,28 @@ function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; st
   return (
     <div className={breakpoint === 'desktop' ? styles.layout : styles.layoutMobile}>
       <div>
+        {/* The chart is on top, the Sensor list (the KPIs) below it. */}
         <Card className={styles.card}>
+          {anyLoading && <LoadingState label="Loading telemetry…" />}
+          {firstError && <ErrorState error={firstError.error} />}
+          {!anyLoading && !firstError && (
+            <TruncationNotice labels={series.map((s) => s.label)} lengths={series.map((s) => s.points.length)} />
+          )}
+          {!anyLoading && !firstError && (
+            <EnlargeableTelemetryChart
+              title={series.map((s) => s.label).join(' · ') || 'Telemetry'}
+              series={series}
+              mode={series.length > 1 ? 'compare' : 'single'}
+              showControlLimits={series.length === 1}
+              // One Sensor: the platform's full reference set as the API stored it (Target, Tolerance, UCL3/UCL2/LCL2/LCL3 and their bands),
+              // like the enlarged Live Monitoring chart. Several Sensors stay a clean overlay without limits.
+              detailedLimits={series.length === 1}
+              height={360}
+            />
+          )}
+        </Card>
+
+        <Card className={styles.card} style={{ marginTop: tokens.spacingVerticalM }}>
           <Body1Strong>
             {multi ? `Sensors (${effectiveSelection.length} of ${Math.min(sensors.length, MAX_OVERLAY_SENSORS)} shown, max ${MAX_OVERLAY_SENSORS})` : 'Sensor (choose one)'}
           </Body1Strong>
@@ -224,24 +246,6 @@ function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; st
               </RadioGroup>
             )}
           </div>
-
-          {anyLoading && <LoadingState label="Loading telemetry…" />}
-          {firstError && <ErrorState error={firstError.error} />}
-          {!anyLoading && !firstError && (
-            <TruncationNotice labels={series.map((s) => s.label)} lengths={series.map((s) => s.points.length)} />
-          )}
-          {!anyLoading && !firstError && (
-            <EnlargeableTelemetryChart
-              title={series.map((s) => s.label).join(' · ') || 'Telemetry'}
-              series={series}
-              mode={series.length > 1 ? 'compare' : 'single'}
-              showControlLimits={series.length === 1}
-              // One Sensor: the platform's full reference set as the API stored it (Target, Tolerance, UCL3/UCL2/LCL2/LCL3 and their bands),
-              // like the enlarged Live Monitoring chart. Several Sensors stay a clean overlay without limits.
-              detailedLimits={series.length === 1}
-              height={360}
-            />
-          )}
         </Card>
 
         <Card className={styles.card} style={{ marginTop: tokens.spacingVerticalM }}>
