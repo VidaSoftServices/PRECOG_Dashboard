@@ -123,6 +123,8 @@ const useStyles = makeStyles({
 function useCrumbs(): { label: string; path: string }[] {
   const location = useLocation();
   const segments = location.pathname.split('/').filter(Boolean);
+  // The Overview (the root path) has no segments: it is its own single crumb, so the top bar names it like every other page.
+  if (segments.length === 0) return [{ label: navEntries.find((e) => e.path === '/')?.label ?? 'Overview', path: '/' }];
   const crumbs: { label: string; path: string }[] = [];
   let acc = '';
   for (const segment of segments) {

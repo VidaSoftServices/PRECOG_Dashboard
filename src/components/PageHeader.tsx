@@ -45,19 +45,18 @@ interface PageHeaderProps {
   /** 'h2' for a page's secondary PageHeader (e.g. a sub-section) so a page with more than one doesn't end up with two <h1>s. */
   level?: 'h1' | 'h2';
   /**
-   * How an 'h1' title is shown. 'hidden' (the default): not on screen - the breadcrumb already names the page - but still the page's
-   * heading for assistive technology. 'compact': a small one-line heading (Subtitle1), for a page whose title is a name the breadcrumb does not carry
-   * (a Device, an Issue, a Sensor). 'large': the full-size title, for a page without a breadcrumb (the Overview). A secondary 'h2' header
-   * is always shown.
+   * How an 'h1' title is shown. 'hidden' (the default): not on screen - the top bar's breadcrumb already names the page (the Overview too) -
+   * but still the page's heading for assistive technology. 'compact': a small one-line heading (Subtitle1), for a page whose title is a
+   * name the breadcrumb does not carry (a Device, an Issue, a Sensor). A secondary 'h2' header is always shown.
    */
-  titleDisplay?: 'hidden' | 'compact' | 'large';
+  titleDisplay?: 'hidden' | 'compact';
 }
 
 export function PageHeader({ title, description, actions, level = 'h1', titleDisplay = 'hidden' }: PageHeaderProps) {
   const styles = useStyles();
   const hidden = level === 'h1' && titleDisplay === 'hidden';
-  // Everything except the full-size title (and a sub-section's h2) sits in a slim row.
-  const slim = level === 'h1' && titleDisplay !== 'large';
+  // Everything except a sub-section's h2 sits in a slim row.
+  const slim = level === 'h1';
   const Heading = level;
 
   // Fluent's Title2/Title3 control visual size only - `as` is required to get an actual semantic heading level out of them.

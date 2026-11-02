@@ -33,13 +33,6 @@ describe('PageHeader', () => {
     expect(container.querySelectorAll('div').length).toBe(1); // just the FluentProvider's own wrapper
   });
 
-  it("'large' shows the full-size title (the Overview has no breadcrumb)", () => {
-    const { container } = renderHeader({ title: 'Overview', titleDisplay: 'large' });
-
-    expect(container.querySelector('.fui-Title2')).not.toBeNull();
-    expect(screen.getByRole('heading', { level: 1, name: 'Overview' })).toBeInTheDocument();
-  });
-
   it("'compact' shows a small heading, for a page whose title is a name the breadcrumb does not carry", () => {
     const { container } = renderHeader({ title: 'AHU1', titleDisplay: 'compact' });
 
