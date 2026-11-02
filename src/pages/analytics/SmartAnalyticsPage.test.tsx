@@ -95,23 +95,59 @@ describe('SmartAnalyticsPage and hidden Sensors', { timeout: 40_000 }, () => {
     })) as unknown as typeof window.matchMedia;
   });
 
-  it('single Device: offers only the Sensors that are not hidden, and says how many are hidden', async () => {
+  it('single Sensor (the default): offers only the Sensors that are not hidden, and says how many are hidden', async () => {
     mockApi({ 4: [sensor(1, 'RMS A', true), sensor(2, 'RMS B (hidden)', false), sensor(3, 'RMS C')] });
     renderPage('/analytics?deviceId=4');
 
-    expect(await screen.findByRole('checkbox', { name: /RMS A/ })).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: /RMS C/ })).toBeInTheDocument(); // no flag at all = shown
-    expect(screen.queryByRole('checkbox', { name: /RMS B \(hidden\)/ })).not.toBeInTheDocument();
+    expect(await screen.findByRole('radio', { name: /RMS A/ })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /RMS C/ })).toBeInTheDocument(); // no flag at all = shown
+    expect(screen.queryByRole('radio', { name: /RMS B \(hidden\)/ })).not.toBeInTheDocument();
     expect(screen.getByText(/2 Sensors/)).toHaveTextContent('(1 hidden on the Device page)');
   });
 
-  it('single Device: never starts with a hidden Sensor selected, even when it is the first one', async () => {
+  it('single Sensor: never starts with a hidden Sensor selected, even when it is the first one', async () => {
     mockApi({ 4: [sensor(1, 'Hidden first', false), sensor(2, 'RMS B', true)] });
     renderPage('/analytics?deviceId=4');
 
-    const shown = await screen.findByRole('checkbox', { name: /RMS B/ });
+    const shown = await screen.findByRole('radio', { name: /RMS B/ });
     expect(shown).toBeChecked(); // the default selection is the first SHOWN Sensor
-    expect(screen.queryByRole('checkbox', { name: /Hidden first/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /Hidden first/ })).not.toBeInTheDocument();
+  });
+
+  it('opens in Single Sensor mode: one Sensor is chosen with a radio, a checkbox list does not exist, and picking another Sensor replaces the first', async () => {
+    mockApi({ 4: [sensor(1, 'RMS A', true), sensor(2, 'RMS B', true)] });
+    const user = userEvent.setup();
+    renderPage('/analytics?deviceId=4');
+
+    expect(await screen.findByRole('radio', { name: 'Single Sensor' })).toBeChecked();
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+    expect(await screen.findByRole('radio', { name: /RMS A/ })).toBeChecked();
+    await waitFor(() => expect(lastDrawn()).toContain('RMS A'));
+
+    await user.click(screen.getByRole('radio', { name: /RMS B/ }));
+
+    expect(screen.getByRole('radio', { name: /RMS B/ })).toBeChecked();
+    expect(screen.getByRole('radio', { name: /RMS A/ })).not.toBeChecked(); // exactly one
+    await waitFor(() => expect(lastDrawn().every((label) => label.startsWith('RMS B'))).toBe(true)); // only the chosen Sensor is drawn
+  });
+
+  it('Multi Sensor mode: a checkbox list, up to 4 Sensors overlaid; the Sensor chosen before stays checked, and back in Single Sensor mode the first stays', async () => {
+    mockApi({ 4: [sensor(1, 'RMS A', true), sensor(2, 'RMS B', true), sensor(3, 'RMS C', true)] });
+    const user = userEvent.setup();
+    renderPage('/analytics?deviceId=4');
+    await user.click(await screen.findByRole('radio', { name: /RMS B/ })); // choose B in Single Sensor mode
+
+    await user.click(screen.getByRole('radio', { name: 'Multi Sensor' }));
+
+    expect(await screen.findByRole('checkbox', { name: /RMS B/ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /RMS A/ })).not.toBeChecked();
+    expect(screen.queryByRole('radio', { name: /RMS A/ })).not.toBeInTheDocument(); // no sensor radios any more
+    await user.click(screen.getByRole('checkbox', { name: /RMS C/ }));
+    await waitFor(() => expect(lastDrawn()).toEqual(['RMS B', 'RMS C'])); // an overlay, no limit lines
+
+    await user.click(screen.getByRole('radio', { name: 'Single Sensor' }));
+    expect(await screen.findByRole('radio', { name: /RMS B/ })).toBeChecked(); // the first of the chosen ones stays
+    await waitFor(() => expect(lastDrawn().every((label) => label.startsWith('RMS B'))).toBe(true));
   });
 
   it('single Device: says so when every Sensor is hidden, instead of claiming the Device has none', async () => {
@@ -166,7 +202,7 @@ describe('SmartAnalyticsPage and hidden Sensors', { timeout: 40_000 }, () => {
     expect(screen.getByText(/drawn in one chart as you selected them; the values are not converted or aligned/)).toBeInTheDocument();
   });
 
-  it('single Device, one Sensor: draws the API\'s full reference set - Target, Tolerance, UCL3, UCL2, LCL2 and LCL3 - and Actual', async () => {
+  it('single Sensor: draws the API\'s full reference set - Target, Tolerance, UCL3, UCL2, LCL2 and LCL3 - and Actual', async () => {
     mockApi({ 4: [sensor(1, 'RMS A', true)] });
     renderPage('/analytics?deviceId=4');
 
@@ -175,7 +211,7 @@ describe('SmartAnalyticsPage and hidden Sensors', { timeout: 40_000 }, () => {
     );
   });
 
-  it('single Device, one Sensor the API has no limits for: the legend still lists the four limit lines, with no explanatory notice', async () => {
+  it('single Sensor, the API has no limits for it: the legend still lists the four limit lines, with no explanatory notice', async () => {
     mockApi({ 4: [sensor(1, 'RMS A', true)], 5: [sensor(1, 'RMS A', true)] });
     renderPage('/analytics?deviceId=5'); // Device 5's reading carries no target and no limits
 
@@ -183,10 +219,11 @@ describe('SmartAnalyticsPage and hidden Sensors', { timeout: 40_000 }, () => {
     expect(screen.queryByText(/No control limits|No Target/)).not.toBeInTheDocument();
   });
 
-  it('single Device, several Sensors: a clean overlay without limit lines', async () => {
+  it('multi Sensor, several Sensors: a clean overlay without limit lines', async () => {
     mockApi({ 4: [sensor(1, 'RMS A', true), sensor(2, 'RMS B', true)] });
     const user = userEvent.setup();
     renderPage('/analytics?deviceId=4');
+    await user.click(await screen.findByRole('radio', { name: 'Multi Sensor' }));
     await user.click(await screen.findByRole('checkbox', { name: /RMS B/ }));
 
     await waitFor(() => expect(lastDrawn()).toEqual(['RMS A', 'RMS B']));

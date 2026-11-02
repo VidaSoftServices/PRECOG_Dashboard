@@ -2703,6 +2703,11 @@ The Sensors header of the Device page (Admin only) now reads, left to right: **A
 
 - The enlarged Live Monitoring chart's tooltip lists only Actual and Target with their values and unit (`TelemetryChart` `plainTooltip`): no Sensor name, no UCL3/LCL3 lines (still drawn and in the legend). Other charts are unchanged. Tests: `TelemetryChart.lines.test.tsx`.
 
+## Smart Analytics: Single Sensor and Multi Sensor modes
+
+- The old "Single Device" mode is split into **Single Sensor** (the default: exactly one Sensor of the Device, chosen with a radio list, drawn with its full reference set) and **Multi Sensor** (what "Single Device" was: up to 4 Sensors overlaid, a checkbox list, no limit lines); **Compare Devices** is unchanged. One mode radio group instead of a separate switch, so the choice is visible and the default is the single-Sensor view. The chosen Sensors are kept when switching between the two (back in Single Sensor the first of them stays); the Device, the Sensor filter and the time range are shared. `SingleDeviceAnalytics` became `SensorAnalytics` (`multi` prop).
+- Tests: `SmartAnalyticsPage.test.tsx` (opens in Single Sensor mode with radios and no checkboxes, picking another Sensor replaces the first, Multi Sensor keeps the chosen one and overlays up to 4, back to Single keeps the first, hidden Sensors are offered in neither).
+
 ## Smart Analytics: last 15 minutes, paged reads, average line and UCL3/LCL3 in the comparison
 
 - Smart Analytics opens on the last 15 minutes (it was 7 days; first set to 24 hours, then narrowed to 15 minutes on request) and has a "Last 15 minutes" button. Signal reads are paged (`maxPoints` = 20,000 per series, pages of 5000, newest first; `readAllPages` in `hooks/telemetry.ts`) because the single request of 2000 readings showed only the newest ~2.8 hours of a 5-second Sensor; a "Newest 20,000 readings shown" notice appears when a series hit the cap. Very long series are drawn as a plain line without animation.

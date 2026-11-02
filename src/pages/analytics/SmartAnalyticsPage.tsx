@@ -104,8 +104,15 @@ function TruncationNotice({ labels, lengths }: { labels: string[]; lengths: numb
   );
 }
 
-/** Single-Device, multiple-Sensor overlay mode (decision #16). */
-function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; start: Date; end: Date }) {
+/** Most Sensors one overlay chart draws (Multi Sensor mode); Single Sensor mode draws exactly one. */
+const MAX_OVERLAY_SENSORS = 4;
+
+/**
+ * One Device's telemetry. "Single Sensor" (the default): exactly ONE Sensor of the Device is chosen (a radio list) and drawn with its full
+ * reference set. "Multi Sensor": up to 4 Sensors are overlaid (a checkbox list, decision #16). The chosen Sensors are kept when switching
+ * between the two (back in Single Sensor mode the first of them stays).
+ */
+function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; start: Date; end: Date; multi: boolean }) {
   const styles = useStyles();
   const breakpoint = useBreakpoint();
   const deviceQuery = useDevice(deviceId);
@@ -117,7 +124,7 @@ function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; sta
   const { shown: sensors, hiddenCount } = useMemo(() => splitShownSensors(sensorsQuery.data), [sensorsQuery.data]);
   const visibleSensors = useMemo(() => filterSensors(sensors, sensorFilter), [sensors, sensorFilter]);
   const pickedIds = selectedSensorIds.filter((id) => sensors.some((s) => s.id === id));
-  const effectiveSelection = pickedIds.length > 0 ? pickedIds : sensors.slice(0, 1).map((s) => s.id!);
+  const effectiveSelection = (pickedIds.length > 0 ? pickedIds : sensors.slice(0, 1).map((s) => s.id!)).slice(0, multi ? MAX_OVERLAY_SENSORS : 1);
   const primarySensor = sensors.find((s) => s.id === effectiveSelection[0]);
 
   const policiesQuery = useAggregationPolicies(deviceId, primarySensor?.id);
@@ -126,7 +133,6 @@ function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; sta
   // Rules of Hooks: call one telemetry query per potential sensor slot, up to
   // a small fixed cap, rather than calling useTelemetryDateRange inside a
   // .map() (which would violate conditional-hook-count rules as selection changes).
-  const MAX_OVERLAY_SENSORS = 4;
   const slots = [0, 1, 2, 3] as const;
   const queries = slots.map((i) => {
     const sensorId = effectiveSelection[i];
@@ -173,7 +179,9 @@ function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; sta
     <div className={breakpoint === 'desktop' ? styles.layout : styles.layoutMobile}>
       <div>
         <Card className={styles.card}>
-          <Body1Strong>Sensors ({effectiveSelection.length} of {Math.min(sensors.length, MAX_OVERLAY_SENSORS)} shown, max {MAX_OVERLAY_SENSORS})</Body1Strong>
+          <Body1Strong>
+            {multi ? `Sensors (${effectiveSelection.length} of ${Math.min(sensors.length, MAX_OVERLAY_SENSORS)} shown, max ${MAX_OVERLAY_SENSORS})` : 'Sensor (choose one)'}
+          </Body1Strong>
           <Input
             aria-label="Filter Sensors"
             placeholder="Filter Sensors by name…"
@@ -189,23 +197,32 @@ function SingleDeviceAnalytics({ deviceId, start, end }: { deviceId: number; sta
           </Text>
           <div className={styles.sensorList}>
             {visibleSensors.length === 0 && <Text size={200}>No Sensor matches the filter.</Text>}
-            {visibleSensors.map((sensor) => (
-              <Checkbox
-                key={sensor.id}
-                label={`${sensor.name || sensor.externalSensorId} (${sensor.direction})`}
-                checked={effectiveSelection.includes(sensor.id!)}
-                onChange={(_, d) => {
-                  setSelectedSensorIds((prev) => {
-                    const base = prev.length > 0 ? prev : sensors.slice(0, 1).map((s) => s.id!);
-                    if (d.checked) {
-                      if (base.length >= MAX_OVERLAY_SENSORS) return base;
-                      return [...base, sensor.id!];
-                    }
-                    return base.filter((id) => id !== sensor.id);
-                  });
-                }}
-              />
-            ))}
+            {multi ? (
+              visibleSensors.map((sensor) => (
+                <Checkbox
+                  key={sensor.id}
+                  label={`${sensor.name || sensor.externalSensorId} (${sensor.direction})`}
+                  checked={effectiveSelection.includes(sensor.id!)}
+                  onChange={(_, d) => {
+                    setSelectedSensorIds((prev) => {
+                      const base = prev.length > 0 ? prev : sensors.slice(0, 1).map((s) => s.id!);
+                      if (d.checked) {
+                        if (base.length >= MAX_OVERLAY_SENSORS) return base;
+                        return [...base, sensor.id!];
+                      }
+                      return base.filter((id) => id !== sensor.id);
+                    });
+                  }}
+                />
+              ))
+            ) : (
+              // Single Sensor: exactly one is chosen; picking another replaces it.
+              <RadioGroup aria-label="Sensor" value={String(effectiveSelection[0] ?? '')} onChange={(_, d) => setSelectedSensorIds([Number(d.value)])}>
+                {visibleSensors.map((sensor) => (
+                  <Radio key={sensor.id} value={String(sensor.id)} label={`${sensor.name || sensor.externalSensorId} (${sensor.direction})`} />
+                ))}
+              </RadioGroup>
+            )}
           </div>
 
           {anyLoading && <LoadingState label="Loading telemetry…" />}
@@ -405,9 +422,12 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
   );
 }
 
+/** Single Sensor (the default), Multi Sensor (up to 4 overlaid) or two Devices side by side. */
+type AnalyticsMode = 'sensor' | 'multi' | 'compare';
+
 export function SmartAnalyticsPage() {
   const styles = useStyles();
-  const [mode, setMode] = useState<'single' | 'compare'>('single');
+  const [mode, setMode] = useState<AnalyticsMode>('sensor');
   const [deviceIdB, setDeviceIdB] = useNumberSearchParam('compareDeviceId');
   const [range, setRange] = useState(lastFifteenMinutes);
 
@@ -424,11 +444,12 @@ export function SmartAnalyticsPage() {
 
   return (
     <>
-      <PageHeader title="Smart Analytics" description="Historical exploration, multi-Sensor comparison, and two-Device comparison." />
+      <PageHeader title="Smart Analytics" description="Historical exploration of one Sensor, multi-Sensor comparison, and two-Device comparison." />
 
       <div className={styles.toolbar}>
-        <RadioGroup value={mode} onChange={(_, d) => setMode(d.value as 'single' | 'compare')} layout="horizontal">
-          <Radio value="single" label="Single Device" />
+        <RadioGroup aria-label="Mode" value={mode} onChange={(_, d) => setMode(d.value as AnalyticsMode)} layout="horizontal">
+          <Radio value="sensor" label="Single Sensor" />
+          <Radio value="multi" label="Multi Sensor" />
           <Radio value="compare" label="Compare Devices" />
         </RadioGroup>
 
@@ -468,8 +489,8 @@ export function SmartAnalyticsPage() {
         </MessageBar>
       )}
 
-      {effectiveA !== undefined && !validationMessage && mode === 'single' && (
-        <SingleDeviceAnalytics deviceId={effectiveA} start={range.start} end={range.end} />
+      {effectiveA !== undefined && !validationMessage && mode !== 'compare' && (
+        <SensorAnalytics deviceId={effectiveA} start={range.start} end={range.end} multi={mode === 'multi'} />
       )}
 
       {effectiveA !== undefined && deviceIdB !== undefined && !validationMessage && mode === 'compare' && (

@@ -1078,8 +1078,11 @@ today; none was invented.
 
 ## Smart Analytics
 
-`SmartAnalyticsPage.tsx` — Device selection, one-or-more-Sensor selection
-(same-Device overlay, capped at 4), bounded wall-clock time range
+`SmartAnalyticsPage.tsx` — three modes (a radio group, **Single Sensor** by default): **Single Sensor**
+(Device selection, exactly ONE Sensor chosen with a radio list, drawn with its full reference set), **Multi Sensor**
+(one-or-more-Sensor selection, same-Device overlay with a checkbox list, capped at 4) and **Compare Devices**
+(see below); the chosen Sensors are kept when switching between Single and Multi Sensor (back in Single Sensor the first stays).
+Bounded wall-clock time range
 (`DateTimeField` pair, start-before-end validated, both fields labeled with
 the viewer's local zone), and two-Device comparison as a distinct mode.
 Aggregation-policy metadata is shown as **reference information**, not a
@@ -1131,10 +1134,10 @@ dashed horizontal **average** line (the mean of its plotted readings, in the
 series' colour) and the platform's own **UCL3 / LCL3** control limits (the
 values the analysis calculated and stored per reading, drawn in the series'
 colour, only where the Sensor has them - calculation switched on, a setpoint is
-not needed; no empty legend entries otherwise). The single-Device
-view with **one** selected Sensor draws the API's full reference set like the enlarged Live Monitoring chart (`detailedLimits`: Target, Tolerance,
+not needed; no empty legend entries otherwise). The Single Sensor
+view (and Multi Sensor with just one Sensor ticked) draws the API's full reference set like the enlarged Live Monitoring chart (`detailedLimits`: Target, Tolerance,
 Actual, UCL3, UCL2, LCL2, LCL3 with the two shaded bands - Target/Tolerance only with a setpoint, the four limit lines always named in the legend and drawn only where the API stored values, with no notice about missing ones, the
-Sensor's `direction` decides the tolerance side); with several Sensors it stays a clean overlay without limit lines. See "Knowledge sharing" above for the
+Sensor's `direction` decides the tolerance side); with several Sensors (Multi Sensor mode) it stays a clean overlay without limit lines. See "Knowledge sharing" above for the
 comparison-has-no-side-effects rule and the Admin-only transition link.
 
 ## Authentication and security
@@ -1354,8 +1357,8 @@ Live Monitoring chart details (follow-up): the **small card charts** are `Teleme
 
 ## Smart Analytics: Sensor filter and enlargeable charts
 
-- **Filter**: the single-Device Sensor list has a filter box (`filterSensors` in `src/lib/sensorFilter.ts`, shared with Live Monitoring: case-insensitive match on name or externalSensorId, blanks around the text ignored). The list scrolls (max 260 px) instead of growing with hundreds of Sensors, and the status line under the box says "N of M Sensors match - selected: ...". The selection (up to 4) is kept when the filter hides a selected Sensor, so it is never silently dropped. In Compare Devices mode each Device's Sensor select has its own filter box; the currently chosen Sensor always stays among the options so the select never shows a value that is not an option.
-- **Enlarge**: every Smart Analytics chart (the single-Device overlay, the compatible two-Device overlay and each of the two side-by-side panels) is an `EnlargeableTelemetryChart` (`src/components/charts/`). Clicking the chart opens it in a modal window (95% of the window wide and a chart about 92vh - 200 px tall - larger than Live Monitoring's 85% modal, since a long-range analysis chart needs the room; `yy-MM-dd HH:mm:ss` time axis, 5x hover marker, Close / Escape), but a click on the **legend** still only toggles a series (`TelemetryChart`'s `onEnlarge` ignores clicks inside the legend box and shows a zoom cursor elsewhere). The keyboard and screen-reader route is the **Enlarge chart: {title}** button above each chart. These charts are not `compact`: their tooltip and legend toggling stay, unlike the small Live Monitoring cards. Checked in a real Chromium with a mocked API (80 Sensors: filter 80 -> 10, selection kept after clearing the filter, legend click does not open the modal, chart click and the button do).
+- **Filter**: the Sensor list of the Single and Multi Sensor modes has a filter box (`filterSensors` in `src/lib/sensorFilter.ts`, shared with Live Monitoring: case-insensitive match on name or externalSensorId, blanks around the text ignored). The list scrolls (max 260 px) instead of growing with hundreds of Sensors, and the status line under the box says "N of M Sensors match - selected: ...". The selection (up to 4) is kept when the filter hides a selected Sensor, so it is never silently dropped. In Compare Devices mode each Device's Sensor select has its own filter box; the currently chosen Sensor always stays among the options so the select never shows a value that is not an option.
+- **Enlarge**: every Smart Analytics chart (the Single Sensor / Multi Sensor chart, the two-Device chart) is an `EnlargeableTelemetryChart` (`src/components/charts/`). Clicking the chart opens it in a modal window (95% of the window wide and a chart about 92vh - 200 px tall - larger than Live Monitoring's 85% modal, since a long-range analysis chart needs the room; `yy-MM-dd HH:mm:ss` time axis, 5x hover marker, Close / Escape), but a click on the **legend** still only toggles a series (`TelemetryChart`'s `onEnlarge` ignores clicks inside the legend box and shows a zoom cursor elsewhere). The keyboard and screen-reader route is the **Enlarge chart: {title}** button above each chart. These charts are not `compact`: their tooltip and legend toggling stay, unlike the small Live Monitoring cards. Checked in a real Chromium with a mocked API (80 Sensors: filter 80 -> 10, selection kept after clearing the filter, legend click does not open the modal, chart click and the button do).
 
 ## Issue feedback text (editable)
 
