@@ -2729,3 +2729,23 @@ The Sensors header of the Device page (Admin only) now reads, left to right: **A
 - Two-Device comparison: each series gets a dashed horizontal average line (`averageLine`, `src/lib/seriesAverage.ts`; also in the text summary) and the platform's UCL3/LCL3 where the Sensor has them (`showControlLimits` now works in every mode; limits are only drawn for a series that has values). Loading and error states for the two reads were added.
 - The average is the only new presentation-only calculation (documented in CLAUDE.md and AGENTS.md); the control limits are never computed in the browser.
 - Tests: `seriesAverage.test.ts`, `telemetry.paging.test.tsx`, `TelemetryChart.lines.test.tsx`, `SmartAnalyticsPage.test.tsx` (15-minute default and paged requests, average and limit datasets, the cap notice).
+
+## Recalc (Sensor and Device), 2026-11-17
+
+- API: `POST .../Sensors/{id}/Recalculate`, `POST .../Recalculate`, `GET`/`DELETE .../Recalculation` (see the API's CLAUDE.md "Recalculate from the start"). `schema.generated.ts` regenerated (it also picked up the already existing `TrailingBatchPlan` operation).
+- Device page (Admin): **Recalc** button on every Sensor row, left of the Calculate switch (disabled when calculation is off, the Sensor is in maintenance, or a run is active); **Recalc all** after Manage Setpoints. Both go through `RecalculateDialog` (destructive confirm: lists what is deleted - calculated values, unreviewed Issues - and kept - stored values, reviewed Issues, settings; Recalc all also needs an acknowledgement checkbox and says how many Sensors are left out).
+- `RecalculationProgress` (every level reads it): MessageBar + `ProgressBar` with the percent, values done / total, current Sensor and phase, Stop for an Admin; polls on `POLL_INTERVALS_MS.activeJob` only while `active`; when a run ends the Sensor list, Issues and telemetry queries are refetched and a toast says how it ended; a finished run is shown for 10 minutes and can be dismissed. A Sensor row says "Recalculating… N %" / "Waiting for its turn".
+- The calculation switch's confirm text now says that switching off keeps everything already calculated and points to Recalc.
+- Tests: `RecalculateDialog.test.tsx`, `RecalculationProgress.test.tsx`; `contract.test.ts` block lookups anchored (a bare `SensorDto: {` also matched `RecalculationSensorDto: {`).
+
+## Bulk aggregation (Device page) and aggregation status (Policies page), 2026-11-17
+
+- Device page header (Admin): **Bulk aggregation** (`BulkAggregationDialog`): add the same level (time scale + function; Lookback, Scale, Min issue score, time zone from the existing `aggregationOptions.ts` lists) to **all** Sensors (no `sensorIds` sent) or to a filtered, ticked selection (`filterSensors`), or deactivate it again; one request each (`useBulkCreateAggregationPolicies` / `useBulkDeactivateAggregationPolicies`). The source key is never sent (always the measured value). The result lists Created / Reactivated / Exists / Deactivated / NotFound per Sensor with the API's remarks.
+- Policies page: every non-raw level shows "Calculated up to ..." (the policy's `backfilledUntil`) and a small table of its newest slices (`usePolicyValues`, bounded read, refreshed every 30 s). Nothing is calculated in the browser.
+- `schema.generated.ts` regenerated again (bulk endpoints, `AggregatedValueDto`, `backfilledUntil`).
+- Tests: `BulkAggregationDialog.test.tsx`. API side and the engine: see the API's CLAUDE.md "Aggregation engine and bulk aggregation".
+
+## Delete Issue (Issue detail page), 2026-11-17
+
+Admin-only **Delete Issue** button in the Issue detail header (next to "Reopen for review", which keeps meaning "take the verdict back"). `DeleteIssueDialog` (destructive `ConfirmDialog`): permanent, says what goes and what stays; a canonical Issue says its members become standalone; a reviewed Issue says it is a training example, that retraining starts, and needs an acknowledgement checkbox. `useDeleteIssuePermanently` -> `DELETE /api/Issue/{id}/Permanent`; the Issue's own queries are removed, lists and training requests refreshed, then back to the Issue list. Tests: `DeleteIssueDialog.test.tsx`.
+- Issue list: in the Admin's selection mode (the same one that groups) a **Delete (N)** button opens `DeleteIssuesDialog`: acknowledgement required, the count of reviewed Issues (training examples) is warned about, one `DELETE .../Permanent` per Issue in order, stops at the first failure and reports how many went. Tests: `DeleteIssuesDialog.test.tsx`.

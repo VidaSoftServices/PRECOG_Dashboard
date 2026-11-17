@@ -103,9 +103,9 @@ describe('OpenAPI contract quality (static - reads schema.generated.ts, no live 
   });
 
   it('SensorDto still carries the maintenance state every access level reads', () => {
-    const start = schemaText.indexOf('SensorDto: {');
+    const start = schemaText.indexOf('\n        SensorDto: {'); // anchored: a bare `SensorDto: {` also matches `RecalculationSensorDto: {`
     expect(start).toBeGreaterThan(-1);
-    const end = schemaText.indexOf('\n        };', start);
+    const end = schemaText.indexOf('\n        };', start + 1);
     const dtoBlock = schemaText.slice(start, end);
     expect(dtoBlock).toMatch(/maintenanceMode\?:\s*boolean;/);
     expect(dtoBlock).toMatch(/maintenanceSince\?:/);
@@ -113,9 +113,10 @@ describe('OpenAPI contract quality (static - reads schema.generated.ts, no live 
 
   it('the per-Sensor calculation switch is on SensorDto, and optional on create and update', () => {
     const block = (name: string) => {
-      const start = schemaText.indexOf(`${name}: {`);
+      // Anchored on the schema's own indentation: a bare `SensorDto: {` also matches the tail of `RecalculationSensorDto: {`.
+      const start = schemaText.indexOf(`\n        ${name}: {`);
       expect(start).toBeGreaterThan(-1);
-      return schemaText.slice(start, schemaText.indexOf('\n        };', start));
+      return schemaText.slice(start, schemaText.indexOf('\n        };', start + 1));
     };
     expect(block('SensorDto')).toMatch(/processingEnabled\?:\s*boolean;/);
     expect(block('CreateSensorRequest')).toMatch(/processingEnabled\?:\s*boolean;/);

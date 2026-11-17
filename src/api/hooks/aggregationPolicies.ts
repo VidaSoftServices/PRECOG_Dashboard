@@ -61,3 +61,61 @@ export function useDeactivateAggregationPolicy(deviceId: number, sensorId: numbe
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.aggregationPolicies(deviceId, sensorId) }),
   });
 }
+
+export type BulkCreateAggregationPoliciesRequest = components['schemas']['BulkCreateAggregationPoliciesRequest'];
+export type BulkDeactivateAggregationPoliciesRequest = components['schemas']['BulkDeactivateAggregationPoliciesRequest'];
+export type BulkAggregationResultDto = components['schemas']['BulkAggregationResultDto'];
+export type AggregatedValueDto = components['schemas']['AggregatedValueDto'];
+
+/** Every policy query of the Device: the Device-wide list and each Sensor's own (they all live under the Device's Sensor keys). */
+function invalidateDevicePolicies(queryClient: ReturnType<typeof useQueryClient>, deviceId: number) {
+  queryClient.invalidateQueries({ queryKey: queryKeys.deviceAggregationPolicies(deviceId) });
+  queryClient.invalidateQueries({ queryKey: queryKeys.sensors(deviceId) });
+}
+
+/**
+ * Gives the same aggregation level (time scale + function, source always the measured value) to many Sensors of a Device in ONE request
+ * (`POST /api/Devices/{deviceId}/AggregationPolicies`, Admin; omit `sensorIds` for every Sensor). One transaction on the server; the result
+ * lists, per Sensor, Created / Reactivated / Exists / NotFound. The API's aggregation engine then calculates the buckets in the background.
+ */
+export function useBulkCreateAggregationPolicies(deviceId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: BulkCreateAggregationPoliciesRequest) =>
+      unwrap(await apiClient.POST('/api/Devices/{deviceId}/AggregationPolicies', { params: { path: { deviceId } }, body })),
+    onSuccess: () => invalidateDevicePolicies(queryClient, deviceId),
+  });
+}
+
+/** Deactivates the same non-raw level for many Sensors of a Device in one request (`POST .../AggregationPolicies/Deactivate`, Admin). */
+export function useBulkDeactivateAggregationPolicies(deviceId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: BulkDeactivateAggregationPoliciesRequest) =>
+      unwrap(await apiClient.POST('/api/Devices/{deviceId}/AggregationPolicies/Deactivate', { params: { path: { deviceId } }, body })),
+    onSuccess: () => invalidateDevicePolicies(queryClient, deviceId),
+  });
+}
+
+/**
+ * The newest calculated buckets of one policy (`GET .../AggregationPolicies/{policyId}/Values`, bounded by `take`), oldest first within the
+ * window. The window is the last `hours` hours up to now; the newest bucket may still be open. Disabled for the raw policy (it has no buckets).
+ */
+export function usePolicyValues(deviceId: number, sensorId: number, policyId: number, enabled: boolean, hours = 24, take = 12) {
+  return useQuery({
+    queryKey: [...queryKeys.aggregationPolicy(deviceId, sensorId, policyId), 'values', hours, take] as const,
+    queryFn: async ({ signal }) => {
+      const to = new Date();
+      const from = new Date(to.getTime() - hours * 3_600_000);
+      const rows = unwrap(
+        await apiClient.GET('/api/Devices/{deviceId}/Sensors/{sensorId}/AggregationPolicies/{policyId}/Values', {
+          params: { path: { deviceId, sensorId, policyId }, query: { from: from.toISOString(), to: to.toISOString(), take: 5000 } },
+          signal,
+        }),
+      );
+      return rows.slice(-take);
+    },
+    enabled,
+    refetchInterval: 30_000,
+  });
+}

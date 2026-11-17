@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Text, Select, Switch, Badge, Button, Checkbox, RadioGroup, Radio, makeStyles, tokens } from '@fluentui/react-components';
-import { GroupList24Regular } from '@fluentui/react-icons';
+import { GroupList24Regular, Delete24Regular } from '@fluentui/react-icons';
+import { DeleteIssuesDialog } from './DeleteIssuesDialog';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
@@ -50,6 +51,7 @@ export function IssueListPage() {
   const [groupMode, setGroupMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [canonicalChoice, setCanonicalChoice] = useState<number | undefined>();
 
   const devicesQuery = useDevices();
@@ -102,6 +104,9 @@ export function IssueListPage() {
                     onClick={openGroupDialog}
                   >
                     Group {selectedIds.length > 0 ? `(${selectedIds.length})` : ''}
+                  </Button>
+                  <Button icon={<Delete24Regular />} disabled={selectedIds.length < 1} onClick={() => setDeleteDialogOpen(true)}>
+                    Delete {selectedIds.length > 0 ? `(${selectedIds.length})` : ''}
                   </Button>
                   <Button
                     onClick={() => {
@@ -192,6 +197,17 @@ export function IssueListPage() {
             </div>
           ))}
         </Card>
+      )}
+
+      {isAdmin && deleteDialogOpen && effectiveDeviceId !== undefined && (
+        <DeleteIssuesDialog
+          deviceId={effectiveDeviceId}
+          issueIds={selectedIds}
+          reviewedCount={(issuesQuery.data ?? []).filter((i) => selectedIds.includes(i.id!) && i.reviewState !== 'PendingReview').length}
+          open
+          onClose={() => setDeleteDialogOpen(false)}
+          onDone={(deleted) => setSelectedIds((prev) => prev.filter((id) => !deleted.includes(id)))}
+        />
       )}
 
       <ConfirmDialog

@@ -16,7 +16,7 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import { Delete24Regular, ShieldKeyhole24Regular, Settings24Regular, ChartMultiple24Regular, AddCircle24Regular, Edit24Regular, Wrench24Regular, TableArrowUp24Regular, TargetEdit24Regular } from '@fluentui/react-icons';
+import { Delete24Regular, ShieldKeyhole24Regular, Settings24Regular, ChartMultiple24Regular, AddCircle24Regular, Edit24Regular, Wrench24Regular, TableArrowUp24Regular, TargetEdit24Regular, ArrowSync24Regular, DataBarVertical24Regular } from '@fluentui/react-icons';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
@@ -34,6 +34,11 @@ import { useDevice, useUpdateDevice, useDisableDevice } from '@/api/hooks/device
 import { useSensors, useCreateSensor, useUpdateSensor, type SensorDto } from '@/api/hooks/sensors';
 import { useSetSensorMaintenance } from '@/api/hooks/maintenance';
 import { MaintenanceAllDialog } from './MaintenanceAllDialog';
+import { RecalculateDialog } from './RecalculateDialog';
+import { BulkAggregationDialog } from './BulkAggregationDialog';
+import { isRecalculable } from '@/lib/recalculation';
+import { RecalculationProgress } from './RecalculationProgress';
+import { ACTIVE_RECALCULATION_PHASES, useRecalculationStatus, type RecalculationStatusDto } from '@/api/hooks/recalculation';
 import { VisibilityDialog } from './VisibilityDialog';
 import { useDevicePrincipal } from '@/api/hooks/devicePrincipal';
 import { useTrainingRequests } from '@/api/hooks/training';
@@ -296,11 +301,28 @@ function ProcessingDialog({
     >
       <Text>
         {turningOff
-          ? 'New values for this Sensor will still be stored and still be used to train the model, but they will no longer trigger any calculation - no analysis and no Issues will be raised from this Sensor. An Issue that is already open is left as it is.'
+          ? 'New values for this Sensor will still be stored and still be used to train the model, but they will no longer trigger any calculation - no analysis and no Issues will be raised from this Sensor. Everything already calculated (analysis results, control limits) and every Issue that is already open is kept as it is; use Recalc to calculate it all again.'
           : 'New values for this Sensor will trigger calculation again from now on. Values that arrived while it was off are not calculated retroactively.'}
       </Text>
       {updateSensor.isError && <ErrorState error={updateSensor.error} />}
     </ConfirmDialog>
+  );
+}
+
+/** "Recalculating… 37 %" under a Sensor while the recalculation works on it (or "waiting" until its turn). */
+function RecalculatingNote({ status, sensorId }: { status: RecalculationStatusDto | undefined; sensorId: number | undefined }) {
+  if (!status?.active || sensorId === undefined) return null;
+  const entry = (status.sensors ?? []).find((s) => s.sensorId === sensorId);
+  if (!entry || entry.phase === 'Skipped' || entry.phase === 'Done' || entry.phase === 'Failed') return null;
+  const working = ACTIVE_RECALCULATION_PHASES.includes(entry.phase ?? '');
+  const percent = entry.totalReadings ? Math.round((100 * (entry.doneReadings ?? 0)) / entry.totalReadings) : 0;
+  return (
+    <>
+      <br />
+      <Text size={200} style={{ color: tokens.colorBrandForeground1 }}>
+        {working ? `Recalculating… ${percent} %` : 'Waiting for its turn in the recalculation'}
+      </Text>
+    </>
   );
 }
 
@@ -381,6 +403,12 @@ export function DeviceDetailPage() {
   const [maintenanceAllOpen, setMaintenanceAllOpen] = useState(false);
   const [visibilitySensorId, setVisibilitySensorId] = useState<number | null>(null);
   const [processingSensorId, setProcessingSensorId] = useState<number | null>(null);
+  const [recalcSensorId, setRecalcSensorId] = useState<number | null>(null);
+  const [recalcAllOpen, setRecalcAllOpen] = useState(false);
+  const [bulkAggregationOpen, setBulkAggregationOpen] = useState(false);
+  // One recalculation per Device at a time: while one runs every Recalc control is disabled (the API answers 409 anyway).
+  const recalcStatus = useRecalculationStatus(id);
+  const recalcActive = recalcStatus.data?.active === true;
 
   if (deviceQuery.isLoading) return <LoadingState label="Loading device…" />;
   if (deviceQuery.isError) return <ErrorState error={deviceQuery.error} onRetry={() => deviceQuery.refetch()} />;
@@ -539,6 +567,20 @@ export function DeviceDetailPage() {
                 Manage Setpoints
               </Button>
             )}
+            {isAdmin && (
+              <Button
+                icon={<ArrowSync24Regular />}
+                onClick={() => setRecalcAllOpen(true)}
+                disabled={recalcActive || !(sensorsQuery.data ?? []).some(isRecalculable)}
+              >
+                Recalc all
+              </Button>
+            )}
+            {isAdmin && (
+              <Button icon={<DataBarVertical24Regular />} onClick={() => setBulkAggregationOpen(true)} disabled={(sensorsQuery.data ?? []).length === 0}>
+                Bulk aggregation
+              </Button>
+            )}
             {isAdmin && <ExportSensorMapButton device={device} sensors={sensorsQuery.data ?? []} />}
             {isAdmin && (
               <Button
@@ -555,6 +597,8 @@ export function DeviceDetailPage() {
           </>
         }
       />
+
+      <RecalculationProgress deviceId={id} isAdmin={isAdmin} />
 
       {sensorsQuery.isLoading && <LoadingState label="Loading sensors…" />}
       {sensorsQuery.isError && <ErrorState error={sensorsQuery.error} onRetry={() => sensorsQuery.refetch()} />}
@@ -597,12 +641,31 @@ export function DeviceDetailPage() {
                     {sensor.direction} {sensor.sensorType ? `· ${sensor.sensorType}` : ''}{' '}
                     {sensor.unitLabel ?? sensor.unitCode ? `(${sensor.unitLabel ?? sensor.unitCode})` : ''}
                   </Text>
+                  <RecalculatingNote status={recalcStatus.data} sensorId={sensor.id} />
                 </div>
                 <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center' }}>
                   <MaintenancePill maintenanceMode={sensor.maintenanceMode} />
                   <ProcessingOffPill processingEnabled={sensor.processingEnabled} />
                   <HiddenPill visible={sensor.visible} />
                   <EnabledPill enabled={sensor.enabled} />
+                  {isAdmin && (
+                    <Button
+                      size="small"
+                      icon={<ArrowSync24Regular />}
+                      aria-label={`Recalculate ${sensor.name || sensor.externalSensorId} from the start`}
+                      title={
+                        !isRecalculable(sensor)
+                          ? 'Calculation is switched off or the Sensor is in maintenance mode.'
+                          : recalcActive
+                            ? 'A recalculation is already running for this Device.'
+                            : 'Delete the calculated values and unreviewed Issues of this Sensor and calculate them again from its first value.'
+                      }
+                      disabled={recalcActive || !isRecalculable(sensor)}
+                      onClick={() => setRecalcSensorId(sensor.id!)}
+                    >
+                      Recalc
+                    </Button>
+                  )}
                   {isAdmin && (
                     <Switch
                       aria-label={`Calculation for ${sensor.name || sensor.externalSensorId}`}
@@ -760,6 +823,31 @@ export function DeviceDetailPage() {
           sensors={sensorsQuery.data ?? []}
           open={maintenanceAllOpen}
           onClose={() => setMaintenanceAllOpen(false)}
+        />
+      )}
+
+      {isAdmin && (
+        <RecalculateDialog
+          key={`all-${recalcAllOpen}`}
+          deviceId={id}
+          sensors={sensorsQuery.data ?? []}
+          open={recalcAllOpen}
+          onClose={() => setRecalcAllOpen(false)}
+        />
+      )}
+
+      {isAdmin && bulkAggregationOpen && (
+        <BulkAggregationDialog deviceId={id} sensors={sensorsQuery.data ?? []} open onClose={() => setBulkAggregationOpen(false)} />
+      )}
+
+      {isAdmin && recalcSensorId !== null && (
+        <RecalculateDialog
+          key={`one-${recalcSensorId}`}
+          deviceId={id}
+          sensor={(sensorsQuery.data ?? []).find((s) => s.id === recalcSensorId)}
+          sensors={sensorsQuery.data ?? []}
+          open
+          onClose={() => setRecalcSensorId(null)}
         />
       )}
 

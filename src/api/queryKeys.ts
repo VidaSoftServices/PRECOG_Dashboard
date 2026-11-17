@@ -21,6 +21,7 @@ export const queryKeys = {
 
   sensors: (deviceId: number) => ['devices', deviceId, 'sensors'] as const,
   sensor: (deviceId: number, sensorId: number) => ['devices', deviceId, 'sensors', sensorId] as const,
+  recalculation: (deviceId: number) => ['devices', deviceId, 'recalculation'] as const,
 
   aggregationPolicies: (deviceId: number, sensorId: number) =>
     ['devices', deviceId, 'sensors', sensorId, 'policies'] as const,

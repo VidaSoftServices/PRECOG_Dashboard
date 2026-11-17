@@ -45,6 +45,7 @@ import {
   useUpdateAggregationPolicy,
   useCreateAggregationPolicy,
   useDeactivateAggregationPolicy,
+  usePolicyValues,
   type CreateAggregationPolicyRequest,
 } from '@/api/hooks/aggregationPolicies';
 import { useSetpoints, useEffectiveSetpoint, useCreateSetpoint } from '@/api/hooks/setpoints';
@@ -66,6 +67,46 @@ const useStyles = makeStyles({
     flexWrap: 'wrap',
   },
 });
+
+/**
+ * How far the API's aggregation engine has got with a non-raw level, and its newest buckets: "Calculated up to ..." comes from the policy's own
+ * `backfilledUntil` (every closed slice before it is done); the latest slices are read from the bounded values endpoint (the newest one may still be
+ * open). Nothing is calculated here - every number is the API's.
+ */
+function AggregationStatus({ deviceId, sensorId, policy }: { deviceId: number; sensorId: number; policy: SensorAggregationPolicyDto }) {
+  const values = usePolicyValues(deviceId, sensorId, policy.id!, policy.enabled !== false);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalXS }}>
+      <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+        {policy.enabled === false
+          ? 'Deactivated: nothing is calculated.'
+          : policy.backfilledUntil
+            ? `Calculated up to ${formatDateTimeWithZone(policy.backfilledUntil)} (the open slice is updated continuously).`
+            : 'Not calculated yet: the API starts with the oldest data and works forward.'}
+      </Text>
+      {values.data && values.data.length > 0 && (
+        <table aria-label="Latest aggregated values" style={{ borderCollapse: 'collapse', fontSize: tokens.fontSizeBase200 }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left', paddingRight: tokens.spacingHorizontalM }}>Slice start</th>
+              <th style={{ textAlign: 'right', paddingRight: tokens.spacingHorizontalM }}>Value</th>
+              <th style={{ textAlign: 'right' }}>Readings</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...values.data].reverse().map((v) => (
+              <tr key={v.bucketStart}>
+                <td style={{ paddingRight: tokens.spacingHorizontalM }}>{formatDateTimeWithZone(v.bucketStart)}</td>
+                <td style={{ textAlign: 'right', paddingRight: tokens.spacingHorizontalM }}>{v.value === null || v.value === undefined ? '—' : Number(v.value.toPrecision(7))}</td>
+                <td style={{ textAlign: 'right' }}>{v.sampleCount}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
 
 function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId: number; policy: SensorAggregationPolicyDto }) {
   const styles = useStyles();
@@ -117,6 +158,7 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
           <Input value={minIssueScore} onChange={(_, d) => setMinIssueScore(d.value)} disabled={!isAdmin} type="number" />
         </Field>
       </div>
+      {!isRaw && <AggregationStatus deviceId={deviceId} sensorId={sensorId} policy={policy} />}
       {isAdmin && (
         <div style={{ display: 'flex', gap: tokens.spacingHorizontalM }}>
           <Button appearance="primary" onClick={save} disabled={update.isPending}>

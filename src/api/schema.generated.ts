@@ -56,6 +56,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/Devices/{deviceId}/Sensors/{sensorId}/AggregationPolicies/{policyId}/Values": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the calculated buckets of one aggregation policy, oldest first.
+         * @description Read-only and bounded: buckets whose start lies in [from, to) (UTC; default the last 24 hours), at most `take` (default 1000, at most 5000), oldest first; page with `from` = the last BucketStart + 1 tick. A bucket with no stored readings has no row. The newest bucket may still be open and is recalculated continuously. The raw/base policy has no buckets. Visible to every caller who can see the Device.
+         */
+        get: operations["AggregationPolicies_GetPolicyValues"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/Authentication/Request_HMAC_Key": {
         parameters: {
             query?: never;
@@ -358,6 +378,50 @@ export interface paths {
          * @description Destructive and irreversible. Removes every BiCurve row and every Issue for this exact Company/Device/Sensor, and clears the legacy single-Sensor model reference stored on the Device. Requires an authenticated Company Admin.
          */
         delete: operations["BiDirectionalPeriodic_DeleteAllData"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Devices/{deviceId}/AggregationPolicies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List every aggregation policy of every Sensor of a Device, ordered by Sensor and policy id.
+         * @description Read-only. The same policies as GET .../Sensors/{sensorId}/AggregationPolicies, for all Sensors of the Device at once (each carries its SensorId); includes disabled policies. Visible to every caller who can see the Device.
+         */
+        get: operations["DeviceConfiguration_GetDeviceAggregationPolicies"];
+        put?: never;
+        /**
+         * Create the same aggregation level for many Sensors of a Device (all of them when SensorIds is empty). Requires Company Admin.
+         * @description For every chosen Sensor: a missing level (source key Actual, the given time scale and function) is CREATED; a disabled one is switched on again and its history aggregated afresh (Reactivated); an enabled one is left as it is (Exists). Per-Sensor results are returned. The raw level (time scale native / function raw) is not accepted here. The time zone must be a known IANA name. Sensors named in SensorIds that do not exist are reported as NotFound and do not fail the request. A level created for a Sensor the aggregation engine does not support yet (non-continuous, curve or bidirectional) is created but says so in its Message. One transaction. Creating a non-raw level has no ML effect: no retraining is scheduled. Audited as 'device.aggregation.bulk.create'.
+         */
+        post: operations["BulkAggregation_BulkCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Devices/{deviceId}/AggregationPolicies/Deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deactivate the same aggregation level for many Sensors of a Device (all of them when SensorIds is empty). Requires Company Admin.
+         * @description Soft-disables (Enabled = false) the non-raw level with the given time scale and function (source key Actual) of every chosen Sensor, as DELETE .../AggregationPolicies/{policyId} does for one. The stored buckets are kept. A Sensor without that level is reported as NotApplicable. The raw level is not accepted. One transaction; audited as 'device.aggregation.bulk.deactivate'.
+         */
+        post: operations["BulkAggregation_BulkDeactivate"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -767,26 +831,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/Devices/{deviceId}/AggregationPolicies": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List every aggregation policy of every Sensor of a Device, ordered by Sensor and policy id.
-         * @description Read-only. The same policies as GET .../Sensors/{sensorId}/AggregationPolicies, for all Sensors of the Device at once (each carries its SensorId); includes disabled policies. Visible to every caller who can see the Device.
-         */
-        get: operations["DeviceConfiguration_GetDeviceAggregationPolicies"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/DeviceGroups": {
         parameters: {
             query?: never;
@@ -1067,6 +1111,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/Diagnostics/TrailingBatchPlan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The PostgreSQL plan of the batched trailing read (MeasuredTrailingPeriodsBatch) on this database. Company Admin only.
+         * @description Read-only. Runs EXPLAIN (ANALYZE, BUFFERS, SETTINGS) of exactly the statement MeasuredTrailingPeriodsBatch uses, for the given Device, Sensors and periods ending now - once with the server's own settings and once with SET LOCAL jit = off - and returns the plans with the server version, the settings that shape a plan and the number of pg.signals partitions. EXPLAIN ANALYZE executes the SELECT, so it costs about what the read itself costs; it changes nothing. For finding out why a read is slow. Same limits as the batch (1..100 distinct Sensors, periods 1..TelemetryOptions.MaxPageSize, Sensors x periods at most 10,000). Readers and DevicePrincipals are denied.
+         */
+        get: operations["Diagnostics_GetTrailingBatchPlan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/Issue": {
         parameters: {
             query?: never;
@@ -1111,7 +1175,7 @@ export interface paths {
         post?: never;
         /**
          * Withdraw an Issue's review verdict, returning it to PendingReview. Requires Company Admin.
-         * @description Never deletes the Issue row, telemetry, training, or model history - archiving must not destroy historical knowledge. Withdrawing a verdict removes the Issue from the eligible training set, which is an eligibility change, so it advances the Device's generation and schedules retraining.
+         * @description Never deletes the Issue row, telemetry, training, or model history - archiving must not destroy historical knowledge (to really delete an Issue use DELETE /api/Issue/{issueId}/Permanent). Withdrawing a verdict removes the Issue from the eligible training set, which is an eligibility change, so it advances the Device's generation and schedules retraining.
          */
         delete: operations["Issue_UnconfirmIssue"];
         options?: never;
@@ -1174,6 +1238,26 @@ export interface paths {
         put: operations["Issue_AssignCategory"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Issue/{issueId}/Permanent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * PERMANENTLY delete one Issue. Requires Company Admin.
+         * @description Destructive and irreversible - unlike DELETE /api/Issue/{issueId}, which only withdraws a review verdict. Removes the Issue with its Sensor links, category suggestions, Ollama jobs and knowledge-share selections. If it is the canonical Issue of a group, its members become standalone Issues again (they are never deleted with it). Telemetry, calculated values, models and training history are not touched. Deleting a human-reviewed Issue removes a training example, so it advances the eligibility generation and schedules retraining for the Issue's Device and every Device receiving it through an approved knowledge share (listed in the response); deleting an unreviewed Issue schedules nothing. Refused with 409 while an Ollama job for the Issue is processing. Audited as 'issue.delete' (in the same transaction) and logged. Readers and DevicePrincipals cannot call this.
+         */
+        delete: operations["Issue_DeleteIssuePermanently"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1943,6 +2027,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/Devices/{deviceId}/Sensors/{sensorId}/Recalculate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recalculate one Sensor from its first stored reading (deletes its calculated values and unreviewed Issues first). Admin only.
+         * @description Deletes every calculated value of the Sensor (Analysed, Anomaly and the control limits UCL3/UCL2/LCL2/LCL3) and every Issue that no person has reviewed (with its category suggestions and Ollama jobs), then evaluates the stored readings ONE BY ONE in time order - each as if it had just arrived, with only the readings up to that instant visible, the same calculation the live analysis runs - so the new values and Issues equal what the analysis would have produced. Kept untouched: the stored readings (Actual values, so training data is unchanged and no retraining is scheduled), human-reviewed Issues (Reviewed fault / Reviewed false positive - a reviewed Issue is never deleted and no second Issue is opened for its anomaly), Setpoints, policies and every setting. New Ollama summaries are requested for the new Issues exactly as for live data. Runs in the background (202); poll GET /api/Devices/{deviceId}/Recalculation for the percentage. While a Sensor is being recalculated its live calculation is paused (new data is still stored and is calculated when the Sensor is done). One recalculation per Device at a time (409 otherwise). Only Sensors with calculation switched on, not in maintenance mode, of a continuous Device with a unidirectional Direction are recalculated; others are reported as skipped. The job lives in the API's memory: an API restart loses it (start it again). Admin only; audited. A Sensor whose calculation switch is off answers 409 (switch it on first).
+         */
+        post: operations["Recalculation_RecalculateSensor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Devices/{deviceId}/Recalculate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recalculate every Sensor of a Device from its first stored reading. Admin only.
+         * @description Deletes every calculated value of the Sensor (Analysed, Anomaly and the control limits UCL3/UCL2/LCL2/LCL3) and every Issue that no person has reviewed (with its category suggestions and Ollama jobs), then evaluates the stored readings ONE BY ONE in time order - each as if it had just arrived, with only the readings up to that instant visible, the same calculation the live analysis runs - so the new values and Issues equal what the analysis would have produced. Kept untouched: the stored readings (Actual values, so training data is unchanged and no retraining is scheduled), human-reviewed Issues (Reviewed fault / Reviewed false positive - a reviewed Issue is never deleted and no second Issue is opened for its anomaly), Setpoints, policies and every setting. New Ollama summaries are requested for the new Issues exactly as for live data. Runs in the background (202); poll GET /api/Devices/{deviceId}/Recalculation for the percentage. While a Sensor is being recalculated its live calculation is paused (new data is still stored and is calculated when the Sensor is done). One recalculation per Device at a time (409 otherwise). Only Sensors with calculation switched on, not in maintenance mode, of a continuous Device with a unidirectional Direction are recalculated; others are reported as skipped. The job lives in the API's memory: an API restart loses it (start it again). Admin only; audited. Sensors that cannot be recalculated (calculation off, maintenance mode, unsupported kind) are left out and listed with the reason in the response.
+         */
+        post: operations["Recalculation_RecalculateDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Devices/{deviceId}/Recalculation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Progress of the latest recalculation of a Device.
+         * @description Read-only. Percent = readings evaluated / readings to evaluate over all Sensors of the job; per Sensor the phase (Waiting, Deleting, ControlLimits, Analysing, Done, Skipped, Failed), its counts and notes. Exists=false when no recalculation was started since the API started. Visible to every caller who can see the Device.
+         */
+        get: operations["Recalculation_GetRecalculation"];
+        put?: never;
+        post?: never;
+        /**
+         * Stop the running recalculation of a Device. Admin only.
+         * @description Stops before the next reading. Sensors not reached yet are untouched; the Sensor in progress is left partly recalculated (start the recalculation again to finish it). 404 when nothing is running.
+         */
+        delete: operations["Recalculation_CancelRecalculation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/SensorMetadata": {
         parameters: {
             query?: never;
@@ -2282,6 +2430,34 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description One calculated bucket of an aggregation policy. */
+        AggregatedValueDto: {
+            /**
+             * Format: date-time
+             * @description Start of the bucket (UTC, inclusive).
+             */
+            bucketStart?: string;
+            /**
+             * Format: date-time
+             * @description End of the bucket (UTC, exclusive).
+             */
+            bucketEnd?: string;
+            /**
+             * Format: double
+             * @description The aggregated value; null when the function is undefined for the readings of the bucket (for example the standard deviation of a single reading).
+             */
+            value?: number | null;
+            /**
+             * Format: int64
+             * @description How many stored readings the bucket was calculated from.
+             */
+            sampleCount?: number;
+            /**
+             * Format: date-time
+             * @description When the bucket was last calculated (UTC). A bucket that is still open is recalculated continuously.
+             */
+            calculatedAt?: string;
+        };
         /** @description The health of the background analysis since the API process started: which build runs, how long the queues are, how many runs succeeded or failed, and the latest errors. */
         AnalysisDiagnosticsDto: {
             /**
@@ -2710,6 +2886,95 @@ export interface components {
              * @description Read-only. Anomaly classification against the lower-side setpoint once analysed (0 = no issues, 1 = warning, 2 = critical), or null if not yet analysed or not anomalous.
              */
             anomalyBelow?: number | null;
+        };
+        /** @description What a bulk request did for one Sensor. */
+        BulkAggregationItemDto: {
+            /**
+             * Format: int32
+             * @description The Sensor's Device-scoped id.
+             */
+            sensorId?: number;
+            /** @description The Sensor's name. */
+            name?: string | null;
+            /** @description Created | Reactivated | Exists | Deactivated | NotFound | NotApplicable. */
+            outcome?: string | null;
+            /**
+             * Format: int64
+             * @description The policy's id when there is one.
+             */
+            policyId?: number | null;
+            /** @description A remark, for example that a created level is not calculated because the Sensor kind is not supported by the aggregation engine yet. */
+            message?: string | null;
+        };
+        /** @description Result of a bulk aggregation request. */
+        BulkAggregationResultDto: {
+            /**
+             * Format: int32
+             * @description Levels created.
+             */
+            created?: number;
+            /**
+             * Format: int32
+             * @description Disabled levels switched on again (their history is aggregated afresh).
+             */
+            reactivated?: number;
+            /**
+             * Format: int32
+             * @description Levels that already existed and were left as they are.
+             */
+            alreadyExisted?: number;
+            /**
+             * Format: int32
+             * @description Levels deactivated (deactivate request).
+             */
+            deactivated?: number;
+            /**
+             * Format: int32
+             * @description Sensors that were named but do not exist, or have no such level.
+             */
+            skipped?: number;
+            /** @description One entry per Sensor. */
+            items?: components["schemas"]["BulkAggregationItemDto"][] | null;
+        };
+        /**
+         * @description Create the same aggregation level (time scale + function) for several Sensors of a Device at once. The source is always the measured
+         *     value (DataKey Actual) - target and tolerance are setpoint configuration and are never aggregated.
+         */
+        BulkCreateAggregationPoliciesRequest: {
+            /** @description The Sensors to give the level to. Omit or leave empty for EVERY Sensor of the Device. */
+            sensorIds?: number[] | null;
+            /** @description One of the aggregation time scales (e.g. "minutes15", "hours", "days"). "native" (the raw level) is not accepted. */
+            timeScale: string | null;
+            /** @description One of the aggregation functions (e.g. "avg", "max", "rms"). "raw" is not accepted. */
+            aggregationFunction: string | null;
+            /** @description Time unit for Lookback: a supported time unit or "periods". */
+            scale: string | null;
+            /**
+             * Format: int32
+             * @description How far back, in units of Scale, the analysis window of each new level extends. Must be greater than zero.
+             */
+            lookback: number;
+            /**
+             * Format: int32
+             * @description Inclusive lower Issue-qualification threshold of each new level. Defaults to 1.
+             */
+            minIssueScore?: number;
+            /** @description IANA time zone name used for calendar-aligned bucket boundaries. Defaults to "UTC". */
+            timeZone?: string | null;
+            /**
+             * Format: date-span
+             * @description Optional retention of the produced buckets, or null for no limit.
+             */
+            retention?: string | null;
+        };
+        /** @description Deactivate the same aggregation level (time scale + function) of several Sensors at once. */
+        BulkDeactivateAggregationPoliciesRequest: {
+            /** @description The Sensors. Omit or leave empty for EVERY Sensor of the Device. */
+            sensorIds?: number[] | null;
+            /** @description The time scale of the level to deactivate. */
+            timeScale: string | null;
+            /** @description The aggregation function of the level to deactivate. */
+            aggregationFunction: string | null;
         };
         CategoryEvidenceItemDto: {
             /**
@@ -3703,6 +3968,28 @@ export interface components {
             /** @description Why the job failed or its output was rejected by validation. Never contains raw model output. */
             errorMessage?: string | null;
         };
+        /** @description What a permanent Issue deletion did. */
+        IssueDeletionResultDto: {
+            /**
+             * Format: int64
+             * @description The id of the deleted Issue.
+             */
+            issueId?: number;
+            /**
+             * Format: int32
+             * @description The Device the Issue belonged to.
+             */
+            deviceId?: number;
+            /** @description True when the Issue carried a human review verdict (a training example was removed). */
+            wasReviewed?: boolean;
+            /**
+             * Format: int32
+             * @description Members of its group that became standalone Issues again (the deleted Issue was their canonical Issue).
+             */
+            membersReleased?: number;
+            /** @description Devices for which a retraining request was scheduled because a reviewed Issue disappeared (the Issue's own Device and every Device receiving it through an approved knowledge share). */
+            retrainingScheduledForDeviceIds?: number[] | null;
+        };
         /** @description Response shape for an Issue. Default list/detail reads return canonical Issues only unless an explicit audit/history opt-in is used. */
         IssueDto: {
             /**
@@ -4466,6 +4753,138 @@ export interface components {
              */
             newCanonicalIssueId: number;
         };
+        /** @description One Sensor of a recalculation: where it is and what was done to it. */
+        RecalculationSensorDto: {
+            /**
+             * Format: int32
+             * @description The Sensor's Device-scoped id.
+             */
+            sensorId?: number;
+            /** @description The Sensor's name (its external id when it has none). */
+            name?: string | null;
+            /** @description Waiting | Deleting | ControlLimits | Analysing | Done | Skipped | Failed. */
+            phase?: string | null;
+            /**
+             * Format: int64
+             * @description Stored readings (Actual values) of the Sensor that are evaluated one by one.
+             */
+            totalReadings?: number;
+            /**
+             * Format: int64
+             * @description Readings evaluated so far.
+             */
+            doneReadings?: number;
+            /** @description Why the Sensor was skipped or failed, or a remark (for example that it has no Setpoint, so only its control limits were calculated). */
+            note?: string | null;
+            /**
+             * Format: int64
+             * @description Calculated rows (Analysed, Anomaly, control limits) deleted before the new calculation.
+             */
+            calculatedRowsDeleted?: number;
+            /**
+             * Format: int32
+             * @description Issues that were not reviewed by a person and were deleted before the new calculation.
+             */
+            issuesDeleted?: number;
+            /**
+             * Format: int32
+             * @description Human-reviewed Issues that were kept untouched.
+             */
+            reviewedIssuesKept?: number;
+        };
+        /** @description A Sensor that was left out of a recalculation. */
+        RecalculationSkippedSensorDto: {
+            /**
+             * Format: int32
+             * @description The Sensor's Device-scoped id.
+             */
+            sensorId?: number;
+            /** @description The Sensor's name. */
+            name?: string | null;
+            /** @description Why it was left out (calculation switched off, maintenance mode, not a continuous unidirectional Sensor). */
+            reason?: string | null;
+        };
+        /** @description Returned when a recalculation was accepted (202). */
+        RecalculationStartedDto: {
+            /**
+             * Format: int32
+             * @description The Device being recalculated.
+             */
+            deviceId?: number;
+            /** @description Id of the job (a GUID); the progress is read with GET /api/Devices/{deviceId}/Recalculation. */
+            jobId?: string | null;
+            /** @description Sensors that will be recalculated. */
+            sensorIds?: number[] | null;
+            /** @description Sensors that were left out, each with the reason. */
+            skipped?: components["schemas"]["RecalculationSkippedSensorDto"][] | null;
+        };
+        /**
+         * @description State of the latest recalculation of a Device. The job lives in the API's memory only: a restart of the API loses it (a
+         *     recalculation that was running is simply started again).
+         */
+        RecalculationStatusDto: {
+            /**
+             * Format: int32
+             * @description The Device the recalculation belongs to.
+             */
+            deviceId?: number;
+            /** @description False when there is no recalculation (none was started since the API started). */
+            exists?: boolean;
+            /** @description True while the job is Queued or Running. */
+            active?: boolean;
+            /** @description Id of the job (a GUID); null when there is none. */
+            jobId?: string | null;
+            /** @description Queued | Running | Completed | Failed | Cancelled. */
+            status?: string | null;
+            /**
+             * Format: date-time
+             * @description When the job was started (UTC).
+             */
+            startedAt?: string | null;
+            /**
+             * Format: date-time
+             * @description When the job ended (UTC); null while it is active.
+             */
+            finishedAt?: string | null;
+            /**
+             * Format: int64
+             * @description Readings to evaluate over all Sensors of the job (skipped Sensors are not counted).
+             */
+            totalReadings?: number;
+            /**
+             * Format: int64
+             * @description Readings evaluated so far over all Sensors of the job.
+             */
+            doneReadings?: number;
+            /**
+             * Format: double
+             * @description 0..100, DoneReadings / TotalReadings.
+             */
+            percent?: number;
+            /**
+             * Format: int32
+             * @description Sensors being recalculated (skipped ones are not counted).
+             */
+            sensorsTotal?: number;
+            /**
+             * Format: int32
+             * @description Of those, the ones that are finished (done or failed).
+             */
+            sensorsFinished?: number;
+            /**
+             * Format: int32
+             * @description The Sensor being worked on right now; null between Sensors and when the job has ended.
+             */
+            currentSensorId?: number | null;
+            /** @description Name of that Sensor. */
+            currentSensorName?: string | null;
+            /** @description What is being done to it: Deleting | ControlLimits | Analysing. */
+            currentPhase?: string | null;
+            /** @description The reason the job failed or was stopped; null otherwise. */
+            error?: string | null;
+            /** @description Every Sensor of the job with its own phase and counts. */
+            sensors?: components["schemas"]["RecalculationSensorDto"][] | null;
+        };
         /** @description Request to set the authoritative review state of an Issue. */
         ReviewIssueRequest: {
             /**
@@ -4530,6 +4949,11 @@ export interface components {
              * @description Read-only. UTC timestamp this policy's aggregation was last computed through, or null if never run.
              */
             lastCalculatedAt?: string | null;
+            /**
+             * Format: date-time
+             * @description Read-only. The aggregation engine's cursor (UTC): every closed bucket ending at or before it has been calculated; null = the history has not been aggregated yet. The raw/base policy is never aggregated, so it stays null.
+             */
+            backfilledUntil?: string | null;
         };
         /**
          * @description Response shape for a Sensor. Direction is a normalized string, not the
@@ -4913,6 +5337,36 @@ export interface components {
             conversionOffset?: number;
             /** @description Every reason this pair was rejected, safe to show an Admin. Empty when compatible. */
             failures?: string[] | null;
+        };
+        /** @description The PostgreSQL plan of the batched trailing read as it really runs on this database, with and without JIT. */
+        TrailingBatchPlanDto: {
+            /** @description The PostgreSQL server version. */
+            postgresVersion?: string | null;
+            /** @description Whether this PostgreSQL build can JIT-compile at all. */
+            jitAvailable?: boolean | null;
+            /** @description The settings that shape the plan (jit and its cost thresholds, parallelism, cost constants, plan cache mode). */
+            settings?: {
+                [key: string]: string;
+            } | null;
+            /**
+             * Format: int32
+             * @description How many partitions pg.signals has.
+             */
+            signalPartitions?: number;
+            /** @description EXPLAIN (ANALYZE, BUFFERS, SETTINGS) of the statement with the server's own settings: one line per element. */
+            plan?: string[] | null;
+            /**
+             * Format: double
+             * @description Wall-clock time of that EXPLAIN ANALYZE as the API saw it, in milliseconds.
+             */
+            planMilliseconds?: number;
+            /** @description The same with SET LOCAL jit = off. */
+            planJitOff?: string[] | null;
+            /**
+             * Format: double
+             * @description Wall-clock time of that EXPLAIN ANALYZE, in milliseconds.
+             */
+            planJitOffMilliseconds?: number;
         };
         TrainingRequestDto: {
             /**
@@ -5386,6 +5840,60 @@ export interface operations {
             };
         };
     };
+    AggregationPolicies_GetPolicyValues: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                take?: number;
+            };
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                deviceId: number;
+                sensorId: number;
+                policyId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The buckets. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["AggregatedValueDto"][];
+                    "application/json": components["schemas"]["AggregatedValueDto"][];
+                    "text/json": components["schemas"]["AggregatedValueDto"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     Authentication_RequestHMAC: {
         parameters: {
             query?: never;
@@ -5486,49 +5994,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 3,
                  *         "period": 1,
-                 *         "measured": "2026-10-27T12:07:00.2628421Z",
+                 *         "measured": "2026-11-11T19:25:01.1384986Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 2,
-                 *         "measured": "2026-10-28T12:07:00.2629124Z",
+                 *         "measured": "2026-11-12T19:25:01.1385182Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 3,
-                 *         "measured": "2026-10-29T12:07:00.2629129Z",
+                 *         "measured": "2026-11-13T19:25:01.1385184Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 4,
-                 *         "measured": "2026-10-30T12:07:00.2629132Z",
+                 *         "measured": "2026-11-14T19:25:01.1385186Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 5,
-                 *         "measured": "2026-10-31T12:07:00.2629134Z",
+                 *         "measured": "2026-11-15T19:25:01.1385187Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 6,
-                 *         "measured": "2026-11-01T12:07:00.262915Z",
+                 *         "measured": "2026-11-16T19:25:01.1385191Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 1,
-                 *         "measured": "2026-10-27T12:07:00.2629152Z",
+                 *         "measured": "2026-11-11T19:25:01.1385193Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 2,
-                 *         "measured": "2026-10-28T12:07:00.2629155Z",
+                 *         "measured": "2026-11-12T19:25:01.1385194Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -5539,49 +6047,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 3,
                  *         "period": 1,
-                 *         "measured": "2026-10-27T12:07:00.2628421Z",
+                 *         "measured": "2026-11-11T19:25:01.1384986Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 2,
-                 *         "measured": "2026-10-28T12:07:00.2629124Z",
+                 *         "measured": "2026-11-12T19:25:01.1385182Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 3,
-                 *         "measured": "2026-10-29T12:07:00.2629129Z",
+                 *         "measured": "2026-11-13T19:25:01.1385184Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 4,
-                 *         "measured": "2026-10-30T12:07:00.2629132Z",
+                 *         "measured": "2026-11-14T19:25:01.1385186Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 5,
-                 *         "measured": "2026-10-31T12:07:00.2629134Z",
+                 *         "measured": "2026-11-15T19:25:01.1385187Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 6,
-                 *         "measured": "2026-11-01T12:07:00.262915Z",
+                 *         "measured": "2026-11-16T19:25:01.1385191Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 1,
-                 *         "measured": "2026-10-27T12:07:00.2629152Z",
+                 *         "measured": "2026-11-11T19:25:01.1385193Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 2,
-                 *         "measured": "2026-10-28T12:07:00.2629155Z",
+                 *         "measured": "2026-11-12T19:25:01.1385194Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -5592,49 +6100,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 3,
                  *         "period": 1,
-                 *         "measured": "2026-10-27T12:07:00.2628421Z",
+                 *         "measured": "2026-11-11T19:25:01.1384986Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 2,
-                 *         "measured": "2026-10-28T12:07:00.2629124Z",
+                 *         "measured": "2026-11-12T19:25:01.1385182Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 3,
-                 *         "measured": "2026-10-29T12:07:00.2629129Z",
+                 *         "measured": "2026-11-13T19:25:01.1385184Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 4,
-                 *         "measured": "2026-10-30T12:07:00.2629132Z",
+                 *         "measured": "2026-11-14T19:25:01.1385186Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 5,
-                 *         "measured": "2026-10-31T12:07:00.2629134Z",
+                 *         "measured": "2026-11-15T19:25:01.1385187Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 6,
-                 *         "measured": "2026-11-01T12:07:00.262915Z",
+                 *         "measured": "2026-11-16T19:25:01.1385191Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 1,
-                 *         "measured": "2026-10-27T12:07:00.2629152Z",
+                 *         "measured": "2026-11-11T19:25:01.1385193Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 2,
-                 *         "measured": "2026-10-28T12:07:00.2629155Z",
+                 *         "measured": "2026-11-12T19:25:01.1385194Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -5988,22 +6496,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-02T09:07:00.3222613Z",
+                 *             "measured": "2026-11-17T16:25:01.1723316Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-02T09:37:00.3222905Z",
+                 *             "measured": "2026-11-17T16:55:01.1723491Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-02T10:07:00.3222908Z",
+                 *             "measured": "2026-11-17T17:25:01.1723492Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-02T10:37:00.322291Z",
+                 *             "measured": "2026-11-17T17:55:01.1723493Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -6014,22 +6522,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-02T11:07:00.3223113Z",
+                 *             "measured": "2026-11-17T18:25:01.1723608Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-02T11:22:00.3223116Z",
+                 *             "measured": "2026-11-17T18:40:01.172361Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-02T11:37:00.3223129Z",
+                 *             "measured": "2026-11-17T18:55:01.1723616Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-02T11:52:00.3223131Z",
+                 *             "measured": "2026-11-17T19:10:01.1723617Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -6040,12 +6548,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-02T09:07:00.3223135Z",
+                 *             "measured": "2026-11-17T16:25:01.1723619Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-02T09:37:00.3223137Z",
+                 *             "measured": "2026-11-17T16:55:01.1723621Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -6061,22 +6569,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-02T09:07:00.3222613Z",
+                 *             "measured": "2026-11-17T16:25:01.1723316Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-02T09:37:00.3222905Z",
+                 *             "measured": "2026-11-17T16:55:01.1723491Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-02T10:07:00.3222908Z",
+                 *             "measured": "2026-11-17T17:25:01.1723492Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-02T10:37:00.322291Z",
+                 *             "measured": "2026-11-17T17:55:01.1723493Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -6087,22 +6595,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-02T11:07:00.3223113Z",
+                 *             "measured": "2026-11-17T18:25:01.1723608Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-02T11:22:00.3223116Z",
+                 *             "measured": "2026-11-17T18:40:01.172361Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-02T11:37:00.3223129Z",
+                 *             "measured": "2026-11-17T18:55:01.1723616Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-02T11:52:00.3223131Z",
+                 *             "measured": "2026-11-17T19:10:01.1723617Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -6113,12 +6621,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-02T09:07:00.3223135Z",
+                 *             "measured": "2026-11-17T16:25:01.1723619Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-02T09:37:00.3223137Z",
+                 *             "measured": "2026-11-17T16:55:01.1723621Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -6134,22 +6642,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-02T09:07:00.3222613Z",
+                 *             "measured": "2026-11-17T16:25:01.1723316Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-02T09:37:00.3222905Z",
+                 *             "measured": "2026-11-17T16:55:01.1723491Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-02T10:07:00.3222908Z",
+                 *             "measured": "2026-11-17T17:25:01.1723492Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-02T10:37:00.322291Z",
+                 *             "measured": "2026-11-17T17:55:01.1723493Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -6160,22 +6668,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-02T11:07:00.3223113Z",
+                 *             "measured": "2026-11-17T18:25:01.1723608Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-02T11:22:00.3223116Z",
+                 *             "measured": "2026-11-17T18:40:01.172361Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-02T11:37:00.3223129Z",
+                 *             "measured": "2026-11-17T18:55:01.1723616Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-02T11:52:00.3223131Z",
+                 *             "measured": "2026-11-17T19:10:01.1723617Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -6186,12 +6694,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-02T09:07:00.3223135Z",
+                 *             "measured": "2026-11-17T16:25:01.1723619Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-02T09:37:00.3223137Z",
+                 *             "measured": "2026-11-17T16:55:01.1723621Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -6446,6 +6954,176 @@ export interface operations {
         responses: {
             /** @description No Content */
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    DeviceConfiguration_GetDeviceAggregationPolicies: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                deviceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["SensorAggregationPolicyDto"][];
+                    "application/json": components["schemas"]["SensorAggregationPolicyDto"][];
+                    "text/json": components["schemas"]["SensorAggregationPolicyDto"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    BulkAggregation_BulkCreate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                deviceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["BulkCreateAggregationPoliciesRequest"];
+                "text/json": components["schemas"]["BulkCreateAggregationPoliciesRequest"];
+                "application/*+json": components["schemas"]["BulkCreateAggregationPoliciesRequest"];
+            };
+        };
+        responses: {
+            /** @description What happened for each Sensor. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["BulkAggregationResultDto"];
+                    "application/json": components["schemas"]["BulkAggregationResultDto"];
+                    "text/json": components["schemas"]["BulkAggregationResultDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A concurrent change created the same level meanwhile; nothing was saved - retry. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    BulkAggregation_BulkDeactivate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                deviceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["BulkDeactivateAggregationPoliciesRequest"];
+                "text/json": components["schemas"]["BulkDeactivateAggregationPoliciesRequest"];
+                "application/*+json": components["schemas"]["BulkDeactivateAggregationPoliciesRequest"];
+            };
+        };
+        responses: {
+            /** @description What happened for each Sensor. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["BulkAggregationResultDto"];
+                    "application/json": components["schemas"]["BulkAggregationResultDto"];
+                    "text/json": components["schemas"]["BulkAggregationResultDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7056,49 +7734,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 1,
                  *         "period": 1,
-                 *         "measured": "2026-10-27T12:07:00.3858943Z",
+                 *         "measured": "2026-11-11T19:25:01.2000372Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 2,
-                 *         "measured": "2026-10-28T12:07:00.3859163Z",
+                 *         "measured": "2026-11-12T19:25:01.2000573Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 3,
-                 *         "measured": "2026-10-29T12:07:00.3859166Z",
+                 *         "measured": "2026-11-13T19:25:01.2000577Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 4,
-                 *         "measured": "2026-10-30T12:07:00.3859169Z",
+                 *         "measured": "2026-11-14T19:25:01.2000579Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 5,
-                 *         "measured": "2026-10-31T12:07:00.3859171Z",
+                 *         "measured": "2026-11-15T19:25:01.2000581Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 6,
-                 *         "measured": "2026-11-01T12:07:00.3859181Z",
+                 *         "measured": "2026-11-16T19:25:01.2000587Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 1,
-                 *         "measured": "2026-10-27T12:07:00.3859185Z",
+                 *         "measured": "2026-11-11T19:25:01.2000589Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 2,
-                 *         "measured": "2026-10-28T12:07:00.3859187Z",
+                 *         "measured": "2026-11-12T19:25:01.2000592Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -7109,49 +7787,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 1,
                  *         "period": 1,
-                 *         "measured": "2026-10-27T12:07:00.3858943Z",
+                 *         "measured": "2026-11-11T19:25:01.2000372Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 2,
-                 *         "measured": "2026-10-28T12:07:00.3859163Z",
+                 *         "measured": "2026-11-12T19:25:01.2000573Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 3,
-                 *         "measured": "2026-10-29T12:07:00.3859166Z",
+                 *         "measured": "2026-11-13T19:25:01.2000577Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 4,
-                 *         "measured": "2026-10-30T12:07:00.3859169Z",
+                 *         "measured": "2026-11-14T19:25:01.2000579Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 5,
-                 *         "measured": "2026-10-31T12:07:00.3859171Z",
+                 *         "measured": "2026-11-15T19:25:01.2000581Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 6,
-                 *         "measured": "2026-11-01T12:07:00.3859181Z",
+                 *         "measured": "2026-11-16T19:25:01.2000587Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 1,
-                 *         "measured": "2026-10-27T12:07:00.3859185Z",
+                 *         "measured": "2026-11-11T19:25:01.2000589Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 2,
-                 *         "measured": "2026-10-28T12:07:00.3859187Z",
+                 *         "measured": "2026-11-12T19:25:01.2000592Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -7162,49 +7840,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 1,
                  *         "period": 1,
-                 *         "measured": "2026-10-27T12:07:00.3858943Z",
+                 *         "measured": "2026-11-11T19:25:01.2000372Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 2,
-                 *         "measured": "2026-10-28T12:07:00.3859163Z",
+                 *         "measured": "2026-11-12T19:25:01.2000573Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 3,
-                 *         "measured": "2026-10-29T12:07:00.3859166Z",
+                 *         "measured": "2026-11-13T19:25:01.2000577Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 4,
-                 *         "measured": "2026-10-30T12:07:00.3859169Z",
+                 *         "measured": "2026-11-14T19:25:01.2000579Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 5,
-                 *         "measured": "2026-10-31T12:07:00.3859171Z",
+                 *         "measured": "2026-11-15T19:25:01.2000581Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 6,
-                 *         "measured": "2026-11-01T12:07:00.3859181Z",
+                 *         "measured": "2026-11-16T19:25:01.2000587Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 1,
-                 *         "measured": "2026-10-27T12:07:00.3859185Z",
+                 *         "measured": "2026-11-11T19:25:01.2000589Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 2,
-                 *         "measured": "2026-10-28T12:07:00.3859187Z",
+                 *         "measured": "2026-11-12T19:25:01.2000592Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -7676,47 +8354,6 @@ export interface operations {
                     "text/plain": components["schemas"]["DeviceSetpointDto"][];
                     "application/json": components["schemas"]["DeviceSetpointDto"][];
                     "text/json": components["schemas"]["DeviceSetpointDto"][];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    DeviceConfiguration_GetDeviceAggregationPolicies: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
-                HMAC_Key: string;
-            };
-            path: {
-                deviceId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": components["schemas"]["SensorAggregationPolicyDto"][];
-                    "application/json": components["schemas"]["SensorAggregationPolicyDto"][];
-                    "text/json": components["schemas"]["SensorAggregationPolicyDto"][];
                 };
             };
             /** @description Unauthorized */
@@ -8622,6 +9259,63 @@ export interface operations {
             };
         };
     };
+    Diagnostics_GetTrailingBatchPlan: {
+        parameters: {
+            query?: {
+                deviceId?: number;
+                sensorIds?: number[];
+                periods?: number;
+            };
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The plans. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["TrailingBatchPlanDto"];
+                    "application/json": components["schemas"]["TrailingBatchPlanDto"];
+                    "text/json": components["schemas"]["TrailingBatchPlanDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     Issue_GetIssues: {
         parameters: {
             query?: {
@@ -9022,6 +9716,61 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Issue_DeleteIssuePermanently: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                issueId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What was deleted. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["IssueDeletionResultDto"];
+                    "application/json": components["schemas"]["IssueDeletionResultDto"];
+                    "text/json": components["schemas"]["IssueDeletionResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description An Ollama job for this Issue is processing. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11242,22 +11991,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-02T09:07:00.5843773Z",
+                 *             "measured": "2026-11-17T16:25:01.2565594Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-02T09:37:00.5844025Z",
+                 *             "measured": "2026-11-17T16:55:01.256575Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-02T10:07:00.5844028Z",
+                 *             "measured": "2026-11-17T17:25:01.2565752Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-02T10:37:00.5844031Z",
+                 *             "measured": "2026-11-17T17:55:01.2565753Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -11268,22 +12017,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-02T11:07:00.5844225Z",
+                 *             "measured": "2026-11-17T18:25:01.2565943Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-02T11:22:00.5844228Z",
+                 *             "measured": "2026-11-17T18:40:01.2565945Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-02T11:37:00.5844231Z",
+                 *             "measured": "2026-11-17T18:55:01.2565946Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-02T11:52:00.5844233Z",
+                 *             "measured": "2026-11-17T19:10:01.2565947Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -11294,12 +12043,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-02T09:07:00.5844236Z",
+                 *             "measured": "2026-11-17T16:25:01.2565949Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-02T09:37:00.5844238Z",
+                 *             "measured": "2026-11-17T16:55:01.2565951Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -11315,22 +12064,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-02T09:07:00.5843773Z",
+                 *             "measured": "2026-11-17T16:25:01.2565594Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-02T09:37:00.5844025Z",
+                 *             "measured": "2026-11-17T16:55:01.256575Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-02T10:07:00.5844028Z",
+                 *             "measured": "2026-11-17T17:25:01.2565752Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-02T10:37:00.5844031Z",
+                 *             "measured": "2026-11-17T17:55:01.2565753Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -11341,22 +12090,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-02T11:07:00.5844225Z",
+                 *             "measured": "2026-11-17T18:25:01.2565943Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-02T11:22:00.5844228Z",
+                 *             "measured": "2026-11-17T18:40:01.2565945Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-02T11:37:00.5844231Z",
+                 *             "measured": "2026-11-17T18:55:01.2565946Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-02T11:52:00.5844233Z",
+                 *             "measured": "2026-11-17T19:10:01.2565947Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -11367,12 +12116,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-02T09:07:00.5844236Z",
+                 *             "measured": "2026-11-17T16:25:01.2565949Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-02T09:37:00.5844238Z",
+                 *             "measured": "2026-11-17T16:55:01.2565951Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -11388,22 +12137,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-02T09:07:00.5843773Z",
+                 *             "measured": "2026-11-17T16:25:01.2565594Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-02T09:37:00.5844025Z",
+                 *             "measured": "2026-11-17T16:55:01.256575Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-02T10:07:00.5844028Z",
+                 *             "measured": "2026-11-17T17:25:01.2565752Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-02T10:37:00.5844031Z",
+                 *             "measured": "2026-11-17T17:55:01.2565753Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -11414,22 +12163,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-02T11:07:00.5844225Z",
+                 *             "measured": "2026-11-17T18:25:01.2565943Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-02T11:22:00.5844228Z",
+                 *             "measured": "2026-11-17T18:40:01.2565945Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-02T11:37:00.5844231Z",
+                 *             "measured": "2026-11-17T18:55:01.2565946Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-02T11:52:00.5844233Z",
+                 *             "measured": "2026-11-17T19:10:01.2565947Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -11440,12 +12189,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-02T09:07:00.5844236Z",
+                 *             "measured": "2026-11-17T16:25:01.2565949Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-02T09:37:00.5844238Z",
+                 *             "measured": "2026-11-17T16:55:01.2565951Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -11720,6 +12469,202 @@ export interface operations {
                 content?: never;
             };
             /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Recalculation_RecalculateSensor: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                deviceId: number;
+                sensorId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Started. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["RecalculationStartedDto"];
+                    "application/json": components["schemas"]["RecalculationStartedDto"];
+                    "text/json": components["schemas"]["RecalculationStartedDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A recalculation is already running for this Device, an Ollama job is processing, or this Sensor cannot be recalculated (calculation off, maintenance mode, unsupported kind). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Recalculation_RecalculateDevice: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                deviceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Started. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["RecalculationStartedDto"];
+                    "application/json": components["schemas"]["RecalculationStartedDto"];
+                    "text/json": components["schemas"]["RecalculationStartedDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A recalculation is already running for this Device, an Ollama job is processing, or no Sensor can be recalculated. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Recalculation_GetRecalculation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                deviceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["RecalculationStatusDto"];
+                    "application/json": components["schemas"]["RecalculationStatusDto"];
+                    "text/json": components["schemas"]["RecalculationStatusDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Recalculation_CancelRecalculation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                deviceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stop requested. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No recalculation is running for this Device. */
             404: {
                 headers: {
                     [name: string]: unknown;

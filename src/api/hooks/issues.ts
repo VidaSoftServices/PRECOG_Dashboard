@@ -152,3 +152,26 @@ export function useReassignCanonical(deviceId: number, canonicalIssueId: number)
     onSuccess: () => invalidateIssue(queryClient, deviceId, canonicalIssueId),
   });
 }
+
+export type IssueDeletionResultDto = components['schemas']['IssueDeletionResultDto'];
+
+/**
+ * PERMANENTLY deletes one Issue (`DELETE /api/Issue/{issueId}/Permanent`, Company Admin only on the server; the button that calls this is
+ * shown to an Admin only, which is a UX convenience, never the security boundary). Unlike `useReopenIssue` (the older `DELETE /api/Issue/{id}`,
+ * which only withdraws a verdict) this removes the Issue with its links; members of its group become standalone Issues; deleting a reviewed Issue
+ * schedules retraining on the server. The Issue's own detail/group queries are removed (refetching them would only 404); every Issue list and the
+ * Device's training requests are refreshed.
+ */
+export function useDeleteIssuePermanently(deviceId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (issueId: number) =>
+      unwrap(await apiClient.DELETE('/api/Issue/{issueId}/Permanent', { params: { path: { issueId } } })),
+    onSuccess: (_, issueId) => {
+      queryClient.removeQueries({ queryKey: queryKeys.issue(issueId) });
+      queryClient.removeQueries({ queryKey: queryKeys.issueGroup(issueId) });
+      queryClient.invalidateQueries({ queryKey: ['issues'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.trainingRequests(deviceId) });
+    },
+  });
+}

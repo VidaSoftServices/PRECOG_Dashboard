@@ -14,7 +14,8 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import { ChatSparkle24Regular, ArrowUndo24Regular } from '@fluentui/react-icons';
+import { ChatSparkle24Regular, ArrowUndo24Regular, Delete24Regular } from '@fluentui/react-icons';
+import { DeleteIssueDialog } from './DeleteIssueDialog';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
@@ -250,6 +251,7 @@ export function IssueDetailPage() {
   const toast = useAppToast();
   const { issueId } = useParams<{ issueId: string }>();
   const id = Number(issueId);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const issueQuery = useIssue(id);
   const groupQuery = useIssueGroup(id);
@@ -288,18 +290,38 @@ export function IssueDetailPage() {
         titleDisplay="compact"
         description={`${formatDateTime(issue.measuredAtFrom)} → ${formatDateTime(issue.measuredAtTo)}`}
         actions={
-          issue.reviewState !== 'PendingReview' &&
           isAdmin && (
-            <Button
-              icon={<ArrowUndo24Regular />}
-              onClick={() => reopenIssue.mutate(id, { onSuccess: () => toast.success('Issue reopened for review') })}
-              disabled={reopenIssue.isPending}
-            >
-              {reopenIssue.isPending ? 'Reopening…' : 'Reopen for review'}
-            </Button>
+            <>
+              {issue.reviewState !== 'PendingReview' && (
+                <Button
+                  icon={<ArrowUndo24Regular />}
+                  onClick={() => reopenIssue.mutate(id, { onSuccess: () => toast.success('Issue reopened for review') })}
+                  disabled={reopenIssue.isPending}
+                >
+                  {reopenIssue.isPending ? 'Reopening…' : 'Reopen for review'}
+                </Button>
+              )}
+              <Button icon={<Delete24Regular />} onClick={() => setDeleteOpen(true)}>
+                Delete Issue
+              </Button>
+            </>
           )
         }
       />
+
+      {isAdmin && deleteOpen && (
+        <DeleteIssueDialog
+          deviceId={issue.deviceId!}
+          issueId={id}
+          issueKey={issue.issueKey}
+          reviewed={issue.reviewState !== 'PendingReview'}
+          isCanonical={issue.isCanonical === true}
+          memberCount={groupQuery.data?.members?.length ?? 0}
+          open
+          onClose={() => setDeleteOpen(false)}
+          onDeleted={() => navigate(`/issues?deviceId=${issue.deviceId}`)}
+        />
+      )}
 
       <div className={styles.layout}>
         <div>
