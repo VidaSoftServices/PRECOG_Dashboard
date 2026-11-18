@@ -3,6 +3,7 @@ import { apiClient, isAbort, unwrap } from '@/api/client';
 import { queryKeys } from '@/api/queryKeys';
 import type { components } from '@/api/schema.generated';
 import { toApiIso } from '@/lib/dateTime';
+import { POLL_INTERVALS_MS } from '@/lib/pollIntervals';
 
 export type TelemetryFamily = 'continuous' | 'periodic' | 'bidirectionalContinuous' | 'bidirectionalPeriodic';
 
@@ -181,6 +182,32 @@ export function useTelemetryTrailingPeriods({ family, deviceId, sensorId, period
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     retry: false,
+  });
+}
+
+/**
+ * The newest readings of ONE Sensor WITH its control limits, for the enlarged Live Monitoring chart. The control limits are not stored any more: the API
+ * calculates them when it reads (from the Sensor's own earlier readings, up to 9,999 of them), and the batched read the cards use leaves them out
+ * (`includeControlLimits` is false there - 50 Sensors x 9,999 readings every few seconds would be 500,000 rows). So the enlarged chart reads its Sensor
+ * itself, with the single `MeasuredTrailingPeriods` read, which includes them. Polled every `liveMonitoringCycle` only while `enabled` (the window is
+ * open) and not paused by `paused` (a rate-limit cooldown); a background tab pauses it like every interval query.
+ */
+export function useTelemetryTrailingWithLimits({
+  family,
+  deviceId,
+  sensorId,
+  periods,
+  enabled,
+  paused,
+}: TrailingArgs & { enabled: boolean; paused: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.telemetryTrailingLimits(family, deviceId ?? -1, sensorId ?? -1, periods),
+    queryFn: ({ signal }) => fetchTelemetryTrailingPeriods({ family, deviceId, sensorId, periods }, signal),
+    enabled: enabled && !paused,
+    refetchInterval: enabled && !paused ? POLL_INTERVALS_MS.liveMonitoringCycle : false,
+    refetchOnWindowFocus: false,
+    retry: false,
+    staleTime: 0,
   });
 }
 

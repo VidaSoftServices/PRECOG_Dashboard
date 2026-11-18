@@ -31,7 +31,7 @@ import { FreshnessPill, MaintenancePill } from '@/components/StatusPill';
 import { TelemetryChart } from '@/components/charts/TelemetryChart';
 import { useDevices, useDevice } from '@/api/hooks/devices';
 import { useSensors } from '@/api/hooks/sensors';
-import { useTelemetryTrailingPeriods, familyFor, isCurveFamily } from '@/api/hooks/telemetry';
+import { useTelemetryTrailingPeriods, useTelemetryTrailingWithLimits, familyFor, isCurveFamily, type TelemetryPoint } from '@/api/hooks/telemetry';
 import { useDeviceSelection } from '@/lib/selectedDevice';
 import { filterSensors } from '@/lib/sensorFilter';
 import { splitShownSensors } from '@/lib/sensorVisibility';
@@ -131,10 +131,16 @@ function SensorLiveCard({
   const latest = trailing.data?.[trailing.data.length - 1];
   const neverFetched = trailing.data === undefined;
   const [enlarged, setEnlarged] = useState(false);
+  // The control limits are not stored: the API calculates them when it reads, and the batched read the cards use leaves them out. The enlarged
+  // chart therefore reads its own Sensor WITH the limits (every 5 s while the window is open, paused in a rate-limit cooldown).
+  const limits = useTelemetryTrailingWithLimits({ family, deviceId, sensorId: sensor.id, periods: 20, enabled: enlarged && !curveFamily, paused: refreshDisabled });
   const sensorLabel = sensor.name || sensor.externalSensorId || 'Sensor';
   // One definition for the card and the enlarged view, so the modal always shows exactly the data the card has (it moves with every refresh).
   // The enlarged chart draws every Target / Tolerance / UCL / LCL line the API has a value for (never computed here); a line it has none for is simply absent.
-  const chartSeries = [{ label: sensorLabel, points: trailing.data ?? [], bidirectional: sensor.direction === 'bidirectional', direction: sensor.direction, unitLabel: sensor.unitLabel }];
+  const seriesOf = (points: TelemetryPoint[]) => [{ label: sensorLabel, points, bidirectional: sensor.direction === 'bidirectional', direction: sensor.direction, unitLabel: sensor.unitLabel }];
+  const chartSeries = seriesOf(trailing.data ?? []);
+  // The enlarged chart's own read carries the calculated control limits; until it has answered, the card's data (without them) is shown.
+  const enlargedSeries = seriesOf(limits.data ?? trailing.data ?? []);
 
   return (
     <Card className={styles.card}>
@@ -207,7 +213,10 @@ function SensorLiveCard({
                     aria-label={`Refresh ${sensorLabel}`}
                     title="Refresh this Sensor now"
                     disabled={refreshDisabled || refreshing}
-                    onClick={onRefresh}
+                    onClick={() => {
+                      onRefresh();
+                      void limits.refetch();
+                    }}
                   />
                   <DialogTrigger disableButtonEnhancement action="close">
                     <Button appearance="subtle" aria-label="Close" icon={<Dismiss24Regular />} />
@@ -224,7 +233,7 @@ function SensorLiveCard({
                   {latest ? `${formatDateTime(latest.measured)} (${formatRelative(latest.measured)})` : 'no data'}
                 </Text>
               </div>
-              <TelemetryChart series={chartSeries} height="calc(85vh - 230px)" mode="single" detailedLimits timeAxis="fullDateTime" emphasizeHover plainTooltip />
+              <TelemetryChart series={enlargedSeries} height="calc(85vh - 230px)" mode="single" detailedLimits timeAxis="fullDateTime" emphasizeHover plainTooltip />
             </DialogContent>
             <DialogActions>
               <Button appearance="primary" onClick={() => setEnlarged(false)}>

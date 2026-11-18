@@ -182,11 +182,11 @@ describe('CalculatedUpToNote', () => {
     waiting.unmount();
 
     const none = show(true, null);
-    expect(screen.getByText('Nothing calculated')).toBeInTheDocument();
+    expect(screen.getByText('Not analysed')).toBeInTheDocument();
     none.unmount();
 
     show(true, '2026-11-10T14:03:12Z');
-    expect(screen.getByText(/^Calculated up to: .*2026/)).toBeInTheDocument();
+    expect(screen.getByText(/^Analysed up to: .*2026/)).toBeInTheDocument();
   });
 });
 

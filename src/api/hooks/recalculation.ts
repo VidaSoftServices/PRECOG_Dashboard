@@ -34,8 +34,9 @@ export function useRecalculationStatus(deviceId: number | undefined) {
 export type DeviceCalculatedUpToDto = components['schemas']['DeviceCalculatedUpToDto'];
 
 /**
- * How far the calculation of every Sensor of the Device has got (`GET /api/Devices/{deviceId}/Sensors/CalculatedUpTo`): per Sensor the
- * measurement time of its newest calculated value, null when nothing is calculated. Cheap by design (the API caches it for 30 s) and
+ * How far the anomaly analysis of every Sensor of the Device has got (`GET /api/Devices/{deviceId}/Sensors/CalculatedUpTo`): per Sensor the
+ * measurement time of its newest ANALYSED value, null when nothing is analysed (always for a Sensor without a setpoint; the control limits are not
+ * stored and play no part). Cheap by design (the API caches it for 30 s) and
  * refreshed every `POLL_INTERVALS_MS.calculatedUpTo`; NOT a completeness percentage - a gap in the middle is not visible.
  * (Counting the readings was measured on production: over 30 seconds for one Device, so it is not done.)
  */

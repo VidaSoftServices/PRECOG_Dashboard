@@ -43,6 +43,11 @@ export const queryKeys = {
   // Monitoring" section for why this mattered as a real bug, not just tidiness).
   telemetryTrailing: (family: string, deviceId: number, sensorId: number, periods: number) =>
     ['telemetry', family, 'trailing', deviceId, sensorId, periods] as const,
+
+  // The enlarged Live Monitoring chart's own read of ONE Sensor WITH its control limits (the batched card read has none: the API calculates the limits
+  // from up to 9,999 earlier readings per Sensor, which it does not do for 50 Sensors every few seconds).
+  telemetryTrailingLimits: (family: string, deviceId: number, sensorId: number, periods: number) =>
+    ['telemetry', family, 'trailing-limits', deviceId, sensorId, periods] as const,
   telemetryPeriodRange: (family: string, deviceId: number, sensorId: number, from: number, to: number) =>
     ['telemetry', family, 'periodRange', deviceId, sensorId, from, to] as const,
   telemetryDateRange: (family: string, deviceId: number, sensorId: number, start: string, end: string) =>

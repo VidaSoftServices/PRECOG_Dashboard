@@ -137,15 +137,16 @@ export function RecalculationProgress({ deviceId, isAdmin }: { deviceId: number;
 }
 
 /**
- * Under a Sensor's name: the measurement time of its newest calculated value ("Calculated up to ..."), so for a Sensor whose calculation is switched
- * off the Admin sees where it stopped, and after a Recalc where the recalculation has got. It is where the calculation STANDS, not a completeness
- * percentage (a gap in the middle is invisible; counting readings is too expensive on the real database). Nothing is shown until the first answer.
+ * Under a Sensor's name: the measurement time of its newest ANALYSED value ("Analysed up to ..." - the anomaly analysis; the control limits are not stored, they are
+ * calculated when read, so they play no part), so for a Sensor whose calculation is switched off the Admin sees where it stopped, and after a Recalc where the
+ * recalculation has got. A Sensor without a setpoint is never analysed ("Not analysed"). It is where the analysis STANDS, not a completeness percentage (a gap in the
+ * middle is invisible; counting readings is too expensive on the real database). Nothing is shown until the first answer.
  */
 export function CalculatedUpToNote({ calculatedUpTo, loaded }: { calculatedUpTo: string | null | undefined; loaded: boolean }) {
   if (!loaded) return null;
   return (
     <Text size={200} block style={{ color: tokens.colorNeutralForeground3 }}>
-      {calculatedUpTo ? `Calculated up to: ${formatDateTimeWithZone(calculatedUpTo)}` : 'Nothing calculated'}
+      {calculatedUpTo ? `Analysed up to: ${formatDateTimeWithZone(calculatedUpTo)}` : 'Not analysed'}
     </Text>
   );
 }

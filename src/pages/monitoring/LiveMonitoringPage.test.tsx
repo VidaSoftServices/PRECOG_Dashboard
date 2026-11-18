@@ -37,18 +37,22 @@ function mockApi(sensors: unknown[]) {
     requests.push({ path, search: url.searchParams });
     // Two readings with a target, a tolerance and the server's control limits, for the card and for the enlarged chart. The API returns
     // them NEWEST FIRST (the older reading reads 1.7, the newest 1.8).
-    const reading = (sensorId: number, period: number, measured: string, actual: number) => ({
+    // The control limits are NOT stored and the batched read does not calculate them (the API leaves them out unless asked); only the single
+    // Sensor read - the enlarged chart's own - carries them.
+    const reading = (sensorId: number, period: number, measured: string, actual: number, withLimits: boolean) => ({
       sensorId, period, measured, actual,
       ...(reference === 'none' ? {} : { target: 2, tolerance: 0.05 }),
-      ...(reference === 'full' ? { upperControlLimit3S: 1.99, upperControlLimit2S: 1.9, lowerControlLimit2S: 1.55, lowerControlLimit3S: 1.47 } : {}),
+      ...(reference === 'full' && withLimits ? { upperControlLimit3S: 1.99, upperControlLimit2S: 1.9, lowerControlLimit2S: 1.55, lowerControlLimit3S: 1.47 } : {}),
     });
-    const newestFirst = (sensorId: number) => [reading(sensorId, 2, '2026-10-21T10:00:05Z', 1.8), reading(sensorId, 1, '2026-10-21T10:00:00Z', 1.7)];
+    const newestFirst = (sensorId: number, withLimits = false) => [reading(sensorId, 2, '2026-10-21T10:00:05Z', 1.8, withLimits), reading(sensorId, 1, '2026-10-21T10:00:00Z', 1.7, withLimits)];
     const body =
       path === '/api/Devices' ? [DEVICE]
       : path === '/api/Devices/4' ? DEVICE
       : path === '/api/Devices/4/Sensors' ? sensors
       // ONE request for every Sensor on screen: a flat list, every row carries its sensorId.
       : path === '/api/Continuous/MeasuredTrailingPeriodsBatch' ? url.searchParams.getAll('sensorIds').flatMap((id) => newestFirst(Number(id)))
+      // the enlarged chart's own read of ONE Sensor, with its calculated control limits
+      : path === '/api/Continuous/MeasuredTrailingPeriods' ? newestFirst(Number(url.searchParams.get('sensorId')), true)
       : [];
     return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
   });
@@ -148,6 +152,23 @@ describe('LiveMonitoringPage and hidden Sensors', { timeout: 30_000 }, () => {
     await waitFor(() =>
       expect(drawn.labels[drawn.labels.length - 1]).toEqual(['RMS A Target', 'RMS A Tolerance', 'RMS A', 'RMS A UCL3', 'RMS A UCL2', 'RMS A LCL2', 'RMS A LCL3']),
     );
+  });
+
+  it('the control limits are calculated by the API on read: the batched card read never asks for them, the enlarged chart reads its own Sensor (only while open)', async () => {
+    mockApi([sensor(1, 'RMS A', true)]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await waitFor(() => expect(requests.some((r) => r.path === '/api/Continuous/MeasuredTrailingPeriodsBatch')).toBe(true));
+    expect(requests.find((r) => r.path === '/api/Continuous/MeasuredTrailingPeriodsBatch')!.search.get('includeControlLimits')).toBeNull(); // off by default on the API
+    expect(requests.some((r) => r.path === '/api/Continuous/MeasuredTrailingPeriods')).toBe(false); // nothing while the window is closed
+
+    await user.click(await screen.findByRole('button', { name: 'Enlarge chart of RMS A' }));
+
+    await waitFor(() => expect(requests.some((r) => r.path === '/api/Continuous/MeasuredTrailingPeriods')).toBe(true));
+    const single = requests.find((r) => r.path === '/api/Continuous/MeasuredTrailingPeriods')!;
+    expect([single.search.get('sensorId'), single.search.get('periods')]).toEqual(['1', '20']);
+    expect(single.search.get('includeControlLimits')).toBeNull(); // the API's default is to include them
   });
 
   it('says so when every Sensor of the Device is hidden, instead of showing an empty page', async () => {
