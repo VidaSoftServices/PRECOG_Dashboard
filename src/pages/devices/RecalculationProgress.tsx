@@ -3,7 +3,7 @@ import { Button, MessageBar, MessageBarActions, MessageBarBody, MessageBarTitle,
 import { useQueryClient } from '@tanstack/react-query';
 import { ErrorState } from '@/components/states/ErrorState';
 import { useAppToast } from '@/components/ToastProvider';
-import { useCancelRecalculation, useRecalculationStatus } from '@/api/hooks/recalculation';
+import { ACTIVE_RECALCULATION_PHASES, useCancelRecalculation, useRecalculationStatus, type RecalculationStatusDto } from '@/api/hooks/recalculation';
 import { queryKeys } from '@/api/queryKeys';
 
 const useStyles = makeStyles({
@@ -103,6 +103,48 @@ export function RecalculationProgress({ deviceId, isAdmin }: { deviceId: number;
           </Button>
         </MessageBarActions>
       </MessageBar>
+    </div>
+  );
+}
+
+/** A finished run's per-Sensor figures are shown this long after it ended (like the summary bar), then the rows go quiet again. */
+const RECALC_RESULT_VISIBLE_MS = 10 * 60 * 1000;
+
+/**
+ * THIS Sensor's own recalculation progress, under its name: a percentage (readings evaluated / its readings) with a small bar - 0 % while it waits for its
+ * turn, the live percentage while it is worked on (re-read every 5 seconds), 100 % when done, or why it was skipped / failed. Shown while the run is
+ * active and for a few minutes after it ended; a Sensor that is not part of the run shows nothing.
+ */
+export function SensorRecalculationNote({ status, sensorId }: { status: RecalculationStatusDto | undefined; sensorId: number | undefined }) {
+  if (!status?.exists || sensorId === undefined) return null;
+  const finishedAt = status.finishedAt ? new Date(status.finishedAt).getTime() : 0;
+  if (!status.active && Date.now() - finishedAt > RECALC_RESULT_VISIBLE_MS) return null;
+  const entry = (status.sensors ?? []).find((s) => s.sensorId === sensorId);
+  if (!entry) return null;
+  if (entry.phase === 'Skipped' || entry.phase === 'Failed') {
+    return (
+      <Text size={200} block style={{ color: tokens.colorPaletteRedForeground1 }}>
+        {entry.phase === 'Skipped' ? 'Not recalculated' : 'Recalculation not finished'}
+        {entry.note ? `: ${entry.note}` : ''}
+      </Text>
+    );
+  }
+  const total = entry.totalReadings ?? 0;
+  const done = entry.phase === 'Done' ? total : Math.min(entry.doneReadings ?? 0, total);
+  const percent = entry.phase === 'Done' ? 100 : total > 0 ? Math.floor((100 * done) / total) : 0;
+  const working = ACTIVE_RECALCULATION_PHASES.includes(entry.phase ?? '');
+  const text =
+    entry.phase === 'Done'
+      ? 'Recalculated: 100 %'
+      : working
+        ? `Recalculating: ${percent} % (${done.toLocaleString()} / ${total.toLocaleString()})`
+        : 'Waiting for its turn: 0 %';
+  return (
+    <div style={{ marginTop: tokens.spacingVerticalXXS, maxWidth: '260px' }}>
+      <Text size={200} block style={{ color: tokens.colorBrandForeground1 }}>
+        {text}
+      </Text>
+      <ProgressBar value={percent / 100} thickness="medium" aria-label={`Recalculation progress of ${entry.name ?? 'the Sensor'}`} />
     </div>
   );
 }

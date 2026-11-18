@@ -1,0 +1,278 @@
+import { SCALES, csvField, detectDelimiter, normalizeHeader, splitDelimited } from '@/lib/sensorImport';
+import { AGGREGATION_FUNCTION_OPTIONS, DEFAULT_TIME_ZONE, TIME_SCALE_OPTIONS } from '@/lib/aggregationOptions';
+import { isRawPolicy } from '@/lib/policies';
+
+/**
+ * The aggregation sheet: one row per (Sensor, aggregation level), read and written as CSV, so the same level can be given to many Sensors
+ * (also from a file somebody else prepared) and the levels a Device has can be exported, edited in Excel and imported again.
+ *
+ *   sensorName, level, timeScale, aggregationFunction, scale, lookback, minIssueScore, timeZone
+ *
+ * - `sensorName` is the Sensor's `externalSensorId` (the display name is accepted as a fallback; `externalSensorId`, `machineName`, `sensorId`
+ *   and `tag` are header aliases).
+ * - `level` (a free label such as "napi") and `why` (a remark) are ignored: they carry no setting. Any other unknown column is reported, so a
+ *   typo does not silently drop a column.
+ * - `minIssueScore` and `timeZone` are optional (the API defaults are 1 and UTC); the rest is required on every row.
+ * - Names are case-insensitive and tolerate spaces/underscores in the header; `,` `;` and tab are all read.
+ * - The source is always the measured value (Actual): the sheet has no column for it, and target / tolerance are never aggregated.
+ * - Rows with the same settings are grouped, so a sheet of 142 Sensors with three levels is three requests, not 426.
+ * - Validation is all-or-nothing before the first request (like the Sensor import): every problem is listed with its sheet line.
+ */
+export const AGGREGATION_SHEET_HEADERS = ['sensorName', 'level', 'timeScale', 'aggregationFunction', 'scale', 'lookback', 'minIssueScore', 'timeZone'] as const;
+
+export const MAX_AGGREGATION_SHEET_ROWS = 5000;
+
+type Field = 'sensor' | 'timeScale' | 'aggregationFunction' | 'scale' | 'lookback' | 'minIssueScore' | 'timeZone';
+
+const ALIASES: Record<string, Field> = {
+  sensorname: 'sensor',
+  externalsensorid: 'sensor',
+  sensorid: 'sensor',
+  machinename: 'sensor',
+  tag: 'sensor',
+  tagname: 'sensor',
+  sensor: 'sensor',
+  timescale: 'timeScale',
+  aggregationfunction: 'aggregationFunction',
+  function: 'aggregationFunction',
+  scale: 'scale',
+  lookbackscale: 'scale',
+  lookback: 'lookback',
+  minissuescore: 'minIssueScore',
+  timezone: 'timeZone',
+  tz: 'timeZone',
+};
+
+/** Columns that are read and thrown away on purpose - no warning (a label and a remark, not settings). */
+const QUIET_COLUMNS = new Set(['level', 'why']);
+
+export interface SheetSensor {
+  id?: number | null;
+  name?: string | null;
+  externalSensorId?: string | null;
+}
+
+export interface SheetProblem {
+  /** 1-based line of the sheet (the header is line 1); 0 for the file as a whole. */
+  line: number;
+  field: string;
+  message: string;
+}
+
+/** The rows that share every setting: one bulk request. */
+export interface AggregationGroup {
+  timeScale: string;
+  aggregationFunction: string;
+  scale: string;
+  lookback: number;
+  /** null = not given, the API default applies. */
+  minIssueScore: number | null;
+  timeZone: string;
+  sensorIds: number[];
+}
+
+export interface AggregationSheetResult {
+  groups: AggregationGroup[];
+  problems: SheetProblem[];
+  /** Header cells that matched no known column (ignoring `level` and `why`). */
+  ignoredColumns: string[];
+  rowCount: number;
+  sensorCount: number;
+}
+
+const TIME_SCALE_VALUES = TIME_SCALE_OPTIONS.map((o) => o.value);
+const FUNCTION_VALUES = AGGREGATION_FUNCTION_OPTIONS.map((o) => o.value);
+
+const canon = (values: readonly string[], raw: string): string | null => values.find((v) => v.toLowerCase() === raw.trim().toLowerCase()) ?? null;
+
+function isTimeZone(name: string): boolean {
+  if (name.toLowerCase() === 'utc') return true;
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: name });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** A whole number as typed; null for anything else (text, decimals, blanks). */
+function wholeNumber(raw: string): number | null {
+  return /^\d+$/.test(raw.trim()) ? Number(raw.trim()) : null;
+}
+
+export function parseAggregationSheet(text: string, sensors: readonly SheetSensor[]): AggregationSheetResult {
+  const empty = (problems: SheetProblem[], ignoredColumns: string[] = []): AggregationSheetResult => ({ groups: [], problems, ignoredColumns, rowCount: 0, sensorCount: 0 });
+  const clean = text.split(String.fromCharCode(0xfeff)).join('').trim();
+  if (clean === '') return empty([{ line: 0, field: 'file', message: 'The sheet is empty.' }]);
+
+  const delimiter = detectDelimiter(clean.split(/\r?\n/, 1)[0] ?? '');
+  const table = splitDelimited(clean, delimiter).filter((r) => r.some((c) => c.trim() !== ''));
+  const header = table.shift() ?? [];
+
+  const columns = new Map<Field, number>();
+  const ignored: string[] = [];
+  header.forEach((cell, index) => {
+    const key = normalizeHeader(cell);
+    const field = ALIASES[key];
+    if (field && !columns.has(field)) columns.set(field, index);
+    else if (!QUIET_COLUMNS.has(key) && key !== '') ignored.push(cell.trim());
+  });
+
+  const missing = (['sensor', 'timeScale', 'aggregationFunction', 'scale', 'lookback'] as const).filter((f) => !columns.has(f));
+  if (missing.length > 0) {
+    const names: Record<Field, string> = { sensor: 'sensorName', timeScale: 'timeScale', aggregationFunction: 'aggregationFunction', scale: 'scale', lookback: 'lookback', minIssueScore: 'minIssueScore', timeZone: 'timeZone' };
+    return empty([{ line: 1, field: 'header', message: `Required column(s) missing: ${missing.map((m) => names[m]).join(', ')}.` }], ignored);
+  }
+  if (table.length === 0) return empty([{ line: 0, field: 'file', message: 'The sheet has a header but no rows.' }], ignored);
+  if (table.length > MAX_AGGREGATION_SHEET_ROWS) {
+    return empty([{ line: 0, field: 'file', message: `The sheet has ${table.length} rows; the limit is ${MAX_AGGREGATION_SHEET_ROWS} per import.` }], ignored);
+  }
+
+  const byExternal = new Map<string, SheetSensor>();
+  const byName = new Map<string, SheetSensor>();
+  for (const s of sensors) {
+    if (s.externalSensorId) byExternal.set(s.externalSensorId.trim().toLowerCase(), s);
+    if (s.name) byName.set(s.name.trim().toLowerCase(), s);
+  }
+
+  const problems: SheetProblem[] = [];
+  const seen = new Map<string, number>(); // sensor|timeScale|function -> first line
+  const groups = new Map<string, AggregationGroup>();
+  const sensorIds = new Set<number>();
+
+  table.forEach((cells, rowIndex) => {
+    const line = rowIndex + 2;
+    const cell = (f: Field) => (cells[columns.get(f) ?? -1] ?? '').trim();
+    const fail = (field: string, message: string) => problems.push({ line, field, message });
+
+    const sensorText = cell('sensor');
+    const sensor = byExternal.get(sensorText.toLowerCase()) ?? byName.get(sensorText.toLowerCase());
+    if (sensorText === '') fail('sensorName', 'The Sensor name is missing.');
+    else if (!sensor || sensor.id == null) fail('sensorName', `No Sensor "${sensorText}" on this Device.`);
+
+    const timeScale = canon(TIME_SCALE_VALUES, cell('timeScale'));
+    if (!timeScale) fail('timeScale', `"${cell('timeScale')}" is not a time scale; use one of ${TIME_SCALE_VALUES.join(', ')}.`);
+    const fn = canon(FUNCTION_VALUES, cell('aggregationFunction'));
+    if (!fn) fail('aggregationFunction', `"${cell('aggregationFunction')}" is not an aggregation function; use one of ${FUNCTION_VALUES.join(', ')}.`);
+    const scale = canon(SCALES, cell('scale'));
+    if (!scale) fail('scale', `"${cell('scale')}" is not a scale; use one of ${SCALES.join(', ')}.`);
+    const lookback = wholeNumber(cell('lookback'));
+    if (lookback === null || lookback < 1) fail('lookback', `"${cell('lookback')}" is not a whole number greater than zero.`);
+
+    let minIssueScore: number | null = null;
+    if (cell('minIssueScore') !== '') {
+      minIssueScore = wholeNumber(cell('minIssueScore'));
+      if (minIssueScore === null) fail('minIssueScore', `"${cell('minIssueScore')}" is not a whole number of zero or more.`);
+    }
+    let timeZone = DEFAULT_TIME_ZONE;
+    if (cell('timeZone') !== '') {
+      timeZone = cell('timeZone');
+      if (!isTimeZone(timeZone)) fail('timeZone', `"${timeZone}" is not a time zone name (for example Europe/Budapest or UTC).`);
+    }
+
+    if (!sensor || sensor.id == null || !timeScale || !fn || !scale || lookback === null || lookback < 1) return;
+    if (minIssueScore === null && cell('minIssueScore') !== '') return;
+    if (cell('timeZone') !== '' && !isTimeZone(timeZone)) return;
+
+    const identity = `${sensor.id}|${timeScale}|${fn}`;
+    const first = seen.get(identity);
+    if (first !== undefined) {
+      fail('sensorName', `${sensorText} already has ${timeScale} / ${fn} on line ${first}: one level can be given to a Sensor once.`);
+      return;
+    }
+    seen.set(identity, line);
+
+    const key = [timeScale, fn, scale, lookback, minIssueScore ?? '', timeZone].join('|');
+    let group = groups.get(key);
+    if (!group) {
+      group = { timeScale, aggregationFunction: fn, scale, lookback, minIssueScore, timeZone, sensorIds: [] };
+      groups.set(key, group);
+    }
+    group.sensorIds.push(sensor.id);
+    sensorIds.add(sensor.id);
+  });
+
+  return {
+    groups: problems.length > 0 ? [] : [...groups.values()],
+    problems,
+    ignoredColumns: ignored,
+    rowCount: table.length,
+    sensorCount: sensorIds.size,
+  };
+}
+
+/** What the sheet row and a group say in one line. */
+export function describeGroup(group: AggregationGroup): string {
+  const scale = TIME_SCALE_OPTIONS.find((o) => o.value === group.timeScale)?.label ?? group.timeScale;
+  const fn = AGGREGATION_FUNCTION_OPTIONS.find((o) => o.value === group.aggregationFunction)?.label ?? group.aggregationFunction;
+  return `${scale} · ${fn} · lookback ${group.lookback} ${group.scale}${group.minIssueScore !== null ? ` · min issue score ${group.minIssueScore}` : ''}${group.timeZone !== DEFAULT_TIME_ZONE ? ` · ${group.timeZone}` : ''}`;
+}
+
+export interface ExportAggregationPolicy {
+  id?: number | null;
+  sensorId?: number | null;
+  sourceDataKey?: string | null;
+  timeScale?: string | null;
+  aggregationFunction?: string | null;
+  scale?: string | null;
+  lookback?: number | null;
+  minIssueScore?: number | null;
+  enabled?: boolean | null;
+  timeZone?: string | null;
+}
+
+const BOM = String.fromCharCode(0xfeff);
+
+/**
+ * The levels a Device has right now, as a sheet this importer reads back unchanged: every ENABLED aggregate level (not the raw/base level, not a
+ * disabled one - re-importing a disabled level would switch it on) of the measured values, one row per Sensor and level. `level` is the time
+ * scale's plain label. Importing the export of a Device changes nothing (every level already exists).
+ */
+export function buildAggregationExportCsv(policies: readonly ExportAggregationPolicy[], sensors: readonly SheetSensor[]): string {
+  const byId = new Map(sensors.filter((s) => s.id != null).map((s) => [s.id as number, s]));
+  const rows = policies
+    .filter((p) => p.enabled !== false && !isRawPolicy(p) && (p.sourceDataKey ?? 'Actual').toLowerCase() === 'actual' && p.sensorId != null && byId.has(p.sensorId))
+    .sort((a, b) => (a.sensorId! - b.sensorId!) || ((a.id ?? 0) - (b.id ?? 0)));
+  const lines = rows.map((p) => {
+    const sensor = byId.get(p.sensorId!)!;
+    const timeScale = canon(TIME_SCALE_VALUES, p.timeScale ?? '') ?? p.timeScale ?? '';
+    const label = TIME_SCALE_OPTIONS.find((o) => o.value === timeScale)?.label ?? timeScale;
+    return [
+      sensor.externalSensorId ?? sensor.name ?? '',
+      label,
+      timeScale,
+      canon(FUNCTION_VALUES, p.aggregationFunction ?? '') ?? p.aggregationFunction ?? '',
+      canon(SCALES, p.scale ?? '') ?? p.scale ?? '',
+      p.lookback ?? '',
+      p.minIssueScore ?? '',
+      p.timeZone ?? DEFAULT_TIME_ZONE,
+    ]
+      .map((v) => csvField(v))
+      .join(',');
+  });
+  return BOM + [AGGREGATION_SHEET_HEADERS.join(','), ...lines].join('\r\n') + '\r\n';
+}
+
+export function aggregationExportFileName(deviceId: number): string {
+  return `aggregation-device-${deviceId}.csv`;
+}
+
+/**
+ * The sample a person downloads to fill in: the sheet's header and a few example rows - the levels the prepared sheets use (daily average, daily
+ * 95th percentile, hourly maximum) - written for the Device's own first Sensors, so every row is valid as it stands and importing the sample unchanged
+ * creates exactly those levels. A Device without Sensors gets placeholder names. The `level` column is a free label and `why` is not part of the sample.
+ */
+export function buildAggregationTemplateCsv(sensors: readonly SheetSensor[]): string {
+  const named = sensors.filter((s) => s.externalSensorId || s.name);
+  const name = (index: number) => named[index]?.externalSensorId ?? named[index]?.name ?? `sensor_name_${index + 1}`;
+  const examples: (string | number)[][] = [
+    [name(0), 'daily average', 'Days', 'AVG', 'Periods', 60, 3, 'UTC'],
+    [name(0), 'daily 95th percentile', 'Days', 'P95', 'Periods', 60, 3, 'UTC'],
+    [name(named.length > 1 ? 1 : 0), 'hourly maximum', 'Hours', 'MAX', 'Periods', 336, 2, 'UTC'],
+  ];
+  return BOM + [AGGREGATION_SHEET_HEADERS.join(','), ...examples.map((row) => row.map((v) => csvField(v)).join(','))].join('\r\n') + '\r\n';
+}
+
+export function aggregationTemplateFileName(): string {
+  return 'aggregation-template.csv';
+}

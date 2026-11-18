@@ -37,8 +37,8 @@ import { MaintenanceAllDialog } from './MaintenanceAllDialog';
 import { RecalculateDialog } from './RecalculateDialog';
 import { BulkAggregationDialog } from './BulkAggregationDialog';
 import { isRecalculable } from '@/lib/recalculation';
-import { RecalculationProgress } from './RecalculationProgress';
-import { ACTIVE_RECALCULATION_PHASES, useRecalculationStatus, type RecalculationStatusDto } from '@/api/hooks/recalculation';
+import { RecalculationProgress, SensorRecalculationNote } from './RecalculationProgress';
+import { useRecalculationStatus } from '@/api/hooks/recalculation';
 import { VisibilityDialog } from './VisibilityDialog';
 import { useDevicePrincipal } from '@/api/hooks/devicePrincipal';
 import { useTrainingRequests } from '@/api/hooks/training';
@@ -306,23 +306,6 @@ function ProcessingDialog({
       </Text>
       {updateSensor.isError && <ErrorState error={updateSensor.error} />}
     </ConfirmDialog>
-  );
-}
-
-/** "Recalculating… 37 %" under a Sensor while the recalculation works on it (or "waiting" until its turn). */
-function RecalculatingNote({ status, sensorId }: { status: RecalculationStatusDto | undefined; sensorId: number | undefined }) {
-  if (!status?.active || sensorId === undefined) return null;
-  const entry = (status.sensors ?? []).find((s) => s.sensorId === sensorId);
-  if (!entry || entry.phase === 'Skipped' || entry.phase === 'Done' || entry.phase === 'Failed') return null;
-  const working = ACTIVE_RECALCULATION_PHASES.includes(entry.phase ?? '');
-  const percent = entry.totalReadings ? Math.round((100 * (entry.doneReadings ?? 0)) / entry.totalReadings) : 0;
-  return (
-    <>
-      <br />
-      <Text size={200} style={{ color: tokens.colorBrandForeground1 }}>
-        {working ? `Recalculating… ${percent} %` : 'Waiting for its turn in the recalculation'}
-      </Text>
-    </>
   );
 }
 
@@ -641,7 +624,7 @@ export function DeviceDetailPage() {
                     {sensor.direction} {sensor.sensorType ? `· ${sensor.sensorType}` : ''}{' '}
                     {sensor.unitLabel ?? sensor.unitCode ? `(${sensor.unitLabel ?? sensor.unitCode})` : ''}
                   </Text>
-                  <RecalculatingNote status={recalcStatus.data} sensorId={sensor.id} />
+                  <SensorRecalculationNote status={recalcStatus.data} sensorId={sensor.id} />
                 </div>
                 <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center' }}>
                   <MaintenancePill maintenanceMode={sensor.maintenanceMode} />

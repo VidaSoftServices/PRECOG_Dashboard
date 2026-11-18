@@ -3,7 +3,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
-import { RecalculationProgress } from './RecalculationProgress';
+import { RecalculationProgress, SensorRecalculationNote } from './RecalculationProgress';
+import type { RecalculationStatusDto } from '@/api/hooks/recalculation';
 import { AppToastProvider } from '@/components/ToastProvider';
 import * as authStore from '@/auth/authStore';
 import { fetchMock } from '@/test/mockFetch';
@@ -115,5 +116,54 @@ describe('RecalculationProgress', { timeout: 20_000 }, () => {
     const { container } = renderProgress();
     await waitFor(() => expect(fetchMock()).toHaveBeenCalled());
     await waitFor(() => expect(container.textContent).toBe(''));
+  });
+});
+
+describe('SensorRecalculationNote', () => {
+  const status = (sensors: object[], extra: object = {}) =>
+    ({ deviceId: 4, exists: true, active: true, jobId: 'j1', status: 'Running', sensors, ...extra }) as RecalculationStatusDto;
+
+  const show = (s: RecalculationStatusDto, sensorId: number) =>
+    render(
+      <FluentProvider theme={webLightTheme}>
+        <SensorRecalculationNote status={s} sensorId={sensorId} />
+      </FluentProvider>,
+    );
+
+  it('shows each Sensor of the run with its OWN percentage: waiting 0 %, working N % with the counts, done 100 %', () => {
+    const s = status([
+      { sensorId: 1, name: 'A', phase: 'Done', totalReadings: 100, doneReadings: 100 },
+      { sensorId: 2, name: 'B', phase: 'Analysing', totalReadings: 200, doneReadings: 50 },
+      { sensorId: 3, name: 'C', phase: 'Waiting', totalReadings: 300, doneReadings: 0 },
+    ]);
+    const first = show(s, 1);
+    expect(screen.getByText('Recalculated: 100 %')).toBeInTheDocument();
+    first.unmount();
+    const second = show(s, 2);
+    expect(screen.getByText('Recalculating: 25 % (50 / 200)')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Recalculation progress of B' })).toBeInTheDocument();
+    second.unmount();
+    show(s, 3);
+    expect(screen.getByText('Waiting for its turn: 0 %')).toBeInTheDocument();
+  });
+
+  it('says why a Sensor was left out, shows nothing for a Sensor that is not in the run, and goes quiet a while after the run ended', () => {
+    const skipped = show(status([{ sensorId: 4, name: 'D', phase: 'Skipped', note: 'Calculation is switched off for this Sensor.' }]), 4);
+    expect(screen.getByText(/Not recalculated: Calculation is switched off/)).toBeInTheDocument();
+    skipped.unmount();
+
+    const other = show(status([{ sensorId: 1, name: 'A', phase: 'Analysing', totalReadings: 10, doneReadings: 1 }]), 9);
+    expect(other.container.textContent).toBe('');
+    other.unmount();
+
+    const old = show(
+      status([{ sensorId: 1, name: 'A', phase: 'Done', totalReadings: 10, doneReadings: 10 }], {
+        active: false,
+        status: 'Completed',
+        finishedAt: new Date(Date.now() - 3 * 3600_000).toISOString(),
+      }),
+      1,
+    );
+    expect(old.container.textContent).toBe('');
   });
 });

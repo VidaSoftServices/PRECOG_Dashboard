@@ -14,6 +14,12 @@ export const POLL_INTERVALS_MS = {
   liveMonitoringCycle: 5_000,
   /** Overview page's operational summary tiles. */
   overviewSummary: 30_000,
+  /**
+   * The progress of a running "recalculate from the start" (the Device page's overall bar and every Sensor's own percentage): re-read every 5 seconds
+   * while the job is Queued or Running. One small request per poll (`GET /api/Devices/{deviceId}/Recalculation`, no named rate-limit policy), only while
+   * a job is active - the query stops at a terminal status.
+   */
+  recalculationProgress: 5_000,
   /** TrainingRequest or Ollama job while in an active (non-terminal) state. */
   activeJob: 5_000,
   /**

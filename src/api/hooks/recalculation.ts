@@ -13,7 +13,7 @@ export const ACTIVE_RECALCULATION_PHASES: readonly string[] = ['Deleting', 'Cont
 
 /**
  * Progress of the latest "recalculate from the start" of a Device (`GET /api/Devices/{deviceId}/Recalculation`, visible to anyone who
- * can see the Device). Polls on the central `activeJob` cadence only while the job is Queued or Running (`active`), and stops at a
+ * can see the Device). Polls every 5 seconds (`POLL_INTERVALS_MS.recalculationProgress`) only while the job is Queued or Running (`active`), and stops at a
  * terminal status. The job lives in the API's memory: after an API restart `exists` is false.
  */
 export function useRecalculationStatus(deviceId: number | undefined) {
@@ -27,7 +27,7 @@ export function useRecalculationStatus(deviceId: number | undefined) {
         }),
       ),
     enabled: deviceId !== undefined,
-    refetchInterval: (query) => (query.state.data?.active ? POLL_INTERVALS_MS.activeJob : false),
+    refetchInterval: (query) => (query.state.data?.active ? POLL_INTERVALS_MS.recalculationProgress : false),
   });
 }
 
