@@ -83,6 +83,7 @@ export function RecalculationProgress({ deviceId, isAdmin }: { deviceId: number;
   const skipped = (data.sensors ?? []).filter((s) => s.phase === 'Skipped');
   const deletedIssues = (data.sensors ?? []).reduce((n, s) => n + (s.issuesDeleted ?? 0), 0);
   const keptIssues = (data.sensors ?? []).reduce((n, s) => n + (s.reviewedIssuesKept ?? 0), 0);
+  const levelsReset = (data.sensors ?? []).reduce((n, s) => n + (s.aggregationLevelsReset ?? 0), 0);
   const intent = data.status === 'Completed' ? 'success' : 'warning';
   return (
     <div className={styles.box}>
@@ -93,6 +94,7 @@ export function RecalculationProgress({ deviceId, isAdmin }: { deviceId: number;
           </MessageBarTitle>
           {(data.doneReadings ?? 0).toLocaleString()} of {(data.totalReadings ?? 0).toLocaleString()} values evaluated; {deletedIssues} unreviewed Issue(s) replaced,{' '}
           {keptIssues} reviewed Issue(s) kept.
+          {levelsReset > 0 && ` ${levelsReset} aggregation level(s) are being aggregated again in the background.`}
           {skipped.length > 0 && <Text block>Left out: {skipped.map((s) => `${s.name} (${s.note})`).join('; ')}</Text>}
           {failed.length > 0 && <Text block>Not finished: {failed.map((s) => `${s.name} (${s.note})`).join('; ')}</Text>}
           {data.error && <Text block>{data.error}</Text>}

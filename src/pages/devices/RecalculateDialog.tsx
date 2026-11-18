@@ -84,6 +84,7 @@ export function RecalculateDialog({
           <ul className={styles.list}>
             <li>the calculated values: analysis results, anomaly scores and the control limits (UCL3, UCL2, LCL2, LCL3)</li>
             <li>every Issue that no person has reviewed (with its category suggestion and Ollama summary)</li>
+            <li>the aggregated values of the Sensor’s aggregation levels (a switched-off level keeps its values) - they are aggregated again from the stored values in the background</li>
           </ul>
         </div>
         <div>
@@ -97,8 +98,8 @@ export function RecalculateDialog({
         <Text>
           Then the stored values are evaluated <b>one by one, in time order</b>, each as if it had just arrived from the Device: every value gets a full
           evaluation and new Issues are raised from the start (only faster, as nothing has to wait for the next value). New Issues get their Ollama summary
-          as for live data. It can take a long time for many values; the progress is shown on this page, and you can stop it. While a Sensor is being
-          recalculated, its new values are stored and are calculated when it is done.
+          as for live data. Values that arrive while it runs are evaluated too: it goes on up to the newest stored value, and then the live calculation takes
+          over. It can take a long time for many values; the progress is shown on this page, and you can stop it.
         </Text>
         {!single && left > 0 && (
           <MessageBar intent="info">

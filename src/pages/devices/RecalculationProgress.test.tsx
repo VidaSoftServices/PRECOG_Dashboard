@@ -93,7 +93,7 @@ describe('RecalculationProgress', { timeout: 20_000 }, () => {
         doneReadings: 100,
         percent: 100,
         sensors: [
-          { sensorId: 1, name: 'S1', phase: 'Done', issuesDeleted: 3, reviewedIssuesKept: 1 },
+          { sensorId: 1, name: 'S1', phase: 'Done', issuesDeleted: 3, reviewedIssuesKept: 1, aggregationLevelsReset: 2 },
           { sensorId: 2, name: 'S2', phase: 'Skipped', note: 'Calculation is switched off for this Sensor.' },
         ],
       }),
@@ -102,7 +102,7 @@ describe('RecalculationProgress', { timeout: 20_000 }, () => {
     renderProgress();
 
     expect(await screen.findByText('Recalculation finished')).toBeInTheDocument();
-    expect(screen.getByText(/100 of 100 values evaluated; 3 unreviewed Issue\(s\) replaced, 1 reviewed Issue\(s\) kept\./)).toBeInTheDocument();
+    expect(screen.getByText(/100 of 100 values evaluated; 3 unreviewed Issue\(s\) replaced, 1 reviewed Issue\(s\) kept\. 2 aggregation level\(s\) are being aggregated again in the background\./)).toBeInTheDocument();
     expect(screen.getByText(/Left out: S2 \(Calculation is switched off for this Sensor\.\)/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Dismiss' }));

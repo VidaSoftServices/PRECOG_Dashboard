@@ -98,7 +98,9 @@ const MAX_LISTED_PROBLEMS = 50;
  * levels in the same columns, so an export edited in Excel imports back. A Device can have hundreds of Sensors; the per-Sensor "Add aggregation level" form is
  * one at a time. The source is always the measured value. The result lists what happened per Sensor (Created / Reactivated / Exists / Deactivated /
  * NotFound) with the API's remarks - for example that a level was stored but is not calculated because that kind of Sensor is not supported by the
- * aggregation engine yet. A level that already exists is left as it is (its lookback is not changed by an import). Company Admin only.
+ * aggregation engine yet. A level that already exists gets the settings of the request (Updated, with the changes listed: lookback, scale, min issue
+ * score, time zone), so a sheet edited and imported again takes effect; one that already has exactly those settings is left as it is (Exists).
+ * Company Admin only.
  */
 export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { deviceId: number; sensors: readonly SensorDto[]; open: boolean; onClose: () => void }) {
   const styles = useStyles();
@@ -183,7 +185,7 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
   /** One request per distinct setting; the first failure stops the rest (what was done stays done and is reported). */
   const submitImport = async () => {
     if (!parsed) return;
-    const total: BulkAggregationResultDto = { created: 0, reactivated: 0, alreadyExisted: 0, deactivated: 0, skipped: 0, items: [] };
+    const total: BulkAggregationResultDto = { created: 0, reactivated: 0, updated: 0, alreadyExisted: 0, deactivated: 0, skipped: 0, items: [] };
     setImportFailure(null);
     try {
       for (const group of parsed.groups) {
@@ -198,13 +200,14 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
         });
         total.created = (total.created ?? 0) + (outcome.created ?? 0);
         total.reactivated = (total.reactivated ?? 0) + (outcome.reactivated ?? 0);
+        total.updated = (total.updated ?? 0) + (outcome.updated ?? 0);
         total.alreadyExisted = (total.alreadyExisted ?? 0) + (outcome.alreadyExisted ?? 0);
         total.skipped = (total.skipped ?? 0) + (outcome.skipped ?? 0);
         const label = describeGroup(group);
         total.items = [...(total.items ?? []), ...(outcome.items ?? []).map((i) => ({ ...i, message: [label, i.message].filter(Boolean).join(' — ') }))];
       }
       setResult(total);
-      toast.success(`Imported: ${total.created} created, ${total.reactivated} switched on again, ${total.alreadyExisted} already there.`);
+      toast.success(`Imported: ${total.created} created, ${total.reactivated} switched on again, ${total.updated} updated, ${total.alreadyExisted} already there.`);
     } catch (error) {
       setImportFailure(error instanceof Error ? error.message : 'The import stopped because of an error.');
       if ((total.items?.length ?? 0) > 0) setResult(total);
@@ -232,7 +235,7 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
     setResult(outcome);
     toast.success(
       mode === 'create'
-        ? `Aggregation level: ${outcome.created ?? 0} created, ${outcome.reactivated ?? 0} switched on again, ${outcome.alreadyExisted ?? 0} already there.`
+        ? `Aggregation level: ${outcome.created ?? 0} created, ${outcome.reactivated ?? 0} switched on again, ${outcome.updated ?? 0} updated, ${outcome.alreadyExisted ?? 0} already there.`
         : `Aggregation level deactivated for ${outcome.deactivated ?? 0} Sensor(s).`,
     );
   };
@@ -258,7 +261,7 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
                   <MessageBarBody>
                     {mode === 'deactivate'
                       ? `${result.deactivated ?? 0} deactivated, ${result.skipped ?? 0} left as they were.`
-                      : `${result.created ?? 0} created, ${result.reactivated ?? 0} switched on again, ${result.alreadyExisted ?? 0} already existed, ${result.skipped ?? 0} not found.`}{' '}
+                      : `${result.created ?? 0} created, ${result.reactivated ?? 0} switched on again, ${result.updated ?? 0} updated, ${result.alreadyExisted ?? 0} already existed, ${result.skipped ?? 0} not found.`}{' '}
                     {importFailure
                       ? `The import stopped at an error: ${importFailure} What is listed below was done; the rest was not tried.`
                       : 'The API calculates the values in the background, oldest data first.'}
@@ -286,8 +289,8 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
                     <Text size={200}>
                       One row per Sensor and level: <code>{AGGREGATION_SHEET_HEADERS.join(', ')}</code>. <code>sensorName</code> is the Sensor’s external id;{' '}
                       <code>timeScale</code>, <code>aggregationFunction</code>, <code>scale</code> and <code>lookback</code> are required, <code>minIssueScore</code> and{' '}
-                      <code>timeZone</code> are optional (defaults 1 and UTC). The columns <code>level</code> and <code>why</code> are ignored. A level a Sensor already has is left as it
-                      is.
+                      <code>timeZone</code> are optional (defaults 1 and UTC). The columns <code>level</code> and <code>why</code> are ignored. A level a Sensor already has gets the
+                      sheet’s settings (listed as Updated); a new time zone recalculates its history.
                     </Text>
                     <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center', flexWrap: 'wrap' }}>
                       <Button icon={<ArrowDownload24Regular />} onClick={downloadTemplate}>
@@ -413,7 +416,7 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
                     <MessageBar intent="info">
                       <MessageBarBody>
                         {mode === 'create'
-                          ? 'Aggregates the measured values. The API creates the level (or switches a disabled one on again) for every chosen Sensor in one step and then calculates its history in the background. A level that already exists is left as it is. Target and tolerance are never aggregated.'
+                          ? 'Aggregates the measured values. The API creates the level (or switches a disabled one on again) for every chosen Sensor in one step and then calculates its history in the background. A level that already exists gets these settings (lookback, scale, min issue score, time zone). Target and tolerance are never aggregated.'
                           : 'Switches the level off (the stored slices are kept). A Sensor without that level is left as it is. The raw level cannot be deactivated.'}
                       </MessageBarBody>
                     </MessageBar>

@@ -79,7 +79,7 @@ describe('BulkAggregationDialog', { timeout: 30_000 }, () => {
 
     await user.click(button());
 
-    expect(await screen.findByText(/3 created, 0 switched on again, 0 already existed, 0 not found\./)).toBeInTheDocument();
+    expect(await screen.findByText(/3 created, 0 switched on again, 0 updated, 0 already existed, 0 not found\./)).toBeInTheDocument();
     expect(screen.getByText(/Acceleration RMS X/)).toBeInTheDocument();
     expect(calls).toHaveLength(1);
     expect(calls[0]?.method).toBe('POST');
@@ -181,6 +181,26 @@ describe('BulkAggregationDialog: CSV import and export', { timeout: 30_000 }, ()
     expect(calls.map((c) => c.path)).toEqual(['/api/Devices/4/AggregationPolicies', '/api/Devices/4/AggregationPolicies']);
     expect(calls[0]?.body).toEqual({ sensorIds: [1, 2], timeScale: 'Days', aggregationFunction: 'AVG', scale: 'Periods', lookback: 60, minIssueScore: 3, timeZone: 'UTC' });
     expect(calls[1]?.body).toEqual({ sensorIds: [2], timeScale: 'Hours', aggregationFunction: 'MAX', scale: 'Periods', lookback: 336, minIssueScore: 2, timeZone: 'UTC' });
+  });
+
+  it('a level a Sensor already has is reported as Updated with the changes the API lists, and counted in the totals', async () => {
+    recordCalls({
+      created: 0,
+      reactivated: 0,
+      updated: 1,
+      alreadyExisted: 0,
+      skipped: 0,
+      items: [{ sensorId: 1, name: 'Acceleration RMS X', outcome: 'Updated', message: 'lookback 30 -> 60, minIssueScore 1 -> 3' }],
+    });
+    const user = await openImport();
+
+    fireEvent.change(screen.getByRole('textbox', { name: /paste the cells/ }), {
+      target: { value: 'sensorName,timeScale,aggregationFunction,scale,lookback,minIssueScore\next-1,Days,AVG,Periods,60,3' },
+    });
+    await user.click(await screen.findByRole('button', { name: 'Import 1 level(s) for 1 Sensor(s)' }));
+
+    expect((await screen.findAllByText(/0 created, 0 switched on again, 1 updated, 0 already existed/)).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Updated — 1 day · Average · lookback 60 Periods · min issue score 3 — lookback 30 -> 60, minIssueScore 1 -> 3/)).toBeInTheDocument();
   });
 
   it('a sheet with problems lists them by line and sends nothing', async () => {
