@@ -18,6 +18,7 @@ const PHASE_TEXT: Record<string, string> = {
   Deleting: 'deleting the old results',
   ControlLimits: 'calculating the control limits',
   Analysing: 'evaluating the values one by one',
+  Vacuum: 'freeing the space of the deleted rows (vacuum) - it does not shrink the files, the space is reused by new data',
 };
 
 /**
@@ -77,9 +78,10 @@ export function RecalculationProgress({ deviceId, isAdmin }: { deviceId: number;
               {RUNNING_TITLE[jobKind(data)]}: {percent.toFixed(1)} %
             </MessageBarTitle>
             {jobKind(data) === 'DeleteOnly'
-              ? `${(data.doneReadings ?? 0).toLocaleString()} of ${(data.totalReadings ?? 0).toLocaleString()} Sensor(s)`
+              ? `${(data.sensorsFinished ?? 0).toLocaleString()} of ${(data.sensorsTotal ?? 0).toLocaleString()} Sensor(s) deleted`
               : `${(data.doneReadings ?? 0).toLocaleString()} of ${(data.totalReadings ?? 0).toLocaleString()} values`}
             {data.currentSensorName ? ` — ${data.currentSensorName}: ${phase}` : ''}
+            {data.currentPhase === 'Vacuum' ? ` — ${phase}` : ''}
             {` (${data.sensorsFinished ?? 0} of ${data.sensorsTotal ?? 0} Sensor(s) finished)`}
           </MessageBarBody>
           {isAdmin && (

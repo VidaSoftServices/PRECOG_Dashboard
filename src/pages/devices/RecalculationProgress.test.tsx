@@ -120,17 +120,27 @@ describe('RecalculationProgress', { timeout: 20_000 }, () => {
     fetchMock().mockImplementation(async () =>
       json({
         ...running,
-        totalReadings: 326,
-        doneReadings: 12,
+        totalReadings: 326_000,
+        doneReadings: 12_000,
         percent: 3.7,
+        sensorsTotal: 326,
+        sensorsFinished: 12,
         currentPhase: 'Deleting',
         sensors: [{ sensorId: 7, name: 'Acceleration RMS X', kind: 'DeleteOnly', phase: 'Deleting', totalReadings: 1, doneReadings: 0 }],
       }),
     );
     const running2 = renderProgress();
     expect(await screen.findByText(/Deleting the calculated values: 3\.7 %/)).toBeInTheDocument();
-    expect(screen.getByText(/12 of 326 Sensor\(s\)/)).toBeInTheDocument(); // the Sensor is the unit of a delete-only run
+    expect(screen.getByText(/12 of 326 Sensor\(s\) deleted/)).toBeInTheDocument(); // the Sensor is the unit of a delete-only run
     running2.unmount();
+
+    // all Sensors deleted, the vacuum that frees the space is running
+    fetchMock().mockImplementation(async () =>
+      json({ ...running, currentSensorId: undefined, currentSensorName: undefined, currentPhase: 'Vacuum', percent: 100, sensorsTotal: 326, sensorsFinished: 326, sensors: [{ sensorId: 7, name: 'A', kind: 'DeleteOnly', phase: 'Done' }] }),
+    );
+    const vacuum = renderProgress();
+    expect(await screen.findByText(/freeing the space of the deleted rows \(vacuum\)/)).toBeInTheDocument();
+    vacuum.unmount();
 
     fetchMock().mockImplementation(async () =>
       json({
