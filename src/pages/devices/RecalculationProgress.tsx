@@ -76,7 +76,9 @@ export function RecalculationProgress({ deviceId, isAdmin }: { deviceId: number;
             <MessageBarTitle>
               {RUNNING_TITLE[jobKind(data)]}: {percent.toFixed(1)} %
             </MessageBarTitle>
-            {(data.doneReadings ?? 0).toLocaleString()} of {(data.totalReadings ?? 0).toLocaleString()} values
+            {jobKind(data) === 'DeleteOnly'
+              ? `${(data.doneReadings ?? 0).toLocaleString()} of ${(data.totalReadings ?? 0).toLocaleString()} Sensor(s)`
+              : `${(data.doneReadings ?? 0).toLocaleString()} of ${(data.totalReadings ?? 0).toLocaleString()} values`}
             {data.currentSensorName ? ` — ${data.currentSensorName}: ${phase}` : ''}
             {` (${data.sensorsFinished ?? 0} of ${data.sensorsTotal ?? 0} Sensor(s) finished)`}
           </MessageBarBody>

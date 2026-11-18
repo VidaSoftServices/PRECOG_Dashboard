@@ -96,7 +96,15 @@ export function RecalculateDialog({
         <div>
           <Text weight="semibold">Deleted first</Text>
           <ul className={styles.list}>
-            <li>the calculated values: analysis results, anomaly scores and the control limits (UCL3, UCL2, LCL2, LCL3)</li>
+            {singleDeleteOnly ? (
+              <li>the calculated values: analysis results, anomaly scores and the control limits (UCL3, UCL2, LCL2, LCL3)</li>
+            ) : (
+              <li>
+                the calculated values: analysis results and anomaly scores. The control limits (UCL3, UCL2, LCL2, LCL3) are kept - they depend only on the
+                stored values, so calculating them again gives the same numbers - and only filled in where one is missing
+                {!single && deleteOnly > 0 ? ' (for a Sensor whose calculation is off they are deleted too)' : ''}
+              </li>
+            )}
             <li>every Issue that no person has reviewed (with its category suggestion and Ollama summary)</li>
             {!singleDeleteOnly && (
               <li>

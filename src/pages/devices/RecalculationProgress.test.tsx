@@ -119,6 +119,21 @@ describe('RecalculationProgress', { timeout: 20_000 }, () => {
 
     fetchMock().mockImplementation(async () =>
       json({
+        ...running,
+        totalReadings: 326,
+        doneReadings: 12,
+        percent: 3.7,
+        currentPhase: 'Deleting',
+        sensors: [{ sensorId: 7, name: 'Acceleration RMS X', kind: 'DeleteOnly', phase: 'Deleting', totalReadings: 1, doneReadings: 0 }],
+      }),
+    );
+    const running2 = renderProgress();
+    expect(await screen.findByText(/Deleting the calculated values: 3\.7 %/)).toBeInTheDocument();
+    expect(screen.getByText(/12 of 326 Sensor\(s\)/)).toBeInTheDocument(); // the Sensor is the unit of a delete-only run
+    running2.unmount();
+
+    fetchMock().mockImplementation(async () =>
+      json({
         deviceId: 4,
         exists: true,
         active: false,
