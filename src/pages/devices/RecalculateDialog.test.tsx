@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
 import { RecalculateDialog } from './RecalculateDialog';
-import { isRecalculable } from '@/lib/recalculation';
+import { isDeleteOnly, isRecalculable } from '@/lib/recalculation';
 import { AppToastProvider } from '@/components/ToastProvider';
 import type { SensorDto } from '@/api/hooks/sensors';
 import * as authStore from '@/auth/authStore';
@@ -33,11 +33,38 @@ const accepted = (body: unknown = { deviceId: 4, jobId: 'j1', sensorIds: [1], sk
 describe('RecalculateDialog', { timeout: 20_000 }, () => {
   beforeEach(() => authStore.clearSession());
 
-  it('only a Sensor with calculation on and not in maintenance can be recalculated', () => {
+  it('every Sensor not in maintenance can be recalculated; one with calculation off is only deleted from', () => {
     expect(isRecalculable(sensor(1))).toBe(true);
-    expect(isRecalculable(sensor(1, { processingEnabled: false }))).toBe(false);
+    expect(isRecalculable(sensor(1, { processingEnabled: false }))).toBe(true);
     expect(isRecalculable(sensor(1, { maintenanceMode: true }))).toBe(false);
-    expect(isRecalculable(sensor(1, { processingEnabled: undefined }))).toBe(true); // an older API sends no flag: counts as on
+    expect(isDeleteOnly(sensor(1))).toBe(false);
+    expect(isDeleteOnly(sensor(1, { processingEnabled: false }))).toBe(true);
+    expect(isDeleteOnly(sensor(1, { processingEnabled: undefined }))).toBe(false); // an older API sends no flag: counts as on
+  });
+
+  it('one Sensor with calculation off: says it is only deleted (nothing calculated) and sends the same POST', async () => {
+    const calls: string[] = [];
+    fetchMock().mockImplementation(async (input: RequestInfo | URL) => {
+      calls.push(new URL((input as Request).url).pathname);
+      return accepted({ deviceId: 4, jobId: 'j1', sensorIds: [3], deleteOnlySensorIds: [3], skipped: [] });
+    });
+    let closed = false;
+    const user = userEvent.setup();
+    const off = sensor(3, { processingEnabled: false });
+    renderDialog([off], off, () => {
+      closed = true;
+    });
+
+    expect(screen.getByText('Delete the calculated values of S3?')).toBeInTheDocument();
+    expect(screen.getByText(/only deleted - nothing is calculated/)).toBeInTheDocument();
+    expect(screen.getByText(/Switching calculation on later calculates everything again/)).toBeInTheDocument();
+    expect(screen.queryByText(/one by one, in time order/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/aggregated again/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(closed).toBe(true));
+    expect(calls).toEqual(['/api/Devices/4/Sensors/3/Recalculate']);
   });
 
   it('one Sensor: says what is deleted and what is kept, asks for confirmation, and sends one POST for that Sensor', async () => {
@@ -66,12 +93,12 @@ describe('RecalculateDialog', { timeout: 20_000 }, () => {
     expect(calls).toEqual([{ method: 'POST', path: '/api/Devices/4/Sensors/1/Recalculate' }]);
   });
 
-  it('all Sensors: the button names how many are recalculated, the others are listed as left out, and it needs the acknowledgement', async () => {
+  it('all Sensors: the button names how many are taken, calculation-off ones are only deleted from, maintenance ones left out, and it needs the acknowledgement', async () => {
     const calls: { method: string; path: string }[] = [];
     fetchMock().mockImplementation(async (input: RequestInfo | URL) => {
       const request = input as Request;
       calls.push({ method: request.method, path: new URL(request.url).pathname });
-      return accepted({ deviceId: 4, jobId: 'j1', sensorIds: [1, 2], skipped: [{ sensorId: 3, name: 'S3', reason: 'Calculation is switched off for this Sensor.' }] });
+      return accepted({ deviceId: 4, jobId: 'j1', sensorIds: [1, 2, 3], deleteOnlySensorIds: [3], skipped: [{ sensorId: 4, name: 'S4', reason: 'The Sensor is in maintenance mode.' }] });
     });
     let closed = false;
     const user = userEvent.setup();
@@ -79,13 +106,15 @@ describe('RecalculateDialog', { timeout: 20_000 }, () => {
       closed = true;
     });
 
-    expect(screen.getByText(/2 Sensor\(s\) of this Device/)).toBeInTheDocument();
-    expect(screen.getByText(/2 Sensor\(s\) are left out because calculation is switched off/)).toBeInTheDocument();
-    const confirm = screen.getByRole('button', { name: 'Recalculate 2 Sensor(s)' });
+    expect(screen.getByText(/3 Sensor\(s\) of this Device is deleted/)).toBeInTheDocument();
+    expect(screen.getByText(/1 Sensor\(s\) have calculation switched off: they are only deleted from/)).toBeInTheDocument();
+    expect(screen.getByText(/2 Sensor\(s\) are\s+recalculated/)).toBeInTheDocument();
+    expect(screen.getByText(/1 Sensor\(s\) are left out because they are in maintenance mode/)).toBeInTheDocument();
+    const confirm = screen.getByRole('button', { name: 'Recalculate 3 Sensor(s)' });
     expect(confirm).toBeDisabled();
 
     await user.click(screen.getByRole('checkbox', { name: /calculated values and the unreviewed Issues of these Sensors are deleted/ }));
-    await user.click(screen.getByRole('button', { name: 'Recalculate 2 Sensor(s)' }));
+    await user.click(screen.getByRole('button', { name: 'Recalculate 3 Sensor(s)' }));
 
     await waitFor(() => expect(closed).toBe(true));
     expect(calls).toEqual([{ method: 'POST', path: '/api/Devices/4/Recalculate' }]);

@@ -5,6 +5,7 @@ import { ErrorState } from '@/components/states/ErrorState';
 import { useAppToast } from '@/components/ToastProvider';
 import { ACTIVE_RECALCULATION_PHASES, useCancelRecalculation, useRecalculationStatus, type RecalculationStatusDto } from '@/api/hooks/recalculation';
 import { queryKeys } from '@/api/queryKeys';
+import { formatDateTimeWithZone } from '@/lib/dateTime';
 
 const useStyles = makeStyles({
   box: { display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalS, marginBottom: tokens.spacingVerticalM },
@@ -18,6 +19,20 @@ const PHASE_TEXT: Record<string, string> = {
   ControlLimits: 'calculating the control limits',
   Analysing: 'evaluating the values one by one',
 };
+
+/**
+ * What the job does, from its Sensors' kinds (Recalculate | DeleteOnly | CatchUp): a catch-up (calculation switched on) calculates what was
+ * not calculated yet, a delete-only run (Recalc with calculation off) only deletes. Mixed or unknown reads as a recalculation.
+ */
+function jobKind(data: RecalculationStatusDto): 'Recalculate' | 'DeleteOnly' | 'CatchUp' {
+  const kinds = new Set((data.sensors ?? []).filter((s) => s.phase !== 'Skipped').map((s) => s.kind ?? 'Recalculate'));
+  if (kinds.size === 1 && kinds.has('CatchUp')) return 'CatchUp';
+  if (kinds.size === 1 && kinds.has('DeleteOnly')) return 'DeleteOnly';
+  return 'Recalculate';
+}
+
+const RUNNING_TITLE = { Recalculate: 'Recalculating from the start', DeleteOnly: 'Deleting the calculated values', CatchUp: 'Calculating the values not calculated yet' };
+const FINISHED_TITLE = { Recalculate: 'Recalculation finished', DeleteOnly: 'Calculated values deleted', CatchUp: 'Calculation caught up' };
 
 /**
  * The percentage of the Device's recalculation (polled while it runs) with a Stop button for an Admin, and a short result when it ends.
@@ -41,7 +56,8 @@ export function RecalculationProgress({ deviceId, isAdmin }: { deviceId: number;
       queryClient.invalidateQueries({ queryKey: queryKeys.sensors(deviceId) });
       queryClient.invalidateQueries({ queryKey: ['issues'] });
       queryClient.invalidateQueries({ queryKey: ['telemetry'] });
-      if (data.status === 'Completed') toast.success('Recalculation finished.');
+      queryClient.invalidateQueries({ queryKey: queryKeys.calculatedUpTo(deviceId) });
+      if (data.status === 'Completed') toast.success(`${FINISHED_TITLE[jobKind(data)]}.`);
       else if (data.status === 'Cancelled') toast.info('Recalculation stopped.');
       else toast.error('Recalculation ended with errors; see the Device page.');
     }
@@ -57,7 +73,9 @@ export function RecalculationProgress({ deviceId, isAdmin }: { deviceId: number;
       <div className={styles.box} role="status" aria-live="polite">
         <MessageBar intent="info">
           <MessageBarBody>
-            <MessageBarTitle>Recalculating from the start: {percent.toFixed(1)} %</MessageBarTitle>
+            <MessageBarTitle>
+              {RUNNING_TITLE[jobKind(data)]}: {percent.toFixed(1)} %
+            </MessageBarTitle>
             {(data.doneReadings ?? 0).toLocaleString()} of {(data.totalReadings ?? 0).toLocaleString()} values
             {data.currentSensorName ? ` — ${data.currentSensorName}: ${phase}` : ''}
             {` (${data.sensorsFinished ?? 0} of ${data.sensorsTotal ?? 0} Sensor(s) finished)`}
@@ -84,16 +102,21 @@ export function RecalculationProgress({ deviceId, isAdmin }: { deviceId: number;
   const deletedIssues = (data.sensors ?? []).reduce((n, s) => n + (s.issuesDeleted ?? 0), 0);
   const keptIssues = (data.sensors ?? []).reduce((n, s) => n + (s.reviewedIssuesKept ?? 0), 0);
   const levelsReset = (data.sensors ?? []).reduce((n, s) => n + (s.aggregationLevelsReset ?? 0), 0);
+  const deleteOnly = (data.sensors ?? []).filter((s) => s.kind === 'DeleteOnly' && s.phase === 'Done').length;
+  const kind = jobKind(data);
   const intent = data.status === 'Completed' ? 'success' : 'warning';
+  let title = 'Recalculation ended with errors';
+  if (data.status === 'Completed') title = FINISHED_TITLE[kind];
+  else if (data.status === 'Cancelled') title = 'Recalculation stopped';
   return (
     <div className={styles.box}>
       <MessageBar intent={intent}>
         <MessageBarBody>
-          <MessageBarTitle>
-            {data.status === 'Completed' ? 'Recalculation finished' : data.status === 'Cancelled' ? 'Recalculation stopped' : 'Recalculation ended with errors'}
-          </MessageBarTitle>
-          {(data.doneReadings ?? 0).toLocaleString()} of {(data.totalReadings ?? 0).toLocaleString()} values evaluated; {deletedIssues} unreviewed Issue(s) replaced,{' '}
-          {keptIssues} reviewed Issue(s) kept.
+          <MessageBarTitle>{title}</MessageBarTitle>
+          {kind === 'DeleteOnly'
+            ? `${deletedIssues} unreviewed Issue(s) deleted, ${keptIssues} reviewed Issue(s) kept; nothing was calculated (calculation is switched off).`
+            : `${(data.doneReadings ?? 0).toLocaleString()} of ${(data.totalReadings ?? 0).toLocaleString()} values evaluated; ${deletedIssues} unreviewed Issue(s) replaced, ${keptIssues} reviewed Issue(s) kept.`}
+          {kind === 'Recalculate' && deleteOnly > 0 && ` ${deleteOnly} Sensor(s) with calculation off were only deleted from.`}
           {levelsReset > 0 && ` ${levelsReset} aggregation level(s) are being aggregated again in the background.`}
           {skipped.length > 0 && <Text block>Left out: {skipped.map((s) => `${s.name} (${s.note})`).join('; ')}</Text>}
           {failed.length > 0 && <Text block>Not finished: {failed.map((s) => `${s.name} (${s.note})`).join('; ')}</Text>}
@@ -106,6 +129,20 @@ export function RecalculationProgress({ deviceId, isAdmin }: { deviceId: number;
         </MessageBarActions>
       </MessageBar>
     </div>
+  );
+}
+
+/**
+ * Under a Sensor's name: the measurement time of its newest calculated value ("Calculated up to ..."), so for a Sensor whose calculation is switched
+ * off the Admin sees where it stopped, and after a Recalc where the recalculation has got. It is where the calculation STANDS, not a completeness
+ * percentage (a gap in the middle is invisible; counting readings is too expensive on the real database). Nothing is shown until the first answer.
+ */
+export function CalculatedUpToNote({ calculatedUpTo, loaded }: { calculatedUpTo: string | null | undefined; loaded: boolean }) {
+  if (!loaded) return null;
+  return (
+    <Text size={200} block style={{ color: tokens.colorNeutralForeground3 }}>
+      {calculatedUpTo ? `Calculated up to: ${formatDateTimeWithZone(calculatedUpTo)}` : 'Nothing calculated'}
+    </Text>
   );
 }
 
@@ -135,12 +172,12 @@ export function SensorRecalculationNote({ status, sensorId }: { status: Recalcul
   const done = entry.phase === 'Done' ? total : Math.min(entry.doneReadings ?? 0, total);
   const percent = entry.phase === 'Done' ? 100 : total > 0 ? Math.floor((100 * done) / total) : 0;
   const working = ACTIVE_RECALCULATION_PHASES.includes(entry.phase ?? '');
-  const text =
-    entry.phase === 'Done'
-      ? 'Recalculated: 100 %'
-      : working
-        ? `Recalculating: ${percent} % (${done.toLocaleString()} / ${total.toLocaleString()})`
-        : 'Waiting for its turn: 0 %';
+  const catchUp = entry.kind === 'CatchUp';
+  let text = 'Waiting for its turn: 0 %';
+  if (entry.phase === 'Done' && entry.kind === 'DeleteOnly') text = 'Calculated values deleted (calculation off)';
+  else if (entry.phase === 'Done') text = catchUp ? 'Caught up: 100 %' : 'Recalculated: 100 %';
+  else if (working && entry.kind === 'DeleteOnly') text = 'Deleting the calculated values';
+  else if (working) text = `${catchUp ? 'Catching up' : 'Recalculating'}: ${percent} % (${done.toLocaleString()} / ${total.toLocaleString()})`;
   return (
     <div style={{ marginTop: tokens.spacingVerticalXXS, maxWidth: '260px' }}>
       <Text size={200} block style={{ color: tokens.colorBrandForeground1 }}>

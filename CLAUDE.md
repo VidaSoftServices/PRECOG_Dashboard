@@ -748,10 +748,20 @@ Meant for Sensors that should feed the model without ever raising an Issue of th
 - Changed with `PUT .../Sensors/{sensorId}` `{ processingEnabled }` through the existing
   `useUpdateSensor`. The server audits it and does **not** treat it as retraining-relevant, so
   the dashboard shows no retraining warning for it.
-- **Switching back on never scores the backlog.** The API starts calculating from the
-  switch-on moment and ignores data measured while it was off (otherwise one request would
-  score weeks of data and open Issues for old events). The confirm dialog says so. An Issue
-  already open when the switch is turned off is left as it is.
+- **The switch decides what is calculated (2026-11-18, the user's decision; before, switching on
+  never scored the backlog).** Switching back on makes the API calculate everything that was not
+  calculated - the values stored while it was off, or deleted by a Recalc with calculation off -
+  in a background **catch-up**, one value at a time in time order, exactly as the live calculation
+  would have done (control limits, anomalies, Issues; reviewed Issues kept and not duplicated).
+  Its progress is the Device's recalculation progress (`kind: 'CatchUp'`, "Catching up: N %"), so
+  `useUpdateSensor` (when `processingEnabled` is sent) and the import refresh that query. A
+  bidirectional Sensor or one in maintenance is calculated from the switch-on moment only. The
+  confirm dialog says all this. An Issue already open when the switch is turned off is left as it is.
+- **Recalc with calculation off only deletes**: the calculated values and the unreviewed Issues
+  go, nothing is calculated, the aggregation levels are left alone - for example to free the space
+  of a Sensor that will not be calculated (`isDeleteOnly`, `src/lib/recalculation.ts`; the dialog
+  reads "Delete the calculated values of ...?"; Device-wide it says how many are only deleted from).
+  Only maintenance mode disables Recalc now.
 - Distinct from maintenance mode (which also discards the data) and from `enabled`.
 - **Import**: the sheet has an optional `processingEnabled` column (true/false, 1/0, yes/no,
   on/off, igen/nem), and the dialog has a "Calculation" default for rows that leave it empty -

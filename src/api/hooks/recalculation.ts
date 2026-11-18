@@ -31,11 +31,35 @@ export function useRecalculationStatus(deviceId: number | undefined) {
   });
 }
 
+export type DeviceCalculatedUpToDto = components['schemas']['DeviceCalculatedUpToDto'];
+
+/**
+ * How far the calculation of every Sensor of the Device has got (`GET /api/Devices/{deviceId}/Sensors/CalculatedUpTo`): per Sensor the
+ * measurement time of its newest calculated value, null when nothing is calculated. Cheap by design (the API caches it for 30 s) and
+ * refreshed every `POLL_INTERVALS_MS.calculatedUpTo`; NOT a completeness percentage - a gap in the middle is not visible.
+ * (Counting the readings was measured on production: over 30 seconds for one Device, so it is not done.)
+ */
+export function useCalculatedUpTo(deviceId: number | undefined) {
+  return useQuery({
+    queryKey: queryKeys.calculatedUpTo(deviceId ?? -1),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await apiClient.GET('/api/Devices/{deviceId}/Sensors/CalculatedUpTo', {
+          params: { path: { deviceId: deviceId! } },
+          signal,
+        }),
+      ),
+    enabled: deviceId !== undefined,
+    refetchInterval: POLL_INTERVALS_MS.calculatedUpTo,
+  });
+}
+
 /**
  * Starts the recalculation of ONE Sensor (`sensorId` given) or of every Sensor of the Device (`sensorId` omitted). Company Admin only on
  * the server; the controls that call this are shown to an Admin only, which is a UX convenience, never the security boundary. 202 on
  * success; 409 when a recalculation already runs for the Device, an Ollama job is processing, or the Sensor cannot be recalculated
- * (calculation off, maintenance, not a continuous unidirectional Sensor) - shown inline by the dialog.
+ * (maintenance, not a continuous unidirectional Sensor) - shown inline by the dialog. A Sensor whose calculation is off is only deleted
+ * from (`deleteOnlySensorIds`; its status entry has `kind: 'DeleteOnly'`).
  */
 export function useStartRecalculation(deviceId: number) {
   const queryClient = useQueryClient();

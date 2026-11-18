@@ -36,9 +36,9 @@ import { useSetSensorMaintenance } from '@/api/hooks/maintenance';
 import { MaintenanceAllDialog } from './MaintenanceAllDialog';
 import { RecalculateDialog } from './RecalculateDialog';
 import { BulkAggregationDialog } from './BulkAggregationDialog';
-import { isRecalculable } from '@/lib/recalculation';
-import { RecalculationProgress, SensorRecalculationNote } from './RecalculationProgress';
-import { useRecalculationStatus } from '@/api/hooks/recalculation';
+import { isDeleteOnly, isRecalculable } from '@/lib/recalculation';
+import { CalculatedUpToNote, RecalculationProgress, SensorRecalculationNote } from './RecalculationProgress';
+import { useCalculatedUpTo, useRecalculationStatus } from '@/api/hooks/recalculation';
 import { VisibilityDialog } from './VisibilityDialog';
 import { useDevicePrincipal } from '@/api/hooks/devicePrincipal';
 import { useTrainingRequests } from '@/api/hooks/training';
@@ -261,13 +261,23 @@ function EditSensorDialog({
  * confirm dialog and says so. Ending it is harmless and uses the same dialog
  * only for consistency.
  */
+/** The per-Sensor Recalc button's tooltip: what it will do (recalculate, or only delete when calculation is off), or why it is disabled. */
+function recalcButtonTitle(sensor: SensorDto): string {
+  if (!isRecalculable(sensor)) return 'The Sensor is in maintenance mode.';
+  if (isDeleteOnly(sensor)) return 'Calculation is switched off: deletes the calculated values and unreviewed Issues of this Sensor; nothing is calculated.';
+  return 'Delete the calculated values and unreviewed Issues of this Sensor and calculate them again from its first value.';
+}
+
 /**
  * Switches one Sensor's calculation on or off (`Sensor.processingEnabled`).
  * Off: its data is still stored and still trains the model, but new values
- * trigger no analysis, Issue detection or summary. On: calculation starts from
- * that moment and never goes back over data that arrived while it was off. The
- * change never triggers retraining. Confirmed because turning it off silences
- * Issue detection for that Sensor.
+ * trigger no analysis, Issue detection or summary. On: everything not
+ * calculated yet (the values stored while it was off, or left over by a Recalc
+ * with calculation off) is calculated in the background, one value at a time,
+ * exactly as the live calculation would have done (the API's catch-up; its
+ * progress is the Device's recalculation progress). The change never triggers
+ * retraining. Confirmed because turning it off silences Issue detection for
+ * that Sensor.
  */
 function ProcessingDialog({
   deviceId,
@@ -293,7 +303,7 @@ function ProcessingDialog({
       intent={turningOff ? 'destructive' : 'normal'}
       busy={updateSensor.isPending}
       onConfirm={async () => {
-        await updateSensor.mutateAsync({ processingEnabled: !turningOff });
+        await updateSensor.mutateAsync({ processingEnabled: !turningOff }); // also refreshes the recalculation progress (the catch-up)
         toast.success(turningOff ? `Calculation stopped: ${label}` : `Calculation resumed: ${label}`);
         onClose();
       }}
@@ -301,8 +311,8 @@ function ProcessingDialog({
     >
       <Text>
         {turningOff
-          ? 'New values for this Sensor will still be stored and still be used to train the model, but they will no longer trigger any calculation - no analysis and no Issues will be raised from this Sensor. Everything already calculated (analysis results, control limits) and every Issue that is already open is kept as it is; use Recalc to calculate it all again.'
-          : 'New values for this Sensor will trigger calculation again from now on. Values that arrived while it was off are not calculated retroactively.'}
+          ? 'New values for this Sensor will still be stored and still be used to train the model, but they will no longer trigger any calculation - no analysis and no Issues will be raised from this Sensor. Everything already calculated (analysis results, control limits) and every Issue that is already open is kept as it is; Recalc deletes them (and calculates nothing while calculation is off). Switching calculation on again calculates everything that was not calculated.'
+          : 'Everything not calculated yet - the values that arrived while calculation was off, and whatever a Recalc deleted - is calculated now in the background, one value at a time in time order, exactly as if calculation had been on all along: control limits, anomalies and Issues. Issues a person has reviewed are kept and not duplicated. The progress is shown on this page; new values are calculated as usual when it has caught up. (A bidirectional Sensor or one in maintenance mode is calculated from now on only.)'}
       </Text>
       {updateSensor.isError && <ErrorState error={updateSensor.error} />}
     </ConfirmDialog>
@@ -389,9 +399,10 @@ export function DeviceDetailPage() {
   const [recalcSensorId, setRecalcSensorId] = useState<number | null>(null);
   const [recalcAllOpen, setRecalcAllOpen] = useState(false);
   const [bulkAggregationOpen, setBulkAggregationOpen] = useState(false);
-  // One recalculation per Device at a time: while one runs every Recalc control is disabled (the API answers 409 anyway).
+  // A Recalc asked for while one runs joins the running job (it is not refused): the controls stay enabled.
   const recalcStatus = useRecalculationStatus(id);
-  const recalcActive = recalcStatus.data?.active === true;
+  const calculatedUpTo = useCalculatedUpTo(id);
+  const calculatedUpToBySensor = new Map((calculatedUpTo.data?.sensors ?? []).map((s) => [s.sensorId, s.calculatedUpTo] as const));
 
   if (deviceQuery.isLoading) return <LoadingState label="Loading device…" />;
   if (deviceQuery.isError) return <ErrorState error={deviceQuery.error} onRetry={() => deviceQuery.refetch()} />;
@@ -554,7 +565,7 @@ export function DeviceDetailPage() {
               <Button
                 icon={<ArrowSync24Regular />}
                 onClick={() => setRecalcAllOpen(true)}
-                disabled={recalcActive || !(sensorsQuery.data ?? []).some(isRecalculable)}
+                disabled={!(sensorsQuery.data ?? []).some(isRecalculable)}
               >
                 Recalc all
               </Button>
@@ -624,6 +635,7 @@ export function DeviceDetailPage() {
                     {sensor.direction} {sensor.sensorType ? `· ${sensor.sensorType}` : ''}{' '}
                     {sensor.unitLabel ?? sensor.unitCode ? `(${sensor.unitLabel ?? sensor.unitCode})` : ''}
                   </Text>
+                  <CalculatedUpToNote loaded={calculatedUpTo.data !== undefined} calculatedUpTo={calculatedUpToBySensor.get(sensor.id ?? -1)} />
                   <SensorRecalculationNote status={recalcStatus.data} sensorId={sensor.id} />
                 </div>
                 <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center' }}>
@@ -636,14 +648,8 @@ export function DeviceDetailPage() {
                       size="small"
                       icon={<ArrowSync24Regular />}
                       aria-label={`Recalculate ${sensor.name || sensor.externalSensorId} from the start`}
-                      title={
-                        !isRecalculable(sensor)
-                          ? 'Calculation is switched off or the Sensor is in maintenance mode.'
-                          : recalcActive
-                            ? 'A recalculation is already running for this Device.'
-                            : 'Delete the calculated values and unreviewed Issues of this Sensor and calculate them again from its first value.'
-                      }
-                      disabled={recalcActive || !isRecalculable(sensor)}
+                      title={recalcButtonTitle(sensor)}
+                      disabled={!isRecalculable(sensor)}
                       onClick={() => setRecalcSensorId(sensor.id!)}
                     >
                       Recalc

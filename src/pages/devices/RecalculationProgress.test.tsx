@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
-import { RecalculationProgress, SensorRecalculationNote } from './RecalculationProgress';
+import { CalculatedUpToNote, RecalculationProgress, SensorRecalculationNote } from './RecalculationProgress';
 import type { RecalculationStatusDto } from '@/api/hooks/recalculation';
 import { AppToastProvider } from '@/components/ToastProvider';
 import * as authStore from '@/auth/authStore';
@@ -109,6 +109,30 @@ describe('RecalculationProgress', { timeout: 20_000 }, () => {
     expect(screen.queryByText('Recalculation finished')).not.toBeInTheDocument();
   });
 
+  it('a catch-up (calculation switched on) and a delete-only run (Recalc with calculation off) are named for what they do', async () => {
+    fetchMock().mockImplementation(async () =>
+      json({ ...running, sensors: [{ sensorId: 7, name: 'Acceleration RMS X', kind: 'CatchUp', phase: 'Analysing', totalReadings: 10, doneReadings: 3 }] }),
+    );
+    const first = renderProgress();
+    expect(await screen.findByText(/Calculating the values not calculated yet: 37\.2 %/)).toBeInTheDocument();
+    first.unmount();
+
+    fetchMock().mockImplementation(async () =>
+      json({
+        deviceId: 4,
+        exists: true,
+        active: false,
+        jobId: 'j2',
+        status: 'Completed',
+        finishedAt: new Date().toISOString(),
+        sensors: [{ sensorId: 2, name: 'S2', kind: 'DeleteOnly', phase: 'Done', issuesDeleted: 4, reviewedIssuesKept: 1 }],
+      }),
+    );
+    renderProgress();
+    expect(await screen.findByText('Calculated values deleted')).toBeInTheDocument();
+    expect(screen.getByText(/4 unreviewed Issue\(s\) deleted, 1 reviewed Issue\(s\) kept; nothing was calculated/)).toBeInTheDocument();
+  });
+
   it('an old finished run is not shown again when the page is opened later', async () => {
     fetchMock().mockImplementation(async () =>
       json({ deviceId: 4, exists: true, active: false, jobId: 'j1', status: 'Completed', finishedAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), sensors: [] }),
@@ -116,6 +140,28 @@ describe('RecalculationProgress', { timeout: 20_000 }, () => {
     const { container } = renderProgress();
     await waitFor(() => expect(fetchMock()).toHaveBeenCalled());
     await waitFor(() => expect(container.textContent).toBe(''));
+  });
+});
+
+describe('CalculatedUpToNote', () => {
+  const show = (loaded: boolean, value: string | null | undefined) =>
+    render(
+      <FluentProvider theme={webLightTheme}>
+        <CalculatedUpToNote loaded={loaded} calculatedUpTo={value} />
+      </FluentProvider>,
+    );
+
+  it('shows where the calculation stands, says when nothing is calculated, and nothing before the first answer', () => {
+    const waiting = show(false, undefined);
+    expect(waiting.container.textContent).toBe('');
+    waiting.unmount();
+
+    const none = show(true, null);
+    expect(screen.getByText('Nothing calculated')).toBeInTheDocument();
+    none.unmount();
+
+    show(true, '2026-11-10T14:03:12Z');
+    expect(screen.getByText(/^Calculated up to: .*2026/)).toBeInTheDocument();
   });
 });
 
@@ -145,6 +191,22 @@ describe('SensorRecalculationNote', () => {
     second.unmount();
     show(s, 3);
     expect(screen.getByText('Waiting for its turn: 0 %')).toBeInTheDocument();
+  });
+
+  it('a catch-up Sensor reads "Catching up" / "Caught up", a delete-only one says its values were deleted', () => {
+    const s = status([
+      { sensorId: 1, name: 'A', kind: 'CatchUp', phase: 'Analysing', totalReadings: 200, doneReadings: 100 },
+      { sensorId: 2, name: 'B', kind: 'CatchUp', phase: 'Done', totalReadings: 5, doneReadings: 5 },
+      { sensorId: 3, name: 'C', kind: 'DeleteOnly', phase: 'Done' },
+    ]);
+    const a = show(s, 1);
+    expect(screen.getByText('Catching up: 50 % (100 / 200)')).toBeInTheDocument();
+    a.unmount();
+    const b = show(s, 2);
+    expect(screen.getByText('Caught up: 100 %')).toBeInTheDocument();
+    b.unmount();
+    show(s, 3);
+    expect(screen.getByText('Calculated values deleted (calculation off)')).toBeInTheDocument();
   });
 
   it('says why a Sensor was left out, shows nothing for a Sensor that is not in the run, and goes quiet a while after the run ended', () => {

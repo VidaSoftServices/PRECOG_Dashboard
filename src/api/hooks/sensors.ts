@@ -67,10 +67,13 @@ export function useUpdateSensor(deviceId: number, sensorId: number) {
           body,
         }),
       ),
-    onSuccess: (updated) => {
+    onSuccess: (updated, body) => {
       queryClient.setQueryData(queryKeys.sensor(deviceId, sensorId), updated);
       queryClient.invalidateQueries({ queryKey: queryKeys.sensors(deviceId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.sensorTypes });
+      // Calculation switched on starts the API's catch-up (switched off stops a running one): the Device's recalculation progress shows it.
+      if (body.processingEnabled !== undefined && body.processingEnabled !== null)
+        queryClient.invalidateQueries({ queryKey: queryKeys.recalculation(deviceId) });
     },
   });
 }
@@ -377,6 +380,7 @@ export function useImportSensors(deviceId: number) {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sensors(deviceId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.sensorTypes });
+      queryClient.invalidateQueries({ queryKey: queryKeys.recalculation(deviceId) }); // a Calculate cell switched on starts a catch-up
     },
   });
 }

@@ -20,6 +20,11 @@ export const POLL_INTERVALS_MS = {
    * a job is active - the query stops at a terminal status.
    */
   recalculationProgress: 5_000,
+  /**
+   * "Calculated up to" of every Sensor on the Device page. One request per Device; the API reads it from the database at most every 30 seconds
+   * (a few index look-ups per Sensor, about 1.6 s for 326 Sensors on production), so polling faster than that would only ask the cache.
+   */
+  calculatedUpTo: 30_000,
   /** TrainingRequest or Ollama job while in an active (non-terminal) state. */
   activeJob: 5_000,
   /**
