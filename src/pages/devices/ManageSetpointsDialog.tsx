@@ -182,7 +182,7 @@ export function ManageSetpointsDialog({ deviceId, open, onClose }: { deviceId: n
           <DialogTitle>{t('Manage Setpoints')}</DialogTitle>
           <DialogContent className={styles.content}>
             <Text size={200} className={styles.muted}>
-              {t('Export every setpoint interval of every Sensor of this Device, edit the sheet, and import the whole sheet back. For every Sensor that appears in the sheet, its stored setpoints become')}{' '}<b>{t('exactly the rows of the sheet')}</b>{t(': a row you delete removes that interval, a row you add creates one, a changed row replaces its interval (the interval is identified by its')}{' '}<b>{t('validFrom')}</b>{t('). A Sensor that keeps only its name (an empty row) loses')}{' '}<b>{t('all')}</b> {t('its setpoints. A Sensor that is')}{' '}<b>{t('not in the sheet at all is not touched')}</b>{t('. Dates are UTC; empty validTo = open-ended.')}</Text>
+              {t('Export every setpoint interval of every Sensor of this Device, edit the sheet, and import the whole sheet back. For every Sensor that appears in the sheet, its stored setpoints become')}{' '}<b>{t('exactly the rows of the sheet')}</b>{t(': a row you delete removes that interval, a row you add creates one, a changed row replaces its interval (the interval is identified by its')}{' '}<b>{t('ValidFrom')}</b>{t('). A Sensor that keeps only its name (an empty row) loses')}{' '}<b>{t('all')}</b> {t('its setpoints. A Sensor that is')}{' '}<b>{t('not in the sheet at all is not touched')}</b>{t('. Dates are UTC; empty validTo = open-ended.')}</Text>
 
             <div className={styles.row}>
               <Button icon={<ArrowDownload24Regular />} onClick={() => void exportAll()} disabled={exporting || !sensorsQuery.isSuccess}>

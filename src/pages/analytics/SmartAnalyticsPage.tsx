@@ -40,7 +40,7 @@ import { findSameSensor } from '@/lib/sensorLink';
 import { useDeviceAggregationPolicies } from '@/api/hooks/deviceConfiguration';
 import { useAggregatedPoints } from '@/api/hooks/aggregatedPoints';
 import { AggregationSelect } from '@/components/AggregationSelect';
-import { levelOfSensorByKey, levelsOfSensors, type LevelPolicy } from '@/lib/aggregationLevels';
+import { aggregatedRange, levelsOfSensor, levelsOfSensors, MIN_AGGREGATED_BUCKETS as MIN_BUCKETS_SHOWN, pickLevel, type LevelPolicy } from '@/lib/aggregationLevels';
 import { toApiIso, formatDateTime, parseApiDate } from '@/lib/dateTime';
 import { useAuth } from '@/auth/AuthContext';
 import { useBreakpoint } from '@/lib/useMediaQuery';
@@ -113,10 +113,7 @@ function TruncationNotice({ labels, lengths }: { labels: string[]; lengths: numb
   );
 }
 
-/** A Sensor whose calculation is switched off (no analysis, no Issues, not part of the model) is listed grey, with a text marker (never colour alone). */
-function calculationOffStyle(sensor: { processingEnabled?: boolean | null }): React.CSSProperties | undefined {
-  return sensor.processingEnabled === false ? { color: tokens.colorNeutralForeground4, fontStyle: 'italic' } : undefined;
-}
+/** A Sensor whose calculation is switched off (no analysis, no Issues, not part of the model) is marked with the text "Calculation off". */
 function calculationOffSuffix(sensor: { processingEnabled?: boolean | null }, t: (text: string) => string): string {
   return sensor.processingEnabled === false ? ` · ${t('Calculation off')}` : '';
 }
@@ -192,15 +189,20 @@ function SensorAnalytics({
     });
   });
   // The aggregated buckets of the same Sensors for the chosen level (a Sensor without that level has none).
+  // A Sensor that lacks the chosen level gets the closest one (by bucket length); a Sensor with no level at all has none.
+  const levelsAvailable = levelsOfSensors(levelPolicies, sensors.map((x) => x.id!));
+  const preference = levelKey === '' ? undefined : levelsAvailable.find((l) => l.key === levelKey);
+  const aggregatedLevels = effectiveSelection.map((sensorId) => pickLevel(levelsOfSensor(levelPolicies, sensorId), preference));
+  const bucketMs = preference?.bucketMs ?? 86_400_000;
+  const widenedRange = aggregatedRange(start, end, bucketMs);
   const aggregatedQueries = slots.map((i) => {
     const sensorId = effectiveSelection[i];
-    const level = levelKey === '' ? undefined : levelOfSensorByKey(levelPolicies, sensorId, levelKey);
+    const level = aggregatedLevels[i];
     // eslint-disable-next-line react-hooks/rules-of-hooks
     return useAggregatedPoints({
-      deviceId, sensorId, policyId: level?.policyId, range: { startDate: toApiIso(start), endDate: toApiIso(end) }, enabled: level !== undefined, refetchMs: 30_000,
+      deviceId, sensorId, policyId: level?.policyId, range: { startDate: widenedRange.startDate, endDate: widenedRange.endDate }, enabled: level !== undefined, refetchMs: 30_000,
     });
   });
-  const aggregatedLevels = effectiveSelection.map((sensorId) => (levelKey === '' ? undefined : levelOfSensorByKey(levelPolicies, sensorId, levelKey)));
 
   if (sensorsQuery.isLoading || deviceQuery.isLoading) return <LoadingState label={t('Loading sensors…')} />;
   if (sensorsQuery.isError) return <ErrorState error={sensorsQuery.error} onRetry={() => sensorsQuery.refetch()} />;
@@ -212,7 +214,6 @@ function SensorAnalytics({
     );
   }
 
-  const levelsAvailable = levelsOfSensors(levelPolicies, sensors.map((x) => x.id!));
   const stepSensor = (delta: -1 | 1) => {
     const ids = visibleSensors.map((x) => x.id!);
     const next = ids.indexOf(effectiveSelection[0] ?? -1) + delta;
@@ -254,6 +255,10 @@ function SensorAnalytics({
         <Card className={styles.card}>
           {anyLoading && <LoadingState label={t('Loading telemetry…')} />}
           {firstError && <ErrorState error={firstError.error} />}
+          {levelKey !== '' && widenedRange.widened && (
+            <Text size={200} style={{ display: 'block', color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalXS }}>
+              {t('The chosen range holds too few buckets of this aggregation, so the chart starts earlier (at least {0} buckets are shown).', MIN_BUCKETS_SHOWN)}</Text>
+          )}
           {withoutLevel.length > 0 && (
             <MessageBar intent="info" style={{ marginBottom: tokens.spacingVerticalM }}>
               <MessageBarBody>{t('No such aggregation level on')}{' '}{withoutLevel.join(', ')}.</MessageBarBody>
@@ -277,7 +282,7 @@ function SensorAnalytics({
               showControlLimits={series.length === 1}
               // One Sensor: the platform's full reference set as the API stored it (Target, Tolerance, UCL3/UCL2/LCL2/LCL3 and their bands),
               // like the enlarged Live Monitoring chart. Several Sensors stay a clean overlay without limits.
-              detailedLimits={series.length === 1 && levelKey === ''}
+              detailedLimits={series.length === 1}
               height={360}
             />
           )}
@@ -306,7 +311,6 @@ function SensorAnalytics({
               visibleSensors.map((sensor) => (
                 <Checkbox
                   key={sensor.id}
-                  style={calculationOffStyle(sensor)}
                   label={`${sensor.name || sensor.externalSensorId} (${sensor.direction})${calculationOffSuffix(sensor, t)}`}
                   checked={effectiveSelection.includes(sensor.id!)}
                   onChange={(_, d) => {
@@ -325,7 +329,7 @@ function SensorAnalytics({
               // Single Sensor: exactly one is chosen; picking another replaces it.
               <RadioGroup aria-label={t('Sensor')} value={String(effectiveSelection[0] ?? '')} onChange={(_, d) => setSelectedSensorIds([Number(d.value)])}>
                 {visibleSensors.map((sensor) => (
-                  <Radio key={sensor.id} value={String(sensor.id)} style={calculationOffStyle(sensor)} label={`${sensor.name || sensor.externalSensorId} (${sensor.direction})${calculationOffSuffix(sensor, t)}`} />
+                  <Radio key={sensor.id} value={String(sensor.id)} label={`${sensor.name || sensor.externalSensorId} (${sensor.direction})${calculationOffSuffix(sensor, t)}`} />
                 ))}
               </RadioGroup>
             )}
@@ -466,7 +470,7 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
           <Input aria-label={t('Filter Device A Sensors')} placeholder={t('Filter Sensors by name…')} contentBefore={<Search24Regular />} value={filterA} onChange={(_, d) => setFilterA(d.value)} />
           <Select aria-label={t('Device A Sensor')} value={effectiveSensorA !== undefined ? String(effectiveSensorA) : ''} onChange={(_, d) => chooseA(Number(d.value))}>
             {optionsA.map((s) => (
-              <option key={s.id} value={s.id} style={calculationOffStyle(s)}>
+              <option key={s.id} value={s.id}>
                 {s.name || s.externalSensorId}{calculationOffSuffix(s, t)}
               </option>
             ))}
@@ -495,7 +499,7 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
           <Input aria-label={t('Filter Device B Sensors')} placeholder={t('Filter Sensors by name…')} contentBefore={<Search24Regular />} value={filterB} onChange={(_, d) => setFilterB(d.value)} />
           <Select aria-label={t('Device B Sensor')} value={effectiveSensorB !== undefined ? String(effectiveSensorB) : ''} onChange={(_, d) => chooseB(Number(d.value))}>
             {optionsB.map((s) => (
-              <option key={s.id} value={s.id} style={calculationOffStyle(s)}>
+              <option key={s.id} value={s.id}>
                 {s.name || s.externalSensorId}{calculationOffSuffix(s, t)}
               </option>
             ))}
@@ -503,15 +507,6 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
         </div>
       </div>
 
-      {!provenCompatible && (
-        <MessageBar intent="warning" style={{ marginBottom: tokens.spacingVerticalM }}>
-          <MessageBarBody>
-            <MessageBarTitle>{t('Not proven compatible')}</MessageBarTitle>
-            {stream?.failures?.join(' ') ??
-              t('These Sensors have not been proven compatible (matching SensorType, convertible units, and matching aggregation configuration).')}{' '}
-            {t('They are drawn in one chart as you selected them; the values are not converted or aligned.')}</MessageBarBody>
-        </MessageBar>
-      )}
       {unitsDiffer && (
         <MessageBar intent="warning" style={{ marginBottom: tokens.spacingVerticalM }}>
           <MessageBarBody>
@@ -552,14 +547,24 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
         </>
       )}
 
-      {isAdmin && (
-        <div style={{ marginTop: tokens.spacingVerticalM }}>
+      {/* Plain notes at the bottom (not highlighted): the compatibility result and what this view does. */}
+      <div style={{ marginTop: tokens.spacingVerticalM }}>
+        {isAdmin && (
           <Button icon={<Share24Regular />} onClick={() => navigate(`/knowledge-sharing?sourceDeviceId=${deviceIdA}&targetDeviceId=${deviceIdB}`)}>
             {t('Start knowledge sharing between these Devices')}</Button>
+        )}
+        {!provenCompatible && (
+          <Text size={200} style={{ display: 'block', color: tokens.colorNeutralForeground3, marginTop: tokens.spacingVerticalXXS }}>
+            <b>{t('Not proven compatible')}</b>{' '}
+            {stream?.failures?.join(' ') ??
+              t('These Sensors have not been proven compatible (matching SensorType, convertible units, and matching aggregation configuration).')}{' '}
+            {t('They are drawn in one chart as you selected them; the values are not converted or aligned.')}</Text>
+        )}
+        {isAdmin && (
           <Text size={200} style={{ display: 'block', color: tokens.colorNeutralForeground3, marginTop: tokens.spacingVerticalXXS }}>
             {t('This comparison view only visualizes data - it does not itself approve sharing, remap Sensors, or affect training.')}</Text>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

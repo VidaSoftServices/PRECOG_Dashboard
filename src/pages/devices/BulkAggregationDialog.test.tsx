@@ -254,7 +254,7 @@ describe('BulkAggregationDialog: CSV import and export', { timeout: 30_000 }, ()
 
     await waitFor(() => expect(downloads).toHaveLength(1));
     expect(downloads[0]?.name).toBe('aggregation-device-4.csv');
-    expect(downloads[0]?.content).toContain('sensorName,level,timeScale,aggregationFunction,scale,lookback,minIssueScore,minEvaluation');
+    expect(downloads[0]?.content).toContain('SensorName,Level,TimeScale,AggregationFunction,Scale,Lookback,MinIssueScore,MinEvaluation,Calculate');
     expect(downloads[0]?.content).toContain('ext-1,1 day,Days,AVG,Periods,60,3,25');
     expect(downloads[0]?.content).not.toContain('Native');
   });
@@ -275,7 +275,7 @@ describe('BulkAggregationDialog: sample download and upload button', { timeout: 
 
     expect(downloads).toHaveLength(1);
     expect(downloads[0]?.name).toBe('aggregation-template.csv');
-    expect(downloads[0]?.content).toContain('sensorName,level,timeScale,aggregationFunction,scale,lookback,minIssueScore,minEvaluation');
+    expect(downloads[0]?.content).toContain('SensorName,Level,TimeScale,AggregationFunction,Scale,Lookback,MinIssueScore,MinEvaluation,Calculate');
     expect(downloads[0]?.content).toContain('ext-1,daily average,Days,AVG,Periods,60,3,10');
   });
 

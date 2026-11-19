@@ -9,11 +9,21 @@ type AggregatedValueDto = components['schemas']['AggregatedValueDto'];
 const MAX_BUCKETS = 5000;
 
 /**
- * A calculated bucket as a chart point: its value at the START of the bucket. An aggregated bucket has no target, tolerance or control limits of
- * its own (the setpoint of a slice and the evaluation are the platform's business); only the value is drawn.
+ * A calculated bucket as a chart point: its value at the START of the bucket, with the reference values the API calculated for it (the Target / Tolerance of
+ * its setpoint and UCL3 / UCL2 / LCL2 / LCL3 of the level's own values) - the same lines as a chart of the raw readings.
  */
 export function bucketToPoint(sensorId: number, bucket: AggregatedValueDto): TelemetryPoint {
-  return { sensorId, measured: bucket.bucketStart, actual: bucket.value ?? null };
+  return {
+    sensorId,
+    measured: bucket.bucketStart,
+    actual: bucket.value ?? null,
+    target: bucket.target ?? null,
+    tolerance: bucket.tolerance ?? null,
+    upperControlLimit3S: bucket.upperControlLimit3S ?? null,
+    upperControlLimit2S: bucket.upperControlLimit2S ?? null,
+    lowerControlLimit2S: bucket.lowerControlLimit2S ?? null,
+    lowerControlLimit3S: bucket.lowerControlLimit3S ?? null,
+  };
 }
 
 export interface AggregatedPointsArgs {

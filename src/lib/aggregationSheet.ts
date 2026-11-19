@@ -1,4 +1,4 @@
-import { SCALES, csvField, detectDelimiter, normalizeHeader, splitDelimited } from '@/lib/sensorImport';
+import { SCALES, csvField, detectDelimiter, normalizeHeader, parseBoolean, splitDelimited } from '@/lib/sensorImport';
 import { AGGREGATION_FUNCTION_OPTIONS, DEFAULT_MIN_EVALUATION_PERCENT, TIME_SCALE_OPTIONS } from '@/lib/aggregationOptions';
 import { isRawPolicy } from '@/lib/policies';
 
@@ -6,7 +6,7 @@ import { isRawPolicy } from '@/lib/policies';
  * The aggregation sheet: one row per (Sensor, aggregation level), read and written as CSV, so the same level can be given to many Sensors
  * (also from a file somebody else prepared) and the levels a Device has can be exported, edited in Excel and imported again.
  *
- *   sensorName, level, timeScale, aggregationFunction, scale, lookback, minIssueScore, minEvaluation
+ *   sensorName, level, timeScale, aggregationFunction, scale, lookback, minIssueScore, minEvaluation, calculate
  *
  * - `sensorName` is the Sensor's `externalSensorId` (the display name is accepted as a fallback; `externalSensorId`, `machineName`, `sensorId`
  *   and `tag` are header aliases).
@@ -14,6 +14,8 @@ import { isRawPolicy } from '@/lib/policies';
  *   typo does not silently drop a column.
  * - `minIssueScore` and `minEvaluation` are optional (the API defaults are 1 and 10); the rest is required on every row. `minEvaluation` is the
  *   minimum evaluation in percent (0-100): the open bucket of the level is evaluated for anomalies only once it covers that share of its length.
+ * - `calculate` is optional (default true): the level's calculation switch. false = the level is only aggregated (buckets and charts, for looking at the data),
+ *   never evaluated - no anomaly, no Issue. Accepts true/false, 1/0, yes/no, on/off, igen/nem (aliases: `calculation`, `calculationEnabled`).
  * - There is NO time zone column: the bucket boundaries always follow the Device's time zone (set on the Device). An old sheet that still has a
  *   `timeZone` / `tz` column is read and the column is ignored without a warning.
  * - Names are case-insensitive and tolerate spaces/underscores in the header; `,` `;` and tab are all read.
@@ -21,11 +23,12 @@ import { isRawPolicy } from '@/lib/policies';
  * - Rows with the same settings are grouped, so a sheet of 142 Sensors with three levels is three requests, not 426.
  * - Validation is all-or-nothing before the first request (like the Sensor import): every problem is listed with its sheet line.
  */
-export const AGGREGATION_SHEET_HEADERS = ['sensorName', 'level', 'timeScale', 'aggregationFunction', 'scale', 'lookback', 'minIssueScore', 'minEvaluation'] as const;
+/** Written header names are UpperCamelCase like every import / export sheet of the dashboard; reading ignores case, so older sheets still import. */
+export const AGGREGATION_SHEET_HEADERS = ['SensorName', 'Level', 'TimeScale', 'AggregationFunction', 'Scale', 'Lookback', 'MinIssueScore', 'MinEvaluation', 'Calculate'] as const;
 
 export const MAX_AGGREGATION_SHEET_ROWS = 5000;
 
-type Field = 'sensor' | 'timeScale' | 'aggregationFunction' | 'scale' | 'lookback' | 'minIssueScore' | 'minEvaluation';
+type Field = 'sensor' | 'timeScale' | 'aggregationFunction' | 'scale' | 'lookback' | 'minIssueScore' | 'minEvaluation' | 'calculate';
 
 const ALIASES: Record<string, Field> = {
   sensorname: 'sensor',
@@ -44,6 +47,9 @@ const ALIASES: Record<string, Field> = {
   minissuescore: 'minIssueScore',
   minevaluation: 'minEvaluation',
   minevaluationpercent: 'minEvaluation',
+  calculate: 'calculate',
+  calculation: 'calculate',
+  calculationenabled: 'calculate',
 };
 
 /** Columns that are read and thrown away on purpose - no warning (a label, a remark, and the time zone an older sheet still has: it is the Device's now). */
@@ -72,6 +78,8 @@ export interface AggregationGroup {
   minIssueScore: number | null;
   /** Minimum evaluation in percent (0-100); null = not given, the API default (10) applies. */
   minEvaluationPercent: number | null;
+  /** The level's calculation switch; null = not given, the API default (true: evaluated) applies. */
+  calculationEnabled: boolean | null;
   sensorIds: number[];
 }
 
@@ -114,7 +122,7 @@ export function parseAggregationSheet(text: string, sensors: readonly SheetSenso
 
   const missing = (['sensor', 'timeScale', 'aggregationFunction', 'scale', 'lookback'] as const).filter((f) => !columns.has(f));
   if (missing.length > 0) {
-    const names: Record<Field, string> = { sensor: 'sensorName', timeScale: 'timeScale', aggregationFunction: 'aggregationFunction', scale: 'scale', lookback: 'lookback', minIssueScore: 'minIssueScore', minEvaluation: 'minEvaluation' };
+    const names: Record<Field, string> = { sensor: 'sensorName', timeScale: 'timeScale', aggregationFunction: 'aggregationFunction', scale: 'scale', lookback: 'lookback', minIssueScore: 'minIssueScore', minEvaluation: 'minEvaluation', calculate: 'calculate' };
     return empty([{ line: 1, field: 'header', message: `Required column(s) missing: ${missing.map((m) => names[m]).join(', ')}.` }], ignored);
   }
   if (table.length === 0) return empty([{ line: 0, field: 'file', message: 'The sheet has a header but no rows.' }], ignored);
@@ -167,7 +175,14 @@ export function parseAggregationSheet(text: string, sensors: readonly SheetSenso
       }
     }
 
+    let calculationEnabled: boolean | null = null;
+    if (cell('calculate') !== '') {
+      calculationEnabled = parseBoolean(cell('calculate'));
+      if (calculationEnabled === null) fail('calculate', `"${cell('calculate')}" must be true or false (also 1/0, yes/no, on/off, igen/nem).`);
+    }
+
     if (!sensor || sensor.id == null || !timeScale || !fn || !scale || lookback === null || lookback < 1) return;
+    if (cell('calculate') !== '' && calculationEnabled === null) return;
     if (minIssueScore === null && cell('minIssueScore') !== '') return;
     if (cell('minEvaluation') !== '' && minEvaluationPercent === null) return;
 
@@ -179,10 +194,10 @@ export function parseAggregationSheet(text: string, sensors: readonly SheetSenso
     }
     seen.set(identity, line);
 
-    const key = [timeScale, fn, scale, lookback, minIssueScore ?? '', minEvaluationPercent ?? ''].join('|');
+    const key = [timeScale, fn, scale, lookback, minIssueScore ?? '', minEvaluationPercent ?? '', calculationEnabled ?? ''].join('|');
     let group = groups.get(key);
     if (!group) {
-      group = { timeScale, aggregationFunction: fn, scale, lookback, minIssueScore, minEvaluationPercent, sensorIds: [] };
+      group = { timeScale, aggregationFunction: fn, scale, lookback, minIssueScore, minEvaluationPercent, calculationEnabled, sensorIds: [] };
       groups.set(key, group);
     }
     group.sensorIds.push(sensor.id);
@@ -202,7 +217,7 @@ export function parseAggregationSheet(text: string, sensors: readonly SheetSenso
 export function describeGroup(group: AggregationGroup): string {
   const scale = TIME_SCALE_OPTIONS.find((o) => o.value === group.timeScale)?.label ?? group.timeScale;
   const fn = AGGREGATION_FUNCTION_OPTIONS.find((o) => o.value === group.aggregationFunction)?.label ?? group.aggregationFunction;
-  return `${scale} · ${fn} · lookback ${group.lookback} ${group.scale}${group.minIssueScore !== null ? ` · min issue score ${group.minIssueScore}` : ''}${group.minEvaluationPercent !== null ? ` · min evaluation ${group.minEvaluationPercent} %` : ''}`;
+  return `${scale} · ${fn} · lookback ${group.lookback} ${group.scale}${group.minIssueScore !== null ? ` · min issue score ${group.minIssueScore}` : ''}${group.minEvaluationPercent !== null ? ` · min evaluation ${group.minEvaluationPercent} %` : ''}${group.calculationEnabled === false ? ' · calculation off' : ''}`;
 }
 
 export interface ExportAggregationPolicy {
@@ -216,6 +231,7 @@ export interface ExportAggregationPolicy {
   minIssueScore?: number | null;
   enabled?: boolean | null;
   minEvaluationPercent?: number | null;
+  calculationEnabled?: boolean | null;
 }
 
 const BOM = String.fromCharCode(0xfeff);
@@ -243,6 +259,7 @@ export function buildAggregationExportCsv(policies: readonly ExportAggregationPo
       p.lookback ?? '',
       p.minIssueScore ?? '',
       p.minEvaluationPercent ?? DEFAULT_MIN_EVALUATION_PERCENT,
+      p.calculationEnabled === false ? 'false' : 'true',
     ]
       .map((v) => csvField(v))
       .join(',');
@@ -263,9 +280,9 @@ export function buildAggregationTemplateCsv(sensors: readonly SheetSensor[]): st
   const named = sensors.filter((s) => s.externalSensorId || s.name);
   const name = (index: number) => named[index]?.externalSensorId ?? named[index]?.name ?? `sensor_name_${index + 1}`;
   const examples: (string | number)[][] = [
-    [name(0), 'daily average', 'Days', 'AVG', 'Periods', 60, 3, 10],
-    [name(0), 'daily 95th percentile', 'Days', 'P95', 'Periods', 60, 3, 10],
-    [name(named.length > 1 ? 1 : 0), 'hourly maximum', 'Hours', 'MAX', 'Periods', 336, 2, 10],
+    [name(0), 'daily average', 'Days', 'AVG', 'Periods', 60, 3, 10, 'true'],
+    [name(0), 'daily 95th percentile', 'Days', 'P95', 'Periods', 60, 3, 10, 'true'],
+    [name(named.length > 1 ? 1 : 0), 'hourly maximum (to look at only)', 'Hours', 'MAX', 'Periods', 336, 2, 10, 'false'],
   ];
   return BOM + [AGGREGATION_SHEET_HEADERS.join(','), ...examples.map((row) => row.map((v) => csvField(v)).join(','))].join('\r\n') + '\r\n';
 }

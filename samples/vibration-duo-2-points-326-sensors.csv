@@ -1,4 +1,4 @@
-﻿sensorName,displayName,direction,sensorType,unitCode,rawScale,rawLookback,rawMinIssueScore,processingEnabled
+﻿SensorName,DisplayName,Direction,SensorType,UnitCode,RawScale,RawLookback,RawMinIssueScore,ProcessingEnabled
 acceleration_rms_x_eq_1,Acceleration RMS X (equivalent RMS) - point 1,lowerisbetter,acceleration RMS X,g,,,,
 acceleration_rms_x_max_1,Acceleration RMS X (maximum) - point 1,lowerisbetter,acceleration RMS X,g,,,,
 acceleration_rms_y_eq_1,Acceleration RMS Y (equivalent RMS) - point 1,lowerisbetter,acceleration RMS Y,g,,,,

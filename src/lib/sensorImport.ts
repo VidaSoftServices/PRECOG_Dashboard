@@ -60,24 +60,24 @@ export type SetpointColumn = (typeof SETPOINT_COLUMNS)[number];
 /** Target/tolerance values of one row; only the fields the sheet filled are present. */
 export type SetpointValues = Partial<Record<SetpointColumn, number>>;
 
-/** Header row of the downloadable template. (`Calculate` is the Sensor's processingEnabled switch; A header may end in "(optional)" - `target (optional)` is the `target` column. The `sensorName` column holds the Sensor's externalSensorId, `displayName` its name; `externalSensorId`, `machineName`, `name` and the former `quantityKind` / `quantity` headers are accepted as aliases.) */
+/** Header row of the downloadable template - UpperCamelCase like every sheet of the dashboard; reading ignores case. (`Calculate` is the Sensor's processingEnabled switch; A header may end in "(optional)" - `target (optional)` is the `target` column. The `sensorName` column holds the Sensor's externalSensorId, `displayName` its name; `externalSensorId`, `machineName`, `name` and the former `quantityKind` / `quantity` headers are accepted as aliases.) */
 export const TEMPLATE_HEADERS = [
-  'sensorName',
-  'displayName',
-  'direction',
-  'sensorType',
-  'unitCode',
-  'rawScale',
-  'rawLookback',
-  'rawMinIssueScore',
+  'SensorName',
+  'DisplayName',
+  'Direction',
+  'SensorType',
+  'UnitCode',
+  'RawScale',
+  'RawLookback',
+  'RawMinIssueScore',
   'Calculate',
   'Visible',
-  'target (optional)',
-  'tolerance (optional)',
-  'targetAbove (optional)',
-  'targetBelow (optional)',
-  'toleranceAbove (optional)',
-  'toleranceBelow (optional)',
+  'Target (optional)',
+  'Tolerance (optional)',
+  'TargetAbove (optional)',
+  'TargetBelow (optional)',
+  'ToleranceAbove (optional)',
+  'ToleranceBelow (optional)',
 ] as const;
 
 /**
@@ -388,7 +388,7 @@ export const TRUE_WORDS = ['true', '1', 'yes', 'y', 'on', 'igen', 'be', 'x'];
 export const FALSE_WORDS = ['false', '0', 'no', 'n', 'off', 'nem', 'ki'];
 
 /** Accepts the words an Excel user would type (true/false, 1/0, yes/no, on/off, igen/nem); null for anything else. */
-function parseBoolean(raw: string): boolean | null {
+export function parseBoolean(raw: string): boolean | null {
   const key = raw.trim().toLowerCase();
   if (TRUE_WORDS.includes(key)) return true;
   if (FALSE_WORDS.includes(key)) return false;
@@ -583,7 +583,7 @@ export interface SensorIdMapEntry {
 /** `externalSensorId,sensorId,name` - the numeric Device-scoped ids a Device's firmware needs, in id order. */
 export function buildSensorIdMapCsv(entries: SensorIdMapEntry[]): string {
   const sorted = [...entries].sort((a, b) => a.sensorId - b.sensorId);
-  return BOM + ['externalSensorId,sensorId,name', ...sorted.map((e) => [e.externalSensorId, e.sensorId, e.name].map(csvField).join(','))].join('\r\n') + '\r\n';
+  return BOM + ['ExternalSensorId,SensorId,Name', ...sorted.map((e) => [e.externalSensorId, e.sensorId, e.name].map(csvField).join(','))].join('\r\n') + '\r\n';
 }
 
 export type SetpointMerge =

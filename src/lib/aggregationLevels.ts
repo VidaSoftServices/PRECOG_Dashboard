@@ -9,6 +9,7 @@ export interface LevelPolicy {
   timeScale?: string | null;
   aggregationFunction?: string | null;
   enabled?: boolean | null;
+  calculationEnabled?: boolean | null;
 }
 
 /** One aggregation level a Sensor has, as a picker offers it. `key` is the level without the Sensor (time scale + function): the same on every Sensor that has it. */
@@ -19,6 +20,8 @@ export interface AggregationLevel {
   aggregationFunction: string;
   /** English, e.g. "1 day · Average"; translate with `t()` where it is shown. */
   label: string;
+  /** False = the level is only aggregated (to look at), never evaluated: the pickers say "Calculation off". */
+  calculationEnabled: boolean;
   /** The length of one bucket in milliseconds (a month = 31 days, a year = 366 days: only used to size the window). */
   bucketMs: number;
 }
@@ -61,6 +64,7 @@ export function toLevel(policy: LevelPolicy): AggregationLevel | null {
     aggregationFunction: fn?.value ?? policy.aggregationFunction,
     label: `${scale?.label ?? policy.timeScale} · ${fn?.label ?? policy.aggregationFunction}`,
     bucketMs: BUCKET_MS[policy.timeScale.toLowerCase()] ?? DAY,
+    calculationEnabled: policy.calculationEnabled !== false,
   };
 }
 
@@ -94,4 +98,35 @@ export function levelOfSensorByKey(policies: readonly LevelPolicy[] | undefined,
 
 function sortLevels(levels: AggregationLevel[]): AggregationLevel[] {
   return [...levels].sort((a, b) => a.bucketMs - b.bucketMs || a.aggregationFunction.localeCompare(b.aggregationFunction));
+}
+
+/** What the user chose in a picker: the level's key and bucket length, so a Sensor that lacks that exact level can get the closest one. */
+export interface LevelPreference {
+  key: string;
+  bucketMs: number;
+}
+
+/**
+ * The level of a Sensor for a preference: the very same level (time scale + function) when it has it, otherwise the one with the closest bucket length
+ * (the same function preferred when two are equally close). Undefined when the Sensor has no level at all.
+ */
+export function pickLevel(sensorLevels: readonly AggregationLevel[], preference: LevelPreference | undefined): AggregationLevel | undefined {
+  if (!preference || sensorLevels.length === 0) return undefined;
+  const exact = sensorLevels.find((l) => l.key === preference.key);
+  if (exact) return exact;
+  const fn = preference.key.split('|')[1];
+  const distance = (l: AggregationLevel) => Math.abs(Math.log(l.bucketMs / preference.bucketMs));
+  return [...sensorLevels].sort((a, b) => distance(a) - distance(b) || Number(b.key.split('|')[1] === fn) - Number(a.key.split('|')[1] === fn))[0];
+}
+
+/** Fewest buckets an aggregated chart shows: a short wall-clock range (the default 15 minutes) holds no day at all, so the window is widened back to this many buckets. */
+export const MIN_AGGREGATED_BUCKETS = 60;
+
+/**
+ * The range to read buckets for: the buckets that START inside [start, end) plus the one that contains `start` (so a 15-minute range of a daily level still shows
+ * today), and at least MIN_AGGREGATED_BUCKETS buckets ending at `end`.
+ */
+export function aggregatedRange(start: Date, end: Date, bucketMs: number): { startDate: string; endDate: string; widened: boolean } {
+  const wanted = Math.min(start.getTime() - bucketMs, end.getTime() - MIN_AGGREGATED_BUCKETS * bucketMs);
+  return { startDate: new Date(wanted).toISOString(), endDate: end.toISOString(), widened: wanted < start.getTime() - bucketMs };
 }

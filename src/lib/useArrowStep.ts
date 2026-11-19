@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 
 /**
  * While a large chart window is open, Up / Down move to the previous / next Sensor. Listens on the document (not on the window's own element) so it keeps
- * working after a step, when the focused element has been replaced and the focus fell back to the page; a field or a select that uses the arrow itself is left alone.
+ * working after a step, when the focused element has been replaced and the focus fell back to the page; a text field that uses the arrow itself is left alone (a select is not).
  */
 export function useArrowStep(open: boolean, onStep: ((delta: -1 | 1) => void) | undefined) {
   const stepRef = useRef(onStep);
@@ -15,7 +15,9 @@ export function useArrowStep(open: boolean, onStep: ((delta: -1 | 1) => void) | 
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
       const tag = (e.target as HTMLElement | null)?.tagName;
-      if (tag === 'SELECT' || tag === 'INPUT' || tag === 'TEXTAREA') return;
+      // A text field keeps its arrows. A select does NOT: the aggregation select of the large window is focused first, and its arrows would only scroll
+      // through its options instead of moving to the next Sensor (the select is changed with the mouse, or opened with Alt+Down / Space).
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       e.preventDefault();
       stepRef.current?.(e.key === 'ArrowDown' ? 1 : -1);
     };

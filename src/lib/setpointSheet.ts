@@ -21,7 +21,8 @@ import {
  *  - a Sensor that does not appear at all is not touched.
  * An interval is identified by its validFrom.
  */
-export const SETPOINT_SHEET_HEADERS = ['sensorName', 'validFrom', 'validTo', ...SETPOINT_COLUMNS] as const;
+/** Written header names (UpperCamelCase like every sheet of the dashboard; reading ignores case). */
+export const SETPOINT_SHEET_HEADERS = ['SensorName', 'ValidFrom', 'ValidTo', 'Target', 'Tolerance', 'TargetAbove', 'TargetBelow', 'ToleranceAbove', 'ToleranceBelow'] as const;
 
 export const MAX_SETPOINT_ROWS = 5000;
 

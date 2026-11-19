@@ -20,7 +20,7 @@ const STORED = [
   { id: 13, sensorId: 1, validFrom: D(20), validTo: null, target: 7, tolerance: 2 },
   { id: 21, sensorId: 2, validFrom: D(1), validTo: null, targetAbove: 100, toleranceAbove: 5, targetBelow: 50, toleranceBelow: 5 },
 ];
-const HEADER = 'sensorName,validFrom,validTo,target,tolerance,targetAbove,targetBelow,toleranceAbove,toleranceBelow';
+const HEADER = 'SensorName,ValidFrom,ValidTo,Target,Tolerance,TargetAbove,TargetBelow,ToleranceAbove,ToleranceBelow';
 
 interface Write {
   method: string;

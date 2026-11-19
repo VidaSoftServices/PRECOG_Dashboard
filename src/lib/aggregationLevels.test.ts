@@ -33,3 +33,38 @@ describe('aggregation levels', () => {
     expect(levelsOfSensor(policies, 1).map((l) => l.bucketMs)).toEqual([3_600_000, 86_400_000]);
   });
 });
+
+import { aggregatedRange, MIN_AGGREGATED_BUCKETS, pickLevel } from './aggregationLevels';
+
+describe('pickLevel and aggregatedRange', () => {
+  const levels = levelsOfSensor(
+    [
+      { id: 1, sensorId: 1, sourceDataKey: 'Actual', timeScale: 'Hours', aggregationFunction: 'AVG', enabled: true },
+      { id: 2, sensorId: 1, sourceDataKey: 'Actual', timeScale: 'Weeks', aggregationFunction: 'AVG', enabled: true },
+    ],
+    1,
+  );
+
+  it('gives the very same level when the Sensor has it, otherwise the one with the closest bucket length, and none without levels', () => {
+    expect(pickLevel(levels, { key: 'hours|avg', bucketMs: 3_600_000 })?.policyId).toBe(1);
+    expect(pickLevel(levels, { key: 'days|avg', bucketMs: 86_400_000 })?.policyId).toBe(2); // a day is x24 an hour but only 1/7 of a week: the week is closer
+    expect(pickLevel(levels, { key: 'minutes15|avg', bucketMs: 900_000 })?.policyId).toBe(1);
+  });
+
+  it('is undefined with no preference or no levels', () => {
+    expect(pickLevel(levels, undefined)).toBeUndefined();
+    expect(pickLevel([], { key: 'days|avg', bucketMs: 86_400_000 })).toBeUndefined();
+  });
+
+  it('widens a short range back to at least 60 buckets, and keeps a long range (one bucket earlier, so the bucket containing the start is read)', () => {
+    const day = 86_400_000;
+    const end = new Date('2026-11-19T12:00:00Z');
+    const short = aggregatedRange(new Date(end.getTime() - 15 * 60_000), end, day);
+    expect(short.widened).toBe(true);
+    expect(new Date(short.endDate).getTime() - new Date(short.startDate).getTime()).toBe(MIN_AGGREGATED_BUCKETS * day);
+
+    const long = aggregatedRange(new Date(end.getTime() - 100 * day), end, day);
+    expect(long.widened).toBe(false);
+    expect(new Date(long.endDate).getTime() - new Date(long.startDate).getTime()).toBe(101 * day);
+  });
+});

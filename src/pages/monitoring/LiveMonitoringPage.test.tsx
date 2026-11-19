@@ -101,13 +101,12 @@ describe('LiveMonitoringPage and hidden Sensors', { timeout: 30_000 }, () => {
     expect(screen.queryByRole('button', { name: 'Refresh RMS B (hidden)' })).not.toBeInTheDocument();
   });
 
-  it('marks a Sensor whose calculation is switched off (grey card plus the "Calculation off" text); a calculating Sensor is not marked', async () => {
+  it('marks a Sensor whose calculation is switched off with the "Calculation off" text; a calculating Sensor is not marked', async () => {
     mockApi([{ ...sensor(1, 'RMS A', true), processingEnabled: false }, sensor(2, 'RMS C', true)]);
-    const { container } = renderPage();
+    renderPage();
 
     expect((await screen.findAllByText('RMS A')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Calculation off')).toHaveLength(1);
-    expect(container.querySelectorAll('[data-calculation-off="true"]')).toHaveLength(1);
   });
 
   it('the enlarged chart draws Target, Tolerance and UCL3 / UCL2 / LCL2 / LCL3 like the original app - the small card keeps its plain chart', async () => {

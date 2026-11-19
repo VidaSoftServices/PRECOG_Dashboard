@@ -63,7 +63,7 @@ function AllowedValues({ catalog }: { catalog: ImportCatalog }) {
   return (
     <div className={styles.muted} data-testid="allowed-values">
       <Text size={200} block>
-        <b>{t('unitCode')}</b> {t('(stable code, not the label):')}{' '}{catalog.units.map((u) => `${u.code} (${u.label})`).join(', ')}.
+        <b>{t('UnitCode')}</b> {t('(stable code, not the label):')}{' '}{catalog.units.map((u) => `${u.code} (${u.label})`).join(', ')}.
       </Text>
       <Text size={200} block>
         {t('A Sensor named like a known metric (machine name + point number) must carry exactly that metric\'s unitCode; other columns are optional.')}</Text>
@@ -231,8 +231,8 @@ export function SensorImportDialog({
           <DialogContent className={styles.content}>
             <Text size={200} className={styles.muted}>
               {t('Paste the cells you copied from Excel, or choose a .csv file. The first row is the header; only')}{' '}
-              <b>{t('sensorName')}</b> {t('(the Sensor\'s externalSensorId) is required, every other column is optional and falls back to the defaults below. A new Sensor is created in sheet order, so numeric ids follow the rows.')}{' '}<b>{t('A Sensor whose sensorName already exists is updated instead')}</b>{t(': only the cells you fill are applied (an empty cell never overwrites, and the defaults below are not applied to it). Optional')}{' '}<b>{t('target')}</b>/<b>{t('tolerance')}</b> {t('columns (bidirectional Sensors:')}{' '}<b>{t('targetAbove')}</b>,{' '}
-              <b>{t('targetBelow')}</b>, <b>{t('toleranceAbove')}</b>, <b>{t('toleranceBelow')}</b>{t(') are recorded as the Sensor\'s setpoint, effective from the moment of the import - for an existing Sensor a changed target or tolerance starts a new setpoint interval (the previous one ends there, history is kept) that keeps the values you left empty; a Sensor without a setpoint is stored but not analysed.')}</Text>
+              <b>{t('SensorName')}</b> {t('(the Sensor\'s externalSensorId) is required, every other column is optional and falls back to the defaults below. A new Sensor is created in sheet order, so numeric ids follow the rows.')}{' '}<b>{t('A Sensor whose sensorName already exists is updated instead')}</b>{t(': only the cells you fill are applied (an empty cell never overwrites, and the defaults below are not applied to it). Optional')}{' '}<b>{t('Target')}</b>/<b>{t('Tolerance')}</b> {t('columns (bidirectional Sensors:')}{' '}<b>{t('TargetAbove')}</b>,{' '}
+              <b>{t('TargetBelow')}</b>, <b>{t('ToleranceAbove')}</b>, <b>{t('ToleranceBelow')}</b>{t(') are recorded as the Sensor\'s setpoint, effective from the moment of the import - for an existing Sensor a changed target or tolerance starts a new setpoint interval (the previous one ends there, history is kept) that keeps the values you left empty; a Sensor without a setpoint is stored but not analysed.')}</Text>
 
             <div className={styles.row}>
               <Button

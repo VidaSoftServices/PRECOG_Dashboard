@@ -37,7 +37,7 @@ const STORED: ExistingInterval[] = [
   iv(41, 4, D(1), null),
 ];
 
-const HEADER = 'sensorName,validFrom,validTo,target,tolerance,targetAbove,targetBelow,toleranceAbove,toleranceBelow';
+const HEADER = 'SensorName,ValidFrom,ValidTo,Target,Tolerance,TargetAbove,TargetBelow,ToleranceAbove,ToleranceBelow';
 const parse = (rows: string[]) => parseSetpointSheet([HEADER, ...rows].join('\n'), SENSORS, NOW);
 
 describe('buildSetpointsExportCsv', () => {

@@ -101,8 +101,8 @@ describe('setpoint columns (target / tolerance) of the Sensor import', () => {
   });
 
   it('the template lists the setpoint columns, and the id/name columns are sensorName and displayName', () => {
-    expect(TEMPLATE_HEADERS.slice(0, 2)).toEqual(['sensorName', 'displayName']);
-    for (const column of ['target (optional)', 'tolerance (optional)', 'targetAbove (optional)', 'targetBelow (optional)', 'toleranceAbove (optional)', 'toleranceBelow (optional)']) expect(TEMPLATE_HEADERS).toContain(column);
+    expect(TEMPLATE_HEADERS.slice(0, 2)).toEqual(['SensorName', 'DisplayName']);
+    for (const column of ['Target (optional)', 'Tolerance (optional)', 'TargetAbove (optional)', 'TargetBelow (optional)', 'ToleranceAbove (optional)', 'ToleranceBelow (optional)']) expect(TEMPLATE_HEADERS).toContain(column);
     const csv = buildTemplateCsv(CATALOG).replace(/^\uFEFF/, '');
     const [header, firstRow] = csv.split('\r\n');
     expect(header!.split(',')).toEqual([...TEMPLATE_HEADERS]);

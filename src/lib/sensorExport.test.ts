@@ -36,7 +36,7 @@ describe('buildSensorsExportCsv', () => {
     expect([...SENSOR_EXPORT_HEADERS]).toEqual([...TEMPLATE_HEADERS]);
     const lines = buildSensorsExportCsv(SENSORS, POLICIES, SETPOINTS, NOW).replace(/^\uFEFF/, '').trim().split('\r\n');
     expect(lines[0]).toBe(
-      'sensorName,displayName,direction,sensorType,unitCode,rawScale,rawLookback,rawMinIssueScore,Calculate,Visible,target (optional),tolerance (optional),targetAbove (optional),targetBelow (optional),toleranceAbove (optional),toleranceBelow (optional)',
+      'SensorName,DisplayName,Direction,SensorType,UnitCode,RawScale,RawLookback,RawMinIssueScore,Calculate,Visible,Target (optional),Tolerance (optional),TargetAbove (optional),TargetBelow (optional),ToleranceAbove (optional),ToleranceBelow (optional)',
     );
     expect(lines[1]).toBe('velocity_rms_x_eq_1,1# Velocity RMS X,lowerisbetter,vibration,mm_s,Days,30,5,TRUE,TRUE,5.5,0.5,,,,');
     expect(lines[2]).toBe('shaft_rpm_mean_1,1# Shaft speed,bidirectional,rotation,rpm,Years,100,1,FALSE,FALSE,,,100,50,5,5');

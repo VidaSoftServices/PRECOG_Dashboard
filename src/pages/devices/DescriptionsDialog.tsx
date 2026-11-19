@@ -24,7 +24,7 @@ import { useDeleteDescriptions, useDeviceDescriptions, useImportDescriptions } f
 import { downloadTextFile } from '@/lib/downloadFile';
 import { useT } from '@/lib/language';
 import { DescriptionFormattingLegend } from './DescriptionFormattingLegend';
-import { DESCRIPTION_COLUMNS, buildDescriptionSheet, matchToSensors, parseDescriptionSheet } from '@/lib/descriptionSheet';
+import { DESCRIPTION_HEADERS, buildDescriptionSheet, matchToSensors, parseDescriptionSheet } from '@/lib/descriptionSheet';
 
 const useStyles = makeStyles({
   surface: { maxWidth: '860px', width: '96vw' },
@@ -103,7 +103,7 @@ export function DescriptionsDialog({ deviceId, deviceName, open, onClose }: { de
           <DialogTitle>{t('Descriptions')} - {deviceName}</DialogTitle>
           <DialogContent className={styles.content}>
             <Text>
-              {t('Three columns:')}{' '}<b>sensorName</b> {t("(the Sensor's external id, which identifies it exactly),")}{' '}<b>language</b> (<b>EN</b> {t('or')}{' '}<b>HU</b> {t('- one row per Sensor and language; the language chosen in the top bar decides which one is shown) and')}{' '}<b>description</b>{t(', the whole text shown at that indicator in the large chart window of Live Monitoring and Smart Analytics. Decorate the text with the Azure DevOps markdown basics (')}<code>## heading</code>, <code>**bold**</code>, <code>- list</code>{t(', ...) - open the formatting legend to see them all. Start with what the group of indicators (for example RMS) is for, then what this indicator shows.')}
+              {t('Three columns:')}{' '}<b>SensorName</b> {t("(the Sensor's external id, which identifies it exactly),")}{' '}<b>Language</b> (<b>EN</b> {t('or')}{' '}<b>HU</b> {t('- one row per Sensor and language; the language chosen in the top bar decides which one is shown) and')}{' '}<b>Description</b>{t(', the whole text shown at that indicator in the large chart window of Live Monitoring and Smart Analytics. Decorate the text with the Azure DevOps markdown basics (')}<code>## heading</code>, <code>**bold**</code>, <code>- list</code>{t(', ...) - open the formatting legend to see them all. Start with what the group of indicators (for example RMS) is for, then what this indicator shows.')}
             </Text>
 
             <MessageBar intent={storedRows.length > 0 ? 'info' : 'warning'}>
@@ -156,7 +156,7 @@ export function DescriptionsDialog({ deviceId, deviceName, open, onClose }: { de
                   setText(d.value);
                   setFileName('');
                 }}
-                placeholder={DESCRIPTION_COLUMNS.join(',')}
+                placeholder={DESCRIPTION_HEADERS.join(',')}
               />
             </Field>
 

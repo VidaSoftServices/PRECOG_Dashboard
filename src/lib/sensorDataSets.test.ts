@@ -11,7 +11,7 @@ const firstColumn = (name: string) => sheet(name).rows.slice(1).map((r) => r[0])
 
 describe('the "Data sets" workbook', () => {
   it('has one sheet per selectable field plus an overview', () => {
-    expect(sheets.map((s) => s.name)).toEqual(['Overview', 'direction', 'rawScale', 'Calculate', 'Visible', 'unitCode', 'Known metrics']);
+    expect(sheets.map((s) => s.name)).toEqual(['Overview', 'Direction', 'RawScale', 'Calculate', 'Visible', 'UnitCode', 'Known metrics']);
     expect(DATA_SETS_FILE_NAME).toBe('sensor-import-data-sets.xlsx');
   });
 
@@ -21,17 +21,17 @@ describe('the "Data sets" workbook', () => {
   });
 
   it('lists exactly the values the importer accepts for direction, scale and the calculation switch', () => {
-    expect(firstColumn('direction')).toEqual([...DIRECTIONS]);
-    expect(firstColumn('rawScale')).toEqual([...SCALES]);
+    expect(firstColumn('Direction')).toEqual([...DIRECTIONS]);
+    expect(firstColumn('RawScale')).toEqual([...SCALES]);
     expect(firstColumn('Calculate')).toEqual([...TRUE_WORDS, ...FALSE_WORDS]);
     expect(firstColumn('Visible')).toEqual([...TRUE_WORDS, ...FALSE_WORDS]);
 
     // ...and the importer really takes each of them.
-    for (const direction of firstColumn('direction')) {
+    for (const direction of firstColumn('Direction')) {
       const row = parseSensorTable(`sensorName,direction\nx_1,${direction}`, DEFAULTS, CATALOG).rows[0]!;
       expect(row.issues.filter((i) => i.field === 'direction'), String(direction)).toEqual([]);
     }
-    for (const scale of firstColumn('rawScale')) {
+    for (const scale of firstColumn('RawScale')) {
       expect(parseSensorTable(`sensorName,rawScale\nx_1,${scale}`, DEFAULTS, CATALOG).rows[0]!.issues.filter((i) => i.field === 'rawScale')).toEqual([]);
     }
     for (const word of firstColumn('Calculate')) {
@@ -43,9 +43,9 @@ describe('the "Data sets" workbook', () => {
   });
 
   it('takes the units from the API catalog, with their labels - and has no aggregation sheet any more', () => {
-    expect(firstColumn('unitCode')).toEqual(CATALOG.units.map((u) => u.code));
-    expect(sheet('unitCode').rows).toContainEqual(['one', 'Unit', 'Unit']);
-    expect(sheet('unitCode').rows).toContainEqual(['raw_energy', 'Relative spectrum energy', expect.stringContaining('spektrum')]);
+    expect(firstColumn('UnitCode')).toEqual(CATALOG.units.map((u) => u.code));
+    expect(sheet('UnitCode').rows).toContainEqual(['one', 'Unit', 'Unit']);
+    expect(sheet('UnitCode').rows).toContainEqual(['raw_energy', 'Relative spectrum energy', expect.stringContaining('spektrum')]);
     expect(sheets.some((s) => /aggregation/i.test(s.name))).toBe(false);
     expect(JSON.stringify(sheets)).not.toMatch(/aggregation/i);
   });

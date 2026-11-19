@@ -15,9 +15,9 @@ describe('sample import files (samples/)', () => {
   it('the sample sheets carry the unit and no aggregation columns', () => {
     for (const name of ['vibration-duo-1-point-163-sensors.csv', 'vibration-duo-2-points-326-sensors.csv']) {
       const header = sample(name).replace(/^\uFEFF/, '').split(/\r?\n/)[0]!.split(',');
-      expect(header).toContain('unitCode');
+      expect(header).toContain('UnitCode');
       expect(header.join(',')).not.toMatch(/aggregation/i);
-      expect(header.slice(0, 2)).toEqual(['sensorName', 'displayName']);
+      expect(header.slice(0, 2)).toEqual(['SensorName', 'DisplayName']);
     }
   });
 

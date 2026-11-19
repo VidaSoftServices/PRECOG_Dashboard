@@ -138,7 +138,7 @@ describe('template and round trip', () => {
   it('the template lists the unit column - and no aggregation columns - and its example rows are valid and equal to the catalog', () => {
     const csv = buildTemplateCsv(CATALOG);
     const header = csv.replace(/^\uFEFF/, '').split('\r\n')[0]!.split(',');
-    for (const column of ['sensorName', 'displayName', 'unitCode']) expect(header).toContain(column);
+    for (const column of ['SensorName', 'DisplayName', 'UnitCode']) expect(header).toContain(column);
     expect(header.join(',')).not.toMatch(/aggregation/i);
     expect(header).toEqual([...TEMPLATE_HEADERS]);
 

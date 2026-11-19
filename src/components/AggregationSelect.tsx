@@ -24,6 +24,7 @@ export function AggregationSelect({
       {levels.map((level) => (
         <option key={level.key} value={level.key}>
           {t(level.label)}
+          {level.calculationEnabled ? '' : ` · ${t('Calculation off')}`}
         </option>
       ))}
     </Select>

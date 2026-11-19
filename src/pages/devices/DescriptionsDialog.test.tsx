@@ -98,7 +98,7 @@ describe('DescriptionsDialog', { timeout: 20_000 }, () => {
       await user.click(button);
       await waitFor(() => expect(download.names).toEqual(['descriptions-device-4.csv']));
       const text = (await readBlob(download.blobs[0]!)).replace(/^\uFEFF/, '');
-      expect(text.split('\r\n')[0]).toBe('sensorName,language,description');
+      expect(text.split('\r\n')[0]).toBe('SensorName,Language,Description');
       expect(text).toContain('temp_a,EN,"## Temp\n\nIt shows, with a comma"');
       expect(text).toContain('temp_a,HU,## Hőmérséklet');
     } finally {

@@ -6,6 +6,7 @@ import {
   Body1Strong,
   Input,
   Select,
+  Switch,
   Field,
   Button,
   Table,
@@ -125,13 +126,14 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
   const [scale, setScale] = useState(policy.scale ?? '');
   const [minIssueScore, setMinIssueScore] = useState(String(policy.minIssueScore ?? ''));
   const [minEvaluation, setMinEvaluation] = useState(String(policy.minEvaluationPercent ?? DEFAULT_MIN_EVALUATION_PERCENT));
+  const [calculate, setCalculate] = useState(policy.calculationEnabled !== false);
   const [retrainConfirmOpen, setRetrainConfirmOpen] = useState(false);
   const [deactivateConfirmOpen, setDeactivateConfirmOpen] = useState(false);
   const isRaw = isRawPolicy(policy);
 
   const applyUpdate = () => {
     update.mutate(
-      { lookback: Number(lookback), scale, minIssueScore: Number(minIssueScore), ...(isRaw ? {} : { minEvaluationPercent: Number(minEvaluation) }) },
+      { lookback: Number(lookback), scale, minIssueScore: Number(minIssueScore), ...(isRaw ? {} : { minEvaluationPercent: Number(minEvaluation), calculationEnabled: calculate }) },
       { onSuccess: () => toast.success(t('Aggregation policy saved')) },
     );
   };
@@ -168,6 +170,11 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
         {!isRaw && (
           <Field label={t('Minimum evaluation (%)')} hint={t('The running slice is evaluated for anomalies only once it covers this share of its length')} validationState={minEvaluationValid(minEvaluation) ? 'none' : 'error'} validationMessage={minEvaluationValid(minEvaluation) ? undefined : t('A whole number from 0 to 100')}>
             <Input value={minEvaluation} onChange={(_, d) => setMinEvaluation(d.value)} disabled={!isAdmin} type="number" min="0" max="100" />
+          </Field>
+        )}
+        {!isRaw && (
+          <Field label={t('Calculate')} hint={t('Off: the level is only aggregated, to look at the data - no anomaly, no Issue from it')}>
+            <Switch checked={calculate} onChange={(_, d) => setCalculate(d.checked)} disabled={!isAdmin} label={calculate ? t('On') : t('Off')} />
           </Field>
         )}
       </div>
@@ -423,6 +430,7 @@ export function NewPolicyForm({ deviceId, sensorId }: { deviceId: number; sensor
   const [lookback, setLookback] = useState('');
   const [minIssueScore, setMinIssueScore] = useState('');
   const [minEvaluation, setMinEvaluation] = useState('');
+  const [calculate, setCalculate] = useState(true);
 
   const reset = () => {
     setTimeScale('');
@@ -431,6 +439,7 @@ export function NewPolicyForm({ deviceId, sensorId }: { deviceId: number; sensor
     setLookback('');
     setMinIssueScore('');
     setMinEvaluation('');
+    setCalculate(true);
   };
 
   const canSubmit = timeScale.trim() !== '' && aggregationFunction.trim() !== '' && scale.trim() !== '' && Number(lookback) > 0 && minEvaluationValid(minEvaluation);
@@ -446,6 +455,7 @@ export function NewPolicyForm({ deviceId, sensorId }: { deviceId: number; sensor
       lookback: Number(lookback),
       minIssueScore: minIssueScore ? Number(minIssueScore) : undefined,
       minEvaluationPercent: minEvaluation !== '' ? Number(minEvaluation) : undefined,
+      calculationEnabled: calculate,
     };
     await create.mutateAsync(body);
     toast.success(t('Aggregation level created'));
@@ -479,6 +489,9 @@ export function NewPolicyForm({ deviceId, sensorId }: { deviceId: number; sensor
         </Field>
         <Field label={t('Minimum evaluation (%)')} hint={t('The running slice is evaluated for anomalies only once it covers this share of its length. Defaults to 10')} validationState={minEvaluationValid(minEvaluation) ? 'none' : 'error'} validationMessage={minEvaluationValid(minEvaluation) ? undefined : t('A whole number from 0 to 100')}>
           <Input type="number" min="0" max="100" value={minEvaluation} placeholder={String(DEFAULT_MIN_EVALUATION_PERCENT)} onChange={(_, d) => setMinEvaluation(d.value)} />
+        </Field>
+        <Field label={t('Calculate')} hint={t('Off: the level is only aggregated, to look at the data - no anomaly, no Issue from it')}>
+          <Switch checked={calculate} onChange={(_, d) => setCalculate(d.checked)} label={calculate ? t('On') : t('Off')} />
         </Field>
       </div>
       {create.isError && <ErrorState error={create.error} />}

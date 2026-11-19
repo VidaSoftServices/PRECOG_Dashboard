@@ -51,7 +51,7 @@ function mockApi(sensorsByDevice: Record<number, unknown[]>, compatibility: unkn
     else if (path === '/api/KnowledgeSharing/Compatibility') body = compatibility;
     else if (/^\/api\/Devices\/\d+\/AggregationPolicies$/.test(path)) body = aggregation?.policies ?? [];
     else if (/\/AggregationPolicies\/\d+\/Values$/.test(path)) {
-      valueRequests.push(path);
+      valueRequests.push(path + new URL((input as Request).url).search);
       body = aggregation?.values ?? [];
     }
     else if (path === '/api/Continuous/MeasuredDateRange') {
@@ -155,7 +155,7 @@ describe('SmartAnalyticsPage and hidden Sensors', { timeout: 40_000 }, () => {
     const user = userEvent.setup();
     renderPage('/analytics?deviceId=4');
     await user.click(await screen.findByRole('button', { name: /Enlarge chart: RMS A/ }));
-    const dialog = await screen.findByRole('dialog', {}, { timeout: 8000 });
+    const dialog = await screen.findByRole('dialog', { hidden: true }, { timeout: 8000 });
     // Where a real browser has put the focus: inside the window (the dialog traps it).
     within(dialog).getAllByRole('button', { name: 'Close', hidden: true })[0]!.focus();
 
@@ -240,7 +240,7 @@ describe('SmartAnalyticsPage and hidden Sensors', { timeout: 40_000 }, () => {
         { id: 7, sensorId: 1, sourceDataKey: 'Actual', timeScale: 'Native', aggregationFunction: 'Raw', enabled: true },
         { id: 8, sensorId: 1, sourceDataKey: 'Actual', timeScale: 'Days', aggregationFunction: 'AVG', enabled: true },
       ],
-      values: [{ bucketStart: '2026-10-20T22:00:00Z', bucketEnd: '2026-10-21T22:00:00Z', value: 3.5, sampleCount: 100, calculatedAt: '2026-10-21T10:00:00Z' }],
+      values: [{ bucketStart: '2026-10-20T22:00:00Z', bucketEnd: '2026-10-21T22:00:00Z', value: 3.5, sampleCount: 100, calculatedAt: '2026-10-21T10:00:00Z', target: 4, tolerance: 0.5, upperControlLimit3S: 6, upperControlLimit2S: 5, lowerControlLimit2S: 2, lowerControlLimit3S: 1 }],
     };
     mockApi({ 4: [sensor(1, 'RMS A', true), sensor(2, 'RMS B', true)] });
     const user = userEvent.setup();
@@ -250,8 +250,16 @@ describe('SmartAnalyticsPage and hidden Sensors', { timeout: 40_000 }, () => {
     expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Raw readings', '1 day · Average']);
     await user.selectOptions(select, '1 day · Average');
 
-    await waitFor(() => expect(lastDrawn()).toEqual(['RMS A · 1 day · Average']));
-    expect(valueRequests).toEqual(['/api/Devices/4/Sensors/1/AggregationPolicies/8/Values']);
+    // The same reference lines as the raw readings: Target, Tolerance, Actual, UCL3, UCL2, LCL2, LCL3 (all the API's).
+    const L = 'RMS A · 1 day · Average';
+    await waitFor(() => expect(lastDrawn()).toEqual([`${L} Target`, `${L} Tolerance`, L, `${L} UCL3`, `${L} UCL2`, `${L} LCL2`, `${L} LCL3`]));
+    expect(valueRequests).toHaveLength(1);
+    expect(valueRequests[0]).toContain('/api/Devices/4/Sensors/1/AggregationPolicies/8/Values?');
+    // The default range is the last 15 minutes: a daily level has no bucket START in it, so the read starts at least 60 buckets (days) back.
+    const params = new URL('http://x' + valueRequests[0]).searchParams;
+    const spanDays = (new Date(params.get('to')!).getTime() - new Date(params.get('from')!).getTime()) / 86_400_000;
+    expect(spanDays).toBeGreaterThanOrEqual(60);
+    expect(screen.getByText(/too few buckets of this aggregation/)).toBeInTheDocument();
     // Back to the raw readings.
     await user.selectOptions(select, 'Raw readings');
     await waitFor(() => expect(lastDrawn()).toContain('RMS A Target'));

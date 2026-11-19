@@ -80,7 +80,7 @@ describe('ExportAllSensorsButton', { timeout: 20_000 }, () => {
       expect(gets.sort()).toEqual(['/api/Devices/4/AggregationPolicies', '/api/Devices/4/Setpoints']);
       const lines = (await readBlob(download.blobs[0]!)).replace(/^\uFEFF/, '').trim().split('\r\n');
       expect(lines[0]).toBe(
-        'sensorName,displayName,direction,sensorType,unitCode,rawScale,rawLookback,rawMinIssueScore,Calculate,Visible,target (optional),tolerance (optional),targetAbove (optional),targetBelow (optional),toleranceAbove (optional),toleranceBelow (optional)',
+        'SensorName,DisplayName,Direction,SensorType,UnitCode,RawScale,RawLookback,RawMinIssueScore,Calculate,Visible,Target (optional),Tolerance (optional),TargetAbove (optional),TargetBelow (optional),ToleranceAbove (optional),ToleranceBelow (optional)',
       );
       // The current setpoint only (the interval in effect now), in the columns of the Sensor's direction.
       expect(lines[1]).toBe('temp_a,Temperature,lowerisbetter,temperature,Cel,Days,30,5,TRUE,TRUE,21.5,0.5,,,,');

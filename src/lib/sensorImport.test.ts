@@ -194,6 +194,6 @@ describe('buildSensorIdMapCsv', () => {
       { externalSensorId: 'b', sensorId: 2, name: 'Has, a comma' },
       { externalSensorId: 'a', sensorId: 1, name: 'Plain' },
     ]);
-    expect(csv).toBe('﻿externalSensorId,sensorId,name\r\na,1,Plain\r\nb,2,"Has, a comma"\r\n');
+    expect(csv).toBe('﻿ExternalSensorId,SensorId,Name\r\na,1,Plain\r\nb,2,"Has, a comma"\r\n');
   });
 });

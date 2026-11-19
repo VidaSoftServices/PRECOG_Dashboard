@@ -15,6 +15,8 @@ const BOM = String.fromCharCode(0xfeff);
 
 export const DESCRIPTION_COLUMNS = ['sensorName', 'language', 'description'] as const;
 export type DescriptionColumn = (typeof DESCRIPTION_COLUMNS)[number];
+/** The header row written by the export (UpperCamelCase like every sheet of the dashboard; reading ignores case). */
+export const DESCRIPTION_HEADERS = ['SensorName', 'Language', 'Description'] as const;
 
 export const MAX_DESCRIPTION_ROWS = 2000;
 export const MAX_DESCRIPTION_TEXT = 8000;
@@ -162,7 +164,7 @@ const csvCell = (value: string) => (/[",\r\n]/.test(value) ? `"${value.replaceAl
  * accents. Rows without a Sensor name or a text are left out.
  */
 export function buildDescriptionSheet(items: readonly ExportedDescription[]): string {
-  const lines = [DESCRIPTION_COLUMNS.join(',')];
+  const lines = [DESCRIPTION_HEADERS.join(',')];
   for (const item of items) {
     if (!item.sensorName || !item.description) continue;
     lines.push([csvCell(item.sensorName), (item.language ?? 'en').toUpperCase(), csvCell(item.description.replace(/\r\n?/g, '\n'))].join(','));

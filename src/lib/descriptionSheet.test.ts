@@ -50,13 +50,13 @@ describe('matchToSensors', () => {
 
 describe('language column', () => {
   it('keeps one row per Sensor and language; no column means English', () => {
-    const p = parseDescriptionSheet(['sensorName,language,description', 'a_1,EN,about', 'a_1,hu,rólam', 'b_1,,x'].join('\n'));
+    const p = parseDescriptionSheet(['SensorName,Language,Description', 'a_1,EN,about', 'a_1,hu,rólam', 'b_1,,x'].join('\n'));
     expect(p.issues).toEqual([]);
     expect(p.rows.map((r) => [r.sensorName, r.language])).toEqual([['a_1', 'en'], ['a_1', 'hu'], ['b_1', 'en']]);
     expect(parseDescriptionSheet('sensorName,description\na_1,x').rows[0]?.language).toBe('en');
   });
   it('rejects an unknown language and a duplicate Sensor+language', () => {
-    const p = parseDescriptionSheet(['sensorName,language,description', 'a_1,de,x', 'a_1,en,y', 'a_1,en,z'].join('\n'));
+    const p = parseDescriptionSheet(['SensorName,Language,Description', 'a_1,de,x', 'a_1,en,y', 'a_1,en,z'].join('\n'));
     expect(p.issues.map((i) => i.line)).toEqual([2, 4]);
   });
 });
@@ -69,7 +69,7 @@ describe('buildDescriptionSheet', () => {
       { sensorName: null, language: 'en', description: 'no sensor, left out' },
       { sensorName: 'b_1', language: 'en', description: '' },
     ]);
-    expect(sheet.startsWith(String.fromCharCode(0xfeff) + 'sensorName,language,description\r\n')).toBe(true);
+    expect(sheet.startsWith(String.fromCharCode(0xfeff) + 'SensorName,Language,Description\r\n')).toBe(true);
     const parsed = parseDescriptionSheet(sheet);
     expect(parsed.issues).toEqual([]);
     expect(parsed.rows.map((r) => [r.sensorName, r.language, r.description])).toEqual([

@@ -20,7 +20,6 @@ import {
   MessageBarBody,
   MessageBarTitle,
   makeStyles,
-  mergeClasses,
   tokens,
 } from '@fluentui/react-components';
 import { Dismiss24Regular, ArrowClockwise16Regular, ArrowClockwise24Regular, FullScreenMaximize16Regular, ChevronLeft24Regular, ChevronRight24Regular, DataTrending24Regular, Search24Regular } from '@fluentui/react-icons';
@@ -37,7 +36,7 @@ import { useSensors } from '@/api/hooks/sensors';
 import { useDeviceAggregationPolicies } from '@/api/hooks/deviceConfiguration';
 import { useAggregatedPoints } from '@/api/hooks/aggregatedPoints';
 import { AggregationSelect } from '@/components/AggregationSelect';
-import { levelsOfSensor } from '@/lib/aggregationLevels';
+import { levelsOfSensor, pickLevel, type LevelPreference } from '@/lib/aggregationLevels';
 import { useTelemetryTrailingPeriods, useTelemetryTrailingWithLimits, familyFor, isCurveFamily, type TelemetryPoint } from '@/api/hooks/telemetry';
 import { useDeviceSelection } from '@/lib/selectedDevice';
 import { filterSensors } from '@/lib/sensorFilter';
@@ -87,15 +86,15 @@ const useStyles = makeStyles({
     flexDirection: 'column',
     gap: tokens.spacingVerticalS,
   },
-  // A Sensor whose calculation is switched off (no analysis, no Issues, not part of the model) is shown grey.
-  cardOff: {
-    backgroundColor: tokens.colorNeutralBackground3,
-    color: tokens.colorNeutralForeground3,
-    filter: 'grayscale(1)',
-    opacity: 0.75,
-  },
   chartArea: {
     cursor: 'zoom-in',
+    position: 'relative',
+  },
+  calculationOff: {
+    position: 'absolute',
+    right: tokens.spacingHorizontalXS,
+    bottom: tokens.spacingVerticalXS,
+    pointerEvents: 'none',
   },
   dialogSurface: {
     // About 15% of the window stays free around the enlarged chart.
@@ -130,8 +129,8 @@ function SensorLiveCard({
   enlarged,
   onEnlargedChange,
   onStep,
-  levelKey,
-  onLevelKeyChange,
+  levelPreference,
+  onLevelPreferenceChange,
 }: {
   deviceId: number;
   sensor: SensorDto;
@@ -146,15 +145,14 @@ function SensorLiveCard({
   onEnlargedChange: (open: boolean) => void;
   /** -1 = the previous Sensor of the page, +1 = the next one. */
   onStep: (delta: -1 | 1) => void;
-  /** The aggregation chosen in the large window ('' = raw readings); kept by the page so it stays while the arrow keys move between Sensors. */
-  levelKey: string;
-  onLevelKeyChange: (key: string) => void;
+  /** The aggregation chosen in the large window (undefined = raw readings); kept by the page so it stays while the arrow keys move between Sensors - a Sensor without that very level gets the closest one. */
+  levelPreference: LevelPreference | undefined;
+  onLevelPreferenceChange: (preference: LevelPreference | undefined) => void;
 }) {
   const t = useT();
   const styles = useStyles();
   const family = familyFor(applicationMode, sensor.direction);
   const curveFamily = isCurveFamily(family);
-  const calculationOff = sensor.processingEnabled === false;
 
   // Passive subscription only - see telemetry.ts's doc comment. This card
   // never triggers its own fetch; it just reads whatever the page-level
@@ -165,14 +163,14 @@ function SensorLiveCard({
   const neverFetched = trailing.data === undefined;
   const setEnlarged = onEnlargedChange;
   useArrowStep(enlarged, onStep); // Up / Down: the previous / next Sensor of the page
-  // The control limits are not stored: the API calculates them when it reads, and the batched read the cards use leaves them out. The enlarged
-  // chart therefore reads its own Sensor WITH the limits (every 5 s while the window is open, paused in a rate-limit cooldown).
-  const limits = useTelemetryTrailingWithLimits({ family, deviceId, sensorId: sensor.id, periods: 20, enabled: enlarged && !curveFamily && levelKey === '', paused: refreshDisabled });
   const [showInfo, setShowInfo] = useState(false);
   // The aggregation levels this Sensor has (read only while the large window is open); a level the Sensor lacks falls back to the raw readings.
   const policies = useDeviceAggregationPolicies(deviceId, enlarged && !curveFamily);
   const levels = levelsOfSensor(policies.data, sensor.id);
-  const level = levels.find((l) => l.key === levelKey);
+  const level = pickLevel(levels, levelPreference);
+  // The control limits are not stored: the API calculates them when it reads, and the batched read the cards use leaves them out. The enlarged
+  // chart therefore reads its own Sensor WITH the limits (every 5 s while the window is open, paused in a rate-limit cooldown).
+  const limits = useTelemetryTrailingWithLimits({ family, deviceId, sensorId: sensor.id, periods: 20, enabled: enlarged && !curveFamily && level === undefined, paused: refreshDisabled });
   const aggregated = useAggregatedPoints({
     deviceId, sensorId: sensor.id, policyId: level?.policyId, newest: level ? { count: 100, bucketMs: level.bucketMs } : undefined,
     enabled: enlarged && level !== undefined, refetchMs: 15_000,
@@ -192,12 +190,11 @@ function SensorLiveCard({
   const shownLatest = level ? aggregated.data?.[aggregated.data.length - 1] : latest;
 
   return (
-    <Card className={calculationOff ? mergeClasses(styles.card, styles.cardOff) : styles.card} data-calculation-off={calculationOff ? 'true' : undefined}>
+    <Card className={styles.card}>
       <div className={styles.valueRow}>
         <Body1Strong>{sensor.name || sensor.externalSensorId}</Body1Strong>
         <div className={styles.headerActions}>
           {/* A Sensor in maintenance is being ignored on purpose, so its aging data must read as maintenance, not as a silent (stale) Sensor. */}
-          <ProcessingOffPill processingEnabled={sensor.processingEnabled} />
           {!curveFamily && (sensor.maintenanceMode ? <MaintenancePill maintenanceMode /> : <FreshnessPill freshness={freshnessOf(latest?.measured)} />)}
           {/* One-off refresh of just this Sensor; a curve Sensor has no trailing-periods reading to refresh. */}
           {!curveFamily && !neverFetched && !trailing.isError && (
@@ -247,6 +244,12 @@ function SensorLiveCard({
           {/* Clicking the chart opens it large (mouse convenience); the keyboard and screen-reader route is the "Enlarge" button above. */}
           <div className={styles.chartArea} onClick={() => setEnlarged(true)}>
             <TelemetryChart series={chartSeries} height={160} mode="single" timeAxis="time" compact />
+            {/* A Sensor whose calculation is switched off says so in the bottom right corner of its small chart. */}
+            {sensor.processingEnabled === false && (
+              <div className={styles.calculationOff}>
+                <ProcessingOffPill processingEnabled={false} />
+              </div>
+            )}
           </div>
         </>
       )}
@@ -257,7 +260,7 @@ function SensorLiveCard({
               action={
                 <div className={styles.headerActions}>
                   {/* Raw readings or one of the aggregation levels the Sensor has - only shown when there is a level. */}
-                  {levels.length > 0 && <AggregationSelect levels={levels} value={level?.key ?? ''} onChange={onLevelKeyChange} />}
+                  {levels.length > 0 && <AggregationSelect levels={levels} value={level?.key ?? ''} onChange={(key) => onLevelPreferenceChange(levels.find((l) => l.key === key))} />}
                   {/* The same one-off refresh as the card's icon, so the enlarged chart can be refreshed without closing it. */}
                   <Button
                     appearance="subtle"
@@ -287,7 +290,7 @@ function SensorLiveCard({
               </div>
               {/* The imported description opens beside the chart with the blue "<" edge tab; no description = no tab. */}
               <ChartWithDescription found={description} open={showInfo} onToggle={() => setShowInfo(!showInfo)} height={ENLARGED_CHART_HEIGHT}>
-                <TelemetryChart series={enlargedSeries} height={ENLARGED_CHART_HEIGHT} mode="single" detailedLimits={!level} timeAxis="fullDateTime" emphasizeHover plainTooltip={!level} />
+                <TelemetryChart series={enlargedSeries} height={ENLARGED_CHART_HEIGHT} mode="single" detailedLimits timeAxis="fullDateTime" emphasizeHover plainTooltip />
               </ChartWithDescription>
             </DialogContent>
             <DialogActions>
@@ -339,7 +342,7 @@ export function LiveMonitoringPage() {
   // The Sensor whose chart is open in the large window (the arrow keys step through the Sensors of the page).
   const [enlargedId, setEnlargedId] = useState<number | null>(null);
   // The aggregation chosen in the large window ('' = raw readings); it stays while the arrow keys move to the next Sensor.
-  const [levelKey, setLevelKey] = useState('');
+  const [levelPreference, setLevelPreference] = useState<LevelPreference | undefined>(undefined);
   const filter = useDebounced(filterText.trim().toLowerCase(), 500);
 
   const devicesQuery = useDevices();
@@ -507,8 +510,8 @@ export function LiveMonitoringPage() {
               enlarged={enlargedId === sensor.id}
               onEnlargedChange={(open) => setEnlargedId(open ? sensor.id! : enlargedId === sensor.id ? null : enlargedId)}
               onStep={stepEnlarged}
-              levelKey={levelKey}
-              onLevelKeyChange={setLevelKey}
+              levelPreference={levelPreference}
+              onLevelPreferenceChange={(p) => setLevelPreference(p ? { key: p.key, bucketMs: p.bucketMs } : undefined)}
             />
           ))}
         </div>

@@ -18,6 +18,7 @@ import {
   RadioGroup,
   Select,
   Spinner,
+  Switch,
   Text,
   Textarea,
   makeStyles,
@@ -127,6 +128,7 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
   const [lookback, setLookback] = useState('');
   const [minIssueScore, setMinIssueScore] = useState('');
   const [minEvaluation, setMinEvaluation] = useState('');
+  const [calculate, setCalculate] = useState(true);
   const [sheetText, setSheetText] = useState('');
   const [sheetName, setSheetName] = useState('');
   const [result, setResult] = useState<BulkAggregationResultDto | null>(null);
@@ -203,6 +205,7 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
           lookback: group.lookback,
           minIssueScore: group.minIssueScore ?? undefined,
           minEvaluationPercent: group.minEvaluationPercent ?? undefined,
+          calculationEnabled: group.calculationEnabled ?? undefined,
         });
         total.created = (total.created ?? 0) + (outcome.created ?? 0);
         total.reactivated = (total.reactivated ?? 0) + (outcome.reactivated ?? 0);
@@ -236,6 +239,7 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
             lookback: Number(lookback),
             minIssueScore: minIssueScore ? Number(minIssueScore) : undefined,
             minEvaluationPercent: minEvaluation !== '' ? Number(minEvaluation) : undefined,
+            calculationEnabled: calculate,
           })
         : await deactivate.mutateAsync({ sensorIds, timeScale, aggregationFunction });
     setResult(outcome);
@@ -298,9 +302,9 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
                 {mode === 'import' ? (
                   <>
                     <Text size={200}>
-                      {t('One row per Sensor and level:')}{' '}<code>{AGGREGATION_SHEET_HEADERS.join(', ')}</code>. <code>{t('sensorName')}</code> {t('is the Sensor’s external id;')}{' '}
-                      <code>{t('timeScale')}</code>, <code>{t('aggregationFunction')}</code>, <code>{t('scale')}</code> {t('and')}{' '}<code>{t('lookback')}</code> {t('are required,')}{' '}<code>{t('minIssueScore')}</code> {t('and')}{' '}
-                      <code>{t('minEvaluation')}</code> {t('are optional (defaults 1 and 10 %). The time zone is the Device’s, there is no column for it. The columns')}{' '}<code>{t('level')}</code> {t('and')}{' '}<code>{t('why')}</code> {t('are ignored. A level a Sensor already has gets the sheet’s settings (listed as Updated).')}</Text>
+                      {t('One row per Sensor and level:')}{' '}<code>{AGGREGATION_SHEET_HEADERS.join(', ')}</code>. <code>{t('SensorName')}</code> {t('is the Sensor’s external id;')}{' '}
+                      <code>{t('TimeScale')}</code>, <code>{t('AggregationFunction')}</code>, <code>{t('Scale')}</code> {t('and')}{' '}<code>{t('Lookback')}</code> {t('are required,')}{' '}<code>{t('MinIssueScore')}</code> {t('and')}{' '}
+                      <code>{t('MinEvaluation')}</code> {t('are optional (defaults 1 and 10 %), and so is')}{' '}<code>{t('Calculate')}</code> {t('(true/false, default true; false = only aggregated, to look at the data, no anomaly or Issue). The time zone is the Device’s, there is no column for it. The columns')}{' '}<code>{t('Level')}</code> {t('and')}{' '}<code>{t('Why')}</code> {t('are ignored. A level a Sensor already has gets the sheet’s settings (listed as Updated).')}</Text>
                     <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center', flexWrap: 'wrap' }}>
                       <Button icon={<ArrowDownload24Regular />} onClick={downloadTemplate}>
                         {t('Download sample (CSV)')}</Button>
@@ -380,6 +384,9 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
                         </Field>
                         <Field label={t('Minimum evaluation (%)')} hint={t('The running slice is evaluated for anomalies only once it covers this share of its length. Defaults to 10')}>
                           <Input type="number" min="0" max="100" value={minEvaluation} placeholder={String(DEFAULT_MIN_EVALUATION_PERCENT)} onChange={(_, d) => setMinEvaluation(d.value)} />
+                        </Field>
+                        <Field label={t('Calculate')} hint={t('Off: the level is only aggregated, to look at the data - no anomaly, no Issue from it')}>
+                          <Switch checked={calculate} onChange={(_, d) => setCalculate(d.checked)} label={calculate ? t('On') : t('Off')} />
                         </Field>
                       </div>
                     )}
