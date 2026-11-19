@@ -32,6 +32,7 @@ import { useAppToast } from '@/components/ToastProvider';
 import { useSensor } from '@/api/hooks/sensors';
 import { MetricDefinitionCard } from './MetricDefinitionCard';
 import { DeleteSetpointsDialog } from './DeleteSetpointsDialog';
+import { DeleteAggregationLevelsDialog } from './DeleteAggregationLevelsDialog';
 import { isRawPolicy } from '@/lib/policies';
 import {
   AGGREGATION_FUNCTION_OPTIONS,
@@ -44,7 +45,6 @@ import {
   useAggregationPolicies,
   useUpdateAggregationPolicy,
   useCreateAggregationPolicy,
-  useDeactivateAggregationPolicy,
   usePolicyValues,
   type CreateAggregationPolicyRequest,
 } from '@/api/hooks/aggregationPolicies';
@@ -121,14 +121,13 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
   const { isAdmin } = useAuth();
   const toast = useAppToast();
   const update = useUpdateAggregationPolicy(deviceId, sensorId, policy.id!);
-  const deactivate = useDeactivateAggregationPolicy(deviceId, sensorId);
   const [lookback, setLookback] = useState(String(policy.lookback ?? ''));
   const [scale, setScale] = useState(policy.scale ?? '');
   const [minIssueScore, setMinIssueScore] = useState(String(policy.minIssueScore ?? ''));
   const [minEvaluation, setMinEvaluation] = useState(String(policy.minEvaluationPercent ?? DEFAULT_MIN_EVALUATION_PERCENT));
   const [calculate, setCalculate] = useState(policy.calculationEnabled !== false);
   const [retrainConfirmOpen, setRetrainConfirmOpen] = useState(false);
-  const [deactivateConfirmOpen, setDeactivateConfirmOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const isRaw = isRawPolicy(policy);
 
   const applyUpdate = () => {
@@ -185,14 +184,13 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
             {update.isPending ? t('Saving…') : t('Save')}
           </Button>
           {!isRaw && (
-            <Button appearance="secondary" onClick={() => setDeactivateConfirmOpen(true)} disabled={!policy.enabled || deactivate.isPending}>
-              {deactivate.isPending ? t('Deactivating…') : t('Deactivate')}
+            <Button appearance="secondary" icon={<Delete24Regular />} onClick={() => setDeleteOpen(true)}>
+              {t('Delete permanently…')}
             </Button>
           )}
         </div>
       )}
       {update.isError && <ErrorState error={update.error} />}
-      {deactivate.isError && <ErrorState error={deactivate.error} />}
       {isRaw && (
         <MessageBar intent="info">
           <MessageBarBody>{t('Editing Lookback, Scale, or Enabled on the raw policy schedules retraining for this Sensor.')}</MessageBarBody>
@@ -213,25 +211,15 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
         <Text>
           {t('Changing Lookback or Scale on the raw aggregation policy schedules a full retraining for this Sensor. This can\'t be undone once submitted. Continue?')}</Text>
       </ConfirmDialog>
-      <ConfirmDialog
-        open={deactivateConfirmOpen}
-        title={t('Deactivate this aggregation level?')}
-        intent="destructive"
-        confirmLabel="Deactivate"
-        busy={deactivate.isPending}
-        onConfirm={() => {
-          deactivate.mutate(policy.id!, {
-            onSuccess: () => {
-              toast.success(t('Aggregation level deactivated'));
-              setDeactivateConfirmOpen(false);
-            },
-          });
-        }}
-        onCancel={() => setDeactivateConfirmOpen(false)}
-      >
-        <Text>
-          {t('This soft-disables the')}{' '}{policy.sourceDataKey} · {policy.timeScale} · {policy.aggregationFunction} {t('level - it stops new aggregation but its history is preserved. There is no undo through this dashboard once deactivated.')}</Text>
-      </ConfirmDialog>
+      {deleteOpen && (
+        <DeleteAggregationLevelsDialog
+          deviceId={deviceId}
+          levels={[{ policyId: policy.id! }]}
+          title={t('Delete the {0} level permanently?', `${policy.timeScale} · ${policy.aggregationFunction}`)}
+          open
+          onClose={() => setDeleteOpen(false)}
+        />
+      )}
     </Card>
   );
 }

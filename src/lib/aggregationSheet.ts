@@ -290,3 +290,73 @@ export function buildAggregationTemplateCsv(sensors: readonly SheetSensor[]): st
 export function aggregationTemplateFileName(): string {
   return 'aggregation-template.csv';
 }
+
+/** The header of a deletion sheet (the levels to delete permanently); any aggregation sheet works too - only these three columns are read. */
+export const AGGREGATION_DELETION_SHEET_HEADERS = ['SensorName', 'Level', 'TimeScale', 'AggregationFunction'] as const;
+
+export interface AggregationDeletionSheetResult {
+  /** One per row, in sheet order: the level to delete. */
+  levels: { sensorId: number; timeScale: string; aggregationFunction: string }[];
+  problems: SheetProblem[];
+  rowCount: number;
+}
+
+/**
+ * A sheet of aggregation levels to DELETE permanently: one row per (Sensor, level) - `SensorName`, `TimeScale`, `AggregationFunction` (case-insensitive
+ * headers, the same aliases as the aggregation sheet; every other column, e.g. `Level`, `Scale`, `Calculate`, is ignored, so a normal aggregation sheet or an
+ * export can be used as it is). The raw level ("Native" / "Raw") is not accepted. Validation is all-or-nothing, like the import; a level listed twice is a
+ * problem. Whether the level exists is decided by the API's preview.
+ */
+export function parseAggregationDeletionSheet(text: string, sensors: readonly SheetSensor[]): AggregationDeletionSheetResult {
+  const clean = text.split(String.fromCharCode(0xfeff)).join('').trim();
+  if (clean === '') return { levels: [], problems: [{ line: 0, field: 'file', message: 'The sheet is empty.' }], rowCount: 0 };
+  const delimiter = detectDelimiter(clean.split(/\r?\n/, 1)[0] ?? '');
+  const table = splitDelimited(clean, delimiter).filter((r) => r.some((c) => c.trim() !== ''));
+  const header = table.shift() ?? [];
+  const columns = new Map<Field, number>();
+  header.forEach((cell, index) => {
+    const field = ALIASES[normalizeHeader(cell)];
+    if (field && !columns.has(field)) columns.set(field, index);
+  });
+  const missing = (['sensor', 'timeScale', 'aggregationFunction'] as const).filter((f) => !columns.has(f));
+  if (missing.length > 0) {
+    const names = { sensor: 'SensorName', timeScale: 'TimeScale', aggregationFunction: 'AggregationFunction' };
+    return { levels: [], problems: [{ line: 1, field: 'header', message: `Required column(s) missing: ${missing.map((m) => names[m]).join(', ')}.` }], rowCount: 0 };
+  }
+  if (table.length === 0) return { levels: [], problems: [{ line: 0, field: 'file', message: 'The sheet has a header but no rows.' }], rowCount: 0 };
+  if (table.length > MAX_AGGREGATION_SHEET_ROWS) {
+    return { levels: [], problems: [{ line: 0, field: 'file', message: `The sheet has ${table.length} rows; the limit is ${MAX_AGGREGATION_SHEET_ROWS} per run.` }], rowCount: table.length };
+  }
+  const byExternal = new Map<string, SheetSensor>();
+  const byName = new Map<string, SheetSensor>();
+  for (const s of sensors) {
+    if (s.externalSensorId) byExternal.set(s.externalSensorId.trim().toLowerCase(), s);
+    if (s.name) byName.set(s.name.trim().toLowerCase(), s);
+  }
+  const problems: SheetProblem[] = [];
+  const levels: AggregationDeletionSheetResult['levels'] = [];
+  const seen = new Map<string, number>();
+  table.forEach((cells, rowIndex) => {
+    const line = rowIndex + 2;
+    const cell = (f: Field) => (cells[columns.get(f) ?? -1] ?? '').trim();
+    const fail = (field: string, message: string) => problems.push({ line, field, message });
+    const sensorText = cell('sensor');
+    const sensor = byExternal.get(sensorText.toLowerCase()) ?? byName.get(sensorText.toLowerCase());
+    if (sensorText === '') fail('SensorName', 'The Sensor name is missing.');
+    else if (!sensor || sensor.id == null) fail('SensorName', `No Sensor "${sensorText}" on this Device.`);
+    const timeScale = canon(TIME_SCALE_VALUES, cell('timeScale'));
+    if (!timeScale) fail('TimeScale', `"${cell('timeScale')}" is not an aggregation time scale (the raw level cannot be deleted).`);
+    const fn = canon(FUNCTION_VALUES, cell('aggregationFunction'));
+    if (!fn) fail('AggregationFunction', `"${cell('aggregationFunction')}" is not an aggregation function (the raw level cannot be deleted).`);
+    if (!sensor || sensor.id == null || !timeScale || !fn) return;
+    const key = `${sensor.id}|${timeScale}|${fn}`;
+    const first = seen.get(key);
+    if (first !== undefined) {
+      fail('SensorName', `The same level is listed on line ${first} too.`);
+      return;
+    }
+    seen.set(key, line);
+    levels.push({ sensorId: sensor.id, timeScale, aggregationFunction: fn });
+  });
+  return { levels: problems.length > 0 ? [] : levels, problems, rowCount: table.length };
+}

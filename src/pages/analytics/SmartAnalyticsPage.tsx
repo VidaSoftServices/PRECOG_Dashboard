@@ -45,6 +45,8 @@ import { toApiIso, formatDateTime, parseApiDate } from '@/lib/dateTime';
 import { useAuth } from '@/auth/AuthContext';
 import { useBreakpoint } from '@/lib/useMediaQuery';
 import { useT } from '@/lib/language';
+import { useMaintenanceHistory } from '@/api/hooks/maintenance';
+import { maintenanceMarkers } from '@/lib/maintenanceMarkers';
 
 const useStyles = makeStyles({
   toolbar: {
@@ -193,6 +195,19 @@ function SensorAnalytics({
   const levelsAvailable = levelsOfSensors(levelPolicies, sensors.map((x) => x.id!));
   const preference = levelKey === '' ? undefined : levelsAvailable.find((l) => l.key === levelKey);
   const aggregatedLevels = effectiveSelection.map((sensorId) => pickLevel(levelsOfSensor(levelPolicies, sensorId), preference));
+  // The maintenances of the chosen Sensors: blue dashed lines, and the warm-up of the level the chart shows after a replacement.
+  const maintenanceQuery = useMaintenanceHistory(deviceId);
+  const markerKey = `${effectiveSelection.join(',')}|${levelKey === '' ? '' : aggregatedLevels.map((l) => l?.policyId ?? '').join(',')}`;
+  const markers = useMemo(
+    () =>
+      maintenanceMarkers(
+        maintenanceQuery.data?.items,
+        effectiveSelection,
+        levelKey === '' ? undefined : (sensorId) => aggregatedLevels[effectiveSelection.indexOf(sensorId)]?.policyId,
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- markerKey stands for the selection and its levels
+    [maintenanceQuery.data, markerKey],
+  );
   const bucketMs = preference?.bucketMs ?? 86_400_000;
   const widenedRange = aggregatedRange(start, end, bucketMs);
   const aggregatedQueries = slots.map((i) => {
@@ -283,6 +298,7 @@ function SensorAnalytics({
               // One Sensor: the platform's full reference set as the API stored it (Target, Tolerance, UCL3/UCL2/LCL2/LCL3 and their bands),
               // like the enlarged Live Monitoring chart. Several Sensors stay a clean overlay without limits.
               detailedLimits={series.length === 1}
+              maintenances={markers}
               height={360}
             />
           )}
@@ -439,6 +455,16 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
   const familyB = familyFor((deviceB.data?.applicationMode as 'continuous' | 'periodic') ?? 'continuous', sensorsB.data?.find((s) => s.id === effectiveSensorB)?.direction);
 
   const dataA = useTelemetryDateRange({ family: familyA, deviceId: deviceIdA, sensorId: effectiveSensorA, startDate: toApiIso(start), endDate: toApiIso(end), maxPoints: MAX_CHART_POINTS });
+  // The maintenances of both chosen Sensors (each Device has its own history).
+  const maintenanceA = useMaintenanceHistory(deviceIdA);
+  const maintenanceB = useMaintenanceHistory(deviceIdB);
+  const pairMarkers = useMemo(
+    () => [
+      ...maintenanceMarkers(maintenanceA.data?.items, effectiveSensorA === undefined ? [] : [effectiveSensorA]),
+      ...maintenanceMarkers(maintenanceB.data?.items, effectiveSensorB === undefined ? [] : [effectiveSensorB]),
+    ].sort((a, b) => Date.parse(a.endedAt) - Date.parse(b.endedAt)),
+    [maintenanceA.data, maintenanceB.data, effectiveSensorA, effectiveSensorB],
+  );
   const dataB = useTelemetryDateRange({ family: familyB, deviceId: deviceIdB, sensorId: effectiveSensorB, startDate: toApiIso(start), endDate: toApiIso(end), maxPoints: MAX_CHART_POINTS });
 
   const stream = compatibility.data?.streams?.find(
@@ -533,6 +559,7 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
               averageLine
               showControlLimits
               showSetpoint
+              maintenances={pairMarkers}
               height={380}
             />
             <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>

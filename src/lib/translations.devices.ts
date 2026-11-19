@@ -228,7 +228,6 @@ export const HU_DEVICES: Record<string, string> = {
   'Device updated; its aggregation levels are being recalculated in the new time zone': 'Az eszköz frissítve; az aggregációs szintjei az új időzóna szerint újraszámolódnak',
   'Where the days of this machine start and end (midnight to midnight). Every aggregation level of the Device follows it. Changing it recalculates the aggregated values from the stored readings; the readings themselves are not touched.': 'Itt kezdődnek és érnek véget a gép napjai (éjféltől éjfélig). Az eszköz minden aggregációs szintje ezt követi. A módosítás a tárolt mérésekből újraszámolja az aggregált értékeket; magukat a méréseket nem érinti.',
   'are optional (defaults 1 and 10 %). The time zone is the Device’s, there is no column for it. The columns': 'nem kötelezők (alapértelmezés: 1 és 10 %). Az időzóna az eszközé, ehhez nincs oszlop. Az oszlopok:',
-  'are ignored. A level a Sensor already has gets the sheet’s settings (listed as Updated).': 'figyelmen kívül maradnak. Ha a szenzornak már van ilyen szintje, megkapja a lap beállításait (Frissítve-ként jelenik meg).',
   'Up / Down arrow: previous / next Sensor': 'Fel / le nyíl: előző / következő szenzor',
   'Aggregation': 'Aggregáció',
   'Raw readings': 'Nyers mérések',
@@ -237,7 +236,8 @@ export const HU_DEVICES: Record<string, string> = {
   'The chosen range holds too few buckets of this aggregation, so the chart starts earlier (at least {0} buckets are shown).': 'A választott időtartamban túl kevés szelet van ebből az aggregációból, ezért a diagram korábbról indul (legalább {0} szelet látszik).',
   'Off: the level is only aggregated, to look at the data - no anomaly, no Issue from it': 'Ki: a szint csak aggregál, az adatok megnézéséhez - nem keletkezik belőle anomália és probléma',
   'are optional (defaults 1 and 10 %), and so is': 'nem kötelezők (alapértelmezés: 1 és 10 %), ahogy a',
-  '(true/false, default true; false = only aggregated, to look at the data, no anomaly or Issue). The time zone is the Device’s, there is no column for it. The columns': 'sem (true/false, alapértelmezés true; false = csak aggregál, az adatok megnézéséhez, anomália és probléma nélkül). Az időzóna az eszközé, ehhez nincs oszlop. Az oszlopok:',
+  '(true/false, default true; false = only aggregated, to look at the data, no anomaly or Issue). The time zone is the Device’s, there is no column for it. The column': 'sem (true/false, alapértelmezés true; false = csak aggregál, az adatok megnézéséhez, anomália és probléma nélkül). Az időzóna az eszközé, ehhez nincs oszlop. A(z)',
+  'is ignored. A level a Sensor already has gets the sheet’s settings (listed as Updated).': 'oszlop figyelmen kívül marad. Ha a szenzornak már van ilyen szintje, megkapja a lap beállításait (Frissítve-ként jelenik meg).',
   'calculate': 'calculate',
   'AggregationFunction': 'AggregationFunction',
   'Level': 'Level',
@@ -251,5 +251,4 @@ export const HU_DEVICES: Record<string, string> = {
   'ToleranceBelow': 'ToleranceBelow',
   'UnitCode': 'UnitCode',
   'ValidFrom': 'ValidFrom',
-  'Why': 'Why',
 };

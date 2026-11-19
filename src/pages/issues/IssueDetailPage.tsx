@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMaintenanceHistory } from '@/api/hooks/maintenance';
+import { maintenanceMarkers } from '@/lib/maintenanceMarkers';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Card,
@@ -293,6 +295,12 @@ export function IssueDetailPage() {
     periodFrom: issueQuery.data?.periodFrom ?? 0,
     periodTo: issueQuery.data?.periodTo ?? 0,
   });
+  // Maintenances of the Issue's Sensor inside the plotted span (blue dashed lines).
+  const maintenanceQuery = useMaintenanceHistory(issueQuery.data?.deviceId);
+  const markers = useMemo(
+    () => maintenanceMarkers(maintenanceQuery.data?.items, primarySensorId === undefined ? [] : [primarySensorId]),
+    [maintenanceQuery.data, primarySensorId],
+  );
 
   if (issueQuery.isLoading) return <LoadingState label={t('Loading issue…')} />;
   if (issueQuery.isError) return <ErrorState error={issueQuery.error} onRetry={() => issueQuery.refetch()} />;
@@ -409,6 +417,7 @@ export function IssueDetailPage() {
                 series={[{ label: primarySensor?.name || 'Sensor', points: periodChart.data, bidirectional: primarySensor?.direction === 'bidirectional', unitLabel: primarySensor?.unitLabel }]}
                 mode="single"
                 showControlLimits
+                maintenances={markers}
                 height={280}
               />
             )}

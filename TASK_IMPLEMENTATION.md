@@ -2780,3 +2780,14 @@ Admin-only **Delete Issue** button in the Issue detail header (next to "Reopen f
 
 - Replaced the in-memory prototype: `api/hooks/sensorDescriptions.ts`, `DescriptionsDialog` (renamed from "Import descriptions"; adds Export and Remove all), the two description fields of the Sensor edit dialog, `useSensorDescriptions` reading from the API, `buildDescriptionSheet`; `schema.generated.ts` regenerated from the API's real OpenAPI document.
 - Verified: `tsc`, eslint (no errors), the full vitest suite, including `DescriptionsDialog.test.tsx` (stored count, export sheet, import request body by Sensor id, remove after acknowledgement) and the rewritten `useSensorDescriptions.test.tsx`. **Not verified**: the dialog and the edit fields in a real browser, and anything end to end (the API table exists on dev and production since 2026-11-19, but no request has reached it yet).
+
+## Maintenance history, maintenance kind, baselines and chart markers (2026-11-19)
+
+- Done: two-step end-of-maintenance dialog (kind + note + confirmation), the same in "Maintenance (all Sensors)"; maintenance history card with Change kind (preview, Issues in the span) and Start a new baseline; blue dashed maintenance lines with warm-up shading on Smart Analytics, the enlarged Live Monitoring chart and Issue detail; recalculation progress names the Rebaseline kind; Hungarian texts (`translations.maintenance.ts`); the Bulk aggregation help no longer mentions a Why column. `schema.generated.ts` regenerated from the API's OpenAPI document (dumped by a temporary test).
+- Verified: `tsc`, the whole suite (631 tests) and a real Chromium check of the chart markers.
+- NOT verified: against a running API with real data (the API's `pg.sensormaintenances` was created on both databases on 2026-11-19).
+
+## Permanent deletion of aggregation levels; feature docs and skills (2026-11-19)
+
+- Done: `DeleteAggregationLevelsDialog` (preview + checkbox), "Delete permanently…" on the Policies page, "Delete the level permanently" and "Delete from CSV" in Bulk aggregation (the soft deactivation is no longer offered); `parseAggregationDeletionSheet`; Hungarian texts. CLAUDE.md split into `docs/features/*.md` + `.claude/skills/<slug>`. See `docs/features/aggregation.md`.
+- Verified: `tsc`, `aggregationDeletionSheet.test.ts`, `BulkAggregationDialog.test.tsx`, the translations test.

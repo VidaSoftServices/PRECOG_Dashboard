@@ -38,6 +38,8 @@ import { useSensorDescriptionTexts, useUpdateSensorDescriptions } from '@/api/ho
 import { MAX_DESCRIPTION_TEXT } from '@/lib/descriptionSheet';
 import { useSetSensorMaintenance } from '@/api/hooks/maintenance';
 import { MaintenanceAllDialog } from './MaintenanceAllDialog';
+import { EndMaintenanceDialog } from './EndMaintenanceDialog';
+import { MaintenanceHistoryCard } from './MaintenanceHistoryCard';
 import { RecalculateDialog } from './RecalculateDialog';
 import { BulkAggregationDialog } from './BulkAggregationDialog';
 import { isDeleteOnly, isRecalculable } from '@/lib/recalculation';
@@ -46,7 +48,7 @@ import { useCalculatedUpTo, useRecalculationStatus } from '@/api/hooks/recalcula
 import { VisibilityDialog } from './VisibilityDialog';
 import { useDevicePrincipal } from '@/api/hooks/devicePrincipal';
 import { useTrainingRequests } from '@/api/hooks/training';
-import { freshnessOf, formatDateTimeWithZone, formatRelative } from '@/lib/dateTime';
+import { freshnessOf, formatDateTime, formatDateTimeWithZone, formatRelative } from '@/lib/dateTime';
 import { POLL_INTERVALS_MS } from '@/lib/pollIntervals';
 import { useAuth } from '@/auth/AuthContext';
 import { useT } from '@/lib/language';
@@ -369,6 +371,23 @@ function MaintenanceDialog({
   const starting = !sensor.maintenanceMode;
   const label = sensor.name || sensor.externalSensorId;
 
+  // Ending asks what the maintenance was (a replacement starts a new baseline), in two steps.
+  if (!starting)
+    return (
+      <EndMaintenanceDialog
+        open={open}
+        targetLabel={label ?? ''}
+        sinceText={sensor.maintenanceSince ? t('In maintenance since {0}', formatDateTime(sensor.maintenanceSince)) : undefined}
+        busy={setMaintenance.isPending}
+        error={setMaintenance.isError ? setMaintenance.error : undefined}
+        onSubmit={async (details) => {
+          await setMaintenance.mutateAsync({ enabled: false, ...details });
+          toast.success(t('Maintenance ended: {0}', label));
+        }}
+        onClose={onClose}
+      />
+    );
+
   return (
     <ConfirmDialog
       open={open}
@@ -377,8 +396,8 @@ function MaintenanceDialog({
       intent={starting ? 'destructive' : 'normal'}
       busy={setMaintenance.isPending}
       onConfirm={async () => {
-        await setMaintenance.mutateAsync(starting);
-        toast.success(starting ? t('Maintenance started: {0}', label) : t('Maintenance ended: {0}', label));
+        await setMaintenance.mutateAsync({ enabled: true });
+        toast.success(t('Maintenance started: {0}', label));
         onClose();
       }}
       onCancel={onClose}
@@ -731,6 +750,8 @@ export function DeviceDetailPage() {
           ))}
         </Card>
       )}
+
+      {sensorsQuery.data && sensorsQuery.data.length > 0 && <MaintenanceHistoryCard deviceId={id} sensors={sensorsQuery.data} isAdmin={isAdmin} />}
 
       {isAdmin && (
         <div style={{ marginTop: tokens.spacingVerticalXL }}>

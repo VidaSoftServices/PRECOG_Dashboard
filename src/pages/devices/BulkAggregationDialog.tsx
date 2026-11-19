@@ -29,7 +29,7 @@ import { ErrorState } from '@/components/states/ErrorState';
 import { useAppToast } from '@/components/ToastProvider';
 import {
   useBulkCreateAggregationPolicies,
-  useBulkDeactivateAggregationPolicies,
+  type AggregationLevelRef,
   type BulkAggregationResultDto,
 } from '@/api/hooks/aggregationPolicies';
 import { fetchDeviceAggregationPolicies } from '@/api/hooks/deviceConfiguration';
@@ -43,8 +43,11 @@ import {
   buildAggregationTemplateCsv,
   describeGroup,
   parseAggregationSheet,
+  parseAggregationDeletionSheet,
+  AGGREGATION_DELETION_SHEET_HEADERS,
   AGGREGATION_SHEET_HEADERS,
 } from '@/lib/aggregationSheet';
+import { DeleteAggregationLevelsDialog } from './DeleteAggregationLevelsDialog';
 import {
   AGGREGATION_FUNCTION_OPTIONS,
   DEFAULT_MIN_EVALUATION_PERCENT,
@@ -75,7 +78,7 @@ const useStyles = makeStyles({
   problems: { maxHeight: '160px', overflowY: 'auto', margin: 0, paddingLeft: tokens.spacingHorizontalXL },
 });
 
-type Mode = 'create' | 'deactivate' | 'import';
+type Mode = 'create' | 'delete' | 'import' | 'deleteImport';
 
 function Choice({ label, hint, value, onChange, options }: { label: string; hint?: string; value: string; onChange: (v: string) => void; options: readonly Option[] }) {
   const t = useT();
@@ -115,7 +118,6 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
   const toast = useAppToast();
   const queryClient = useQueryClient();
   const create = useBulkCreateAggregationPolicies(deviceId);
-  const deactivate = useBulkDeactivateAggregationPolicies(deviceId);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const [mode, setMode] = useState<Mode>('create');
@@ -134,20 +136,28 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
   const [result, setResult] = useState<BulkAggregationResultDto | null>(null);
   const [importFailure, setImportFailure] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  // The levels the permanent deletion dialog is open for (null = closed).
+  const [deleteLevels, setDeleteLevels] = useState<AggregationLevelRef[] | null>(null);
 
-  const mutation = mode === 'deactivate' ? deactivate : create;
+  const mutation = create;
+  const sheetMode = mode === 'import' || mode === 'deleteImport';
   const parsed = useMemo(() => (mode === 'import' && sheetText.trim() !== '' ? parseAggregationSheet(sheetText, sensors) : null), [mode, sheetText, sensors]);
+  const parsedDeletion = useMemo(
+    () => (mode === 'deleteImport' && sheetText.trim() !== '' ? parseAggregationDeletionSheet(sheetText, sensors) : null),
+    [mode, sheetText, sensors],
+  );
   const shown = filterSensors(sensors, filter);
   const count = which === 'all' ? sensors.length : chosen.size;
   const ready =
     mode === 'import'
       ? parsed !== null && parsed.problems.length === 0 && parsed.groups.length > 0
-      : count > 0 && timeScale !== '' && aggregationFunction !== '' && (mode === 'deactivate' || (scale !== '' && Number(lookback) > 0 && minEvaluationValid(minEvaluation)));
+      : mode === 'deleteImport'
+        ? parsedDeletion !== null && parsedDeletion.problems.length === 0 && parsedDeletion.levels.length > 0
+        : count > 0 && timeScale !== '' && aggregationFunction !== '' && (mode === 'delete' || (scale !== '' && Number(lookback) > 0 && minEvaluationValid(minEvaluation)));
 
   const close = () => {
     if (mutation.isPending) return;
     create.reset();
-    deactivate.reset();
     setResult(null);
     setImportFailure(null);
     onClose();
@@ -228,25 +238,30 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
       await submitImport();
       return;
     }
+    // A permanent deletion opens its own dialog: the API's preview, then an explicit confirmation.
+    if (mode === 'deleteImport') {
+      setDeleteLevels(parsedDeletion?.levels ?? []);
+      return;
+    }
+    if (mode === 'delete') {
+      const ids = which === 'all' ? sensors.map((s) => s.id!) : [...chosen];
+      setDeleteLevels(ids.map((sensorId) => ({ sensorId, timeScale, aggregationFunction })));
+      return;
+    }
     const sensorIds = which === 'all' ? undefined : [...chosen];
-    const outcome =
-      mode === 'create'
-        ? await create.mutateAsync({
-            sensorIds,
-            timeScale,
-            aggregationFunction,
-            scale,
-            lookback: Number(lookback),
-            minIssueScore: minIssueScore ? Number(minIssueScore) : undefined,
-            minEvaluationPercent: minEvaluation !== '' ? Number(minEvaluation) : undefined,
-            calculationEnabled: calculate,
-          })
-        : await deactivate.mutateAsync({ sensorIds, timeScale, aggregationFunction });
+    const outcome = await create.mutateAsync({
+      sensorIds,
+      timeScale,
+      aggregationFunction,
+      scale,
+      lookback: Number(lookback),
+      minIssueScore: minIssueScore ? Number(minIssueScore) : undefined,
+      minEvaluationPercent: minEvaluation !== '' ? Number(minEvaluation) : undefined,
+      calculationEnabled: calculate,
+    });
     setResult(outcome);
     toast.success(
-      mode === 'create'
-        ? t('Aggregation level: {0} created, {1} switched on again, {2} updated, {3} already there.', outcome.created ?? 0, outcome.reactivated ?? 0, outcome.updated ?? 0, outcome.alreadyExisted ?? 0)
-        : t('Aggregation level deactivated for {0} Sensor(s).', outcome.deactivated ?? 0),
+      t('Aggregation level: {0} created, {1} switched on again, {2} updated, {3} already there.', outcome.created ?? 0, outcome.reactivated ?? 0, outcome.updated ?? 0, outcome.alreadyExisted ?? 0),
     );
   };
 
@@ -255,11 +270,14 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
   const buttonLabel =
     mode === 'import'
       ? t('Import {0} level(s) for {1} Sensor(s)', parsed?.groups.length ?? 0, parsed?.sensorCount ?? 0)
-      : mode === 'create'
-        ? t('Add for {0} Sensor(s)', count)
-        : t('Deactivate for {0} Sensor(s)', count);
+      : mode === 'deleteImport'
+        ? t('Delete {0} level(s)…', parsedDeletion?.levels.length ?? 0)
+        : mode === 'create'
+          ? t('Add for {0} Sensor(s)', count)
+          : t('Delete for {0} Sensor(s)…', count);
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(_, d) => !d.open && close()}>
       <DialogSurface style={{ maxWidth: '760px', width: '95vw' }}>
         <DialogBody>
@@ -269,9 +287,7 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
               <div className={styles.body}>
                 <MessageBar intent={importFailure ? 'warning' : 'success'}>
                   <MessageBarBody>
-                    {mode === 'deactivate'
-                      ? t('{0} deactivated, {1} left as they were.', result.deactivated ?? 0, result.skipped ?? 0)
-                      : t('{0} created, {1} switched on again, {2} updated, {3} already existed, {4} not found.', result.created ?? 0, result.reactivated ?? 0, result.updated ?? 0, result.alreadyExisted ?? 0, result.skipped ?? 0)}{' '}
+                    {t('{0} created, {1} switched on again, {2} updated, {3} already existed, {4} not found.', result.created ?? 0, result.reactivated ?? 0, result.updated ?? 0, result.alreadyExisted ?? 0, result.skipped ?? 0)}{' '}
                     {importFailure
                       ? t('The import stopped at an error: {0} What is listed below was done; the rest was not tried.', importFailure)
                       : t('The API calculates the values in the background, oldest data first.')}
@@ -295,19 +311,29 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
                 </div>
                 <RadioGroup layout="horizontal" aria-label={t('What to do')} value={mode} onChange={(_, d) => setMode(d.value as Mode)}>
                   <Radio value="create" label={t('Add the level')} />
-                  <Radio value="deactivate" label={t('Deactivate the level')} />
                   <Radio value="import" label={t('Import from CSV')} />
+                  <Radio value="delete" label={t('Delete the level permanently')} />
+                  <Radio value="deleteImport" label={t('Delete from CSV')} />
                 </RadioGroup>
 
-                {mode === 'import' ? (
+                {sheetMode ? (
                   <>
+                    {mode === 'deleteImport' ? (
+                      <Text size={200}>
+                        {t('One row per level to delete:')}{' '}<code>{AGGREGATION_DELETION_SHEET_HEADERS.join(', ')}</code>.{' '}
+                        {t('Only SensorName, TimeScale and AggregationFunction are read, so an aggregation sheet or an export works as it is. The levels are deleted PERMANENTLY with their values and their Issues; the next step shows what goes and asks for a confirmation.')}
+                      </Text>
+                    ) : (
                     <Text size={200}>
                       {t('One row per Sensor and level:')}{' '}<code>{AGGREGATION_SHEET_HEADERS.join(', ')}</code>. <code>{t('SensorName')}</code> {t('is the Sensor’s external id;')}{' '}
                       <code>{t('TimeScale')}</code>, <code>{t('AggregationFunction')}</code>, <code>{t('Scale')}</code> {t('and')}{' '}<code>{t('Lookback')}</code> {t('are required,')}{' '}<code>{t('MinIssueScore')}</code> {t('and')}{' '}
-                      <code>{t('MinEvaluation')}</code> {t('are optional (defaults 1 and 10 %), and so is')}{' '}<code>{t('Calculate')}</code> {t('(true/false, default true; false = only aggregated, to look at the data, no anomaly or Issue). The time zone is the Device’s, there is no column for it. The columns')}{' '}<code>{t('Level')}</code> {t('and')}{' '}<code>{t('Why')}</code> {t('are ignored. A level a Sensor already has gets the sheet’s settings (listed as Updated).')}</Text>
+                      <code>{t('MinEvaluation')}</code> {t('are optional (defaults 1 and 10 %), and so is')}{' '}<code>{t('Calculate')}</code> {t('(true/false, default true; false = only aggregated, to look at the data, no anomaly or Issue). The time zone is the Device’s, there is no column for it. The column')}{' '}<code>{t('Level')}</code> {t('is ignored. A level a Sensor already has gets the sheet’s settings (listed as Updated).')}</Text>
+                    )}
                     <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <Button icon={<ArrowDownload24Regular />} onClick={downloadTemplate}>
-                        {t('Download sample (CSV)')}</Button>
+                      {mode === 'import' && (
+                        <Button icon={<ArrowDownload24Regular />} onClick={downloadTemplate}>
+                          {t('Download sample (CSV)')}</Button>
+                      )}
                       <input
                         ref={fileInput}
                         type="file"
@@ -357,6 +383,26 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
                               </li>
                             ))}
                             {parsed.problems.length > shownProblems.length && <li>{t('…and')}{' '}{parsed.problems.length - shownProblems.length} {t('more.')}</li>}
+                          </ul>
+                        </MessageBarBody>
+                      </MessageBar>
+                    )}
+                    {parsedDeletion && parsedDeletion.problems.length === 0 && (
+                      <MessageBar intent="warning">
+                        <MessageBarBody>{t('{0} level(s) to delete permanently.', parsedDeletion.levels.length)}</MessageBarBody>
+                      </MessageBar>
+                    )}
+                    {parsedDeletion && parsedDeletion.problems.length > 0 && (
+                      <MessageBar intent="error">
+                        <MessageBarBody>
+                          {t('Nothing is sent while the sheet has problems (')}{parsedDeletion.problems.length}):
+                          <ul className={styles.problems}>
+                            {parsedDeletion.problems.slice(0, MAX_LISTED_PROBLEMS).map((p, i) => (
+                              <li key={`${p.line}-${p.field}-${i}`}>
+                                {p.line > 0 ? t('Line {0}, {1}: ', p.line, p.field) : ''}
+                                {p.message}
+                              </li>
+                            ))}
                           </ul>
                         </MessageBarBody>
                       </MessageBar>
@@ -418,12 +464,12 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
                       <MessageBarBody>
                         {mode === 'create'
                           ? t('Aggregates the measured values. The API creates the level (or switches a disabled one on again) for every chosen Sensor in one step and then calculates its history in the background. A level that already exists gets these settings (lookback, scale, min issue score, time zone). Target and tolerance are never aggregated.')
-                          : t('Switches the level off (the stored slices are kept). A Sensor without that level is left as it is. The raw level cannot be deactivated.')}
+                          : t('Deletes the level PERMANENTLY for every chosen Sensor that has it: its values and the Issues it raised go too. The next step shows what goes and asks for a confirmation. The raw level cannot be deleted.')}
                       </MessageBarBody>
                     </MessageBar>
                     {ready && (
                       <Text>
-                        {mode === 'create' ? t('Add') : t('Deactivate')} <b>{level}</b> {t('for')}{' '}<b>{count}</b> {t('Sensor(s).')}</Text>
+                        {mode === 'create' ? t('Add') : t('Delete')} <b>{level}</b> {t('for')}{' '}<b>{count}</b> {t('Sensor(s).')}</Text>
                     )}
                   </>
                 )}
@@ -445,5 +491,16 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
         </DialogBody>
       </DialogSurface>
     </Dialog>
+    {deleteLevels && (
+      <DeleteAggregationLevelsDialog
+        deviceId={deviceId}
+        levels={deleteLevels}
+        title={t('Delete aggregation levels permanently?')}
+        open
+        onClose={() => setDeleteLevels(null)}
+        onDeleted={close}
+      />
+    )}
+    </>
   );
 }

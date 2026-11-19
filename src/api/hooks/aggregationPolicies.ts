@@ -119,3 +119,45 @@ export function usePolicyValues(deviceId: number, sensorId: number, policyId: nu
     refetchInterval: 30_000,
   });
 }
+
+export type AggregationLevelRef = components['schemas']['AggregationLevelRef'];
+export type AggregationLevelDeletionDto = components['schemas']['AggregationLevelDeletionDto'];
+
+/**
+ * What a PERMANENT deletion of these aggregation levels would delete (`POST .../AggregationPolicies/DeletionPreview`, Admin; changes nothing): per level its
+ * buckets, Issues and reviewed Issues, and why a level would be refused (raw, in a knowledge share, an Ollama job busy, not found). Null levels = disabled.
+ */
+export function useAggregationLevelDeletionPreview(deviceId: number, levels: AggregationLevelRef[] | null) {
+  return useQuery({
+    queryKey: ['devices', deviceId, 'aggregation-deletion-preview', levels] as const,
+    enabled: levels !== null && levels.length > 0,
+    staleTime: 0,
+    gcTime: 0,
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await apiClient.POST('/api/Devices/{deviceId}/AggregationPolicies/DeletionPreview', {
+          params: { path: { deviceId } },
+          body: { levels: levels!, confirm: false },
+          signal,
+        }),
+      ),
+  });
+}
+
+/**
+ * Deletes aggregation levels PERMANENTLY - the level, its buckets and the Issues it raised (`POST .../AggregationPolicies/Delete` with `confirm: true`, Admin).
+ * Refreshes the Device's levels, its Sensors, its Issues and its training requests (deleting a reviewed Issue schedules retraining).
+ */
+export function useDeleteAggregationLevels(deviceId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (levels: AggregationLevelRef[]) =>
+      unwrap(await apiClient.POST('/api/Devices/{deviceId}/AggregationPolicies/Delete', { params: { path: { deviceId } }, body: { levels, confirm: true } })),
+    onSuccess: () => {
+      invalidateDevicePolicies(queryClient, deviceId);
+      queryClient.invalidateQueries({ queryKey: ['devices', deviceId, 'sensors'] });
+      queryClient.invalidateQueries({ queryKey: ['issues'] });
+      queryClient.invalidateQueries({ queryKey: ['training'] });
+    },
+  });
+}

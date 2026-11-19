@@ -13,6 +13,8 @@ import {
   Filler,
   type ChartData,
   type ChartOptions,
+  type ChartType,
+  type Plugin,
 } from 'chart.js';
 import { Text, makeStyles, tokens } from '@fluentui/react-components';
 import type { TelemetryPoint } from '@/api/hooks/telemetry';
@@ -21,8 +23,123 @@ import { formatDateTime, formatShortDateTime, formatTime } from '@/lib/dateTime'
 import { seriesAverage } from '@/lib/seriesAverage';
 import { plainLegendName, plainTooltipName } from './seriesNames';
 import { useT } from '@/lib/language';
+import { pixelOfInstant, type ChartMaintenanceMarker } from '@/lib/maintenanceMarkers';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
+/** What the maintenance plugin draws (passed through the chart options, so a change redraws the chart). */
+interface MaintenanceMarkerOptions {
+  markers: readonly ChartMaintenanceMarker[];
+  /** The chart's x labels (instants, sorted). */
+  labels: readonly string[];
+  /** Translated words for the labels at the top of the lines. */
+  words: { replacement: string; minor: string; baseline: string; warmUp: string };
+}
+
+declare module 'chart.js' {
+  interface PluginOptionsByType<TType extends ChartType> {
+    maintenanceMarkers?: MaintenanceMarkerOptions;
+  }
+}
+
+/** A Fluent colour token (a CSS variable) resolved for the canvas, which cannot read CSS variables itself. */
+function cssColor(canvas: HTMLCanvasElement, variable: string, fallback: string): string {
+  const value = getComputedStyle(canvas).getPropertyValue(variable).trim();
+  return value || fallback;
+}
+
+/**
+ * The maintenances of the chart (the user's request of 2026-11-19): a BLUE DASHED VERTICAL LINE at each maintenance - long dashes for a replacement /
+ * repair, short ones for a minor maintenance - labelled at the top; when the maintenance's hours are visible (raw readings), a line at its start and one
+ * at its end with a light band between (no data was stored then); after a replacement the warm-up (still measured against the previous baseline) is
+ * lightly shaded. Positions are interpolated between the chart's instants; a maintenance outside the plotted range is not drawn.
+ */
+const maintenanceMarkerPlugin: Plugin<'line'> = {
+  id: 'maintenanceMarkers',
+  beforeDatasetsDraw(chart, _args, options) {
+    const opts = options as unknown as MaintenanceMarkerOptions | undefined;
+    if (!opts?.markers?.length || opts.labels.length === 0) return;
+    const { ctx, chartArea } = chart;
+    const scale = chart.scales.x;
+    if (!scale) return;
+    const pixelOf = (i: number) => scale.getPixelForValue(i);
+    const color = cssColor(chart.canvas, '--colorBrandForeground1', '#0f6cbd');
+    const first = Date.parse(opts.labels[0]!);
+    const last = Date.parse(opts.labels[opts.labels.length - 1]!);
+    ctx.save();
+    ctx.fillStyle = color;
+    for (const m of opts.markers) {
+      // The maintenance itself (no data was stored), when it is wide enough to be seen.
+      const xs = pixelOfInstant(opts.labels, m.startedAt, pixelOf);
+      const xe = pixelOfInstant(opts.labels, m.endedAt, pixelOf);
+      if (xs !== null && xe !== null && xe - xs > 6) {
+        ctx.globalAlpha = 0.06;
+        ctx.fillRect(xs, chartArea.top, xe - xs, chartArea.bottom - chartArea.top);
+      }
+      // The warm-up after a replacement.
+      if (m.warmUpEndsAt) {
+        const end = Date.parse(m.endedAt);
+        const warm = Date.parse(m.warmUpEndsAt);
+        if (warm > first && end < last) {
+          const left = end < first ? chartArea.left : (pixelOfInstant(opts.labels, m.endedAt, pixelOf) ?? chartArea.left);
+          const right = warm > last ? chartArea.right : (pixelOfInstant(opts.labels, m.warmUpEndsAt, pixelOf) ?? chartArea.right);
+          if (right > left) {
+            ctx.globalAlpha = 0.09;
+            ctx.fillRect(left, chartArea.top, right - left, chartArea.bottom - chartArea.top);
+            if (right - left > 60) {
+              ctx.globalAlpha = 0.9;
+              ctx.font = '10px "Segoe UI", system-ui, sans-serif';
+              ctx.fillText(opts.words.warmUp, left + 4, chartArea.bottom - 6);
+            }
+          }
+        }
+      }
+    }
+    ctx.restore();
+  },
+  afterDatasetsDraw(chart, _args, options) {
+    const opts = options as unknown as MaintenanceMarkerOptions | undefined;
+    if (!opts?.markers?.length || opts.labels.length === 0) return;
+    const { ctx, chartArea } = chart;
+    const scale = chart.scales.x;
+    if (!scale) return;
+    const pixelOf = (i: number) => scale.getPixelForValue(i);
+    const color = cssColor(chart.canvas, '--colorBrandForeground1', '#0f6cbd');
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.font = '600 11px "Segoe UI", system-ui, sans-serif';
+    let labelRight = -Infinity;
+    for (const m of opts.markers) {
+      const replacement = m.kind === 'Replacement';
+      const xs = m.manualBaseline ? null : pixelOfInstant(opts.labels, m.startedAt, pixelOf);
+      const xe = pixelOfInstant(opts.labels, m.endedAt, pixelOf);
+      const lines: number[] = [];
+      if (xs !== null && xe !== null && xe - xs > 6) lines.push(xs);
+      if (xe !== null) lines.push(xe);
+      else if (xs !== null) lines.push(xs);
+      if (lines.length === 0) continue;
+      ctx.lineWidth = replacement ? 2 : 1.5;
+      ctx.setLineDash(replacement ? [8, 5] : [3, 4]);
+      for (const x of lines) {
+        ctx.beginPath();
+        ctx.moveTo(x, chartArea.top);
+        ctx.lineTo(x, chartArea.bottom);
+        ctx.stroke();
+      }
+      // The label at the top of the (last) line; skipped when it would overlap the previous one.
+      const text = `${replacement ? '⟳' : '○'} ${m.manualBaseline ? opts.words.baseline : replacement ? opts.words.replacement : opts.words.minor}`;
+      const width = ctx.measureText(text).width;
+      let x = lines[lines.length - 1]! + 4;
+      if (x + width > chartArea.right) x = lines[lines.length - 1]! - 4 - width;
+      if (x > labelRight + 4 && x >= chartArea.left) {
+        ctx.fillText(text, x, chartArea.top + 12);
+        labelRight = x + width;
+      }
+    }
+    ctx.restore();
+  },
+};
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler, maintenanceMarkerPlugin);
 
 const useStyles = makeStyles({
   root: {
@@ -110,6 +227,11 @@ export interface TelemetryChartProps {
   showSetpoint?: boolean;
   /** Called when the chart is clicked anywhere except on its legend (which keeps toggling series); the pointer shows a zoom cursor. */
   onEnlarge?: () => void;
+  /**
+   * The maintenances to mark (blue dashed vertical lines, a shaded warm-up after a replacement), from `maintenanceMarkers` (lib/maintenanceMarkers.ts).
+   * The text summary lists them too.
+   */
+  maintenances?: readonly ChartMaintenanceMarker[];
 }
 
 /**
@@ -218,6 +340,19 @@ function anomalyPointColor(point: TelemetryPoint, base: string): string {
   return base;
 }
 
+/** The maintenances in the summary: "Maintenance: 2026-03-12 14:20 (replacement / repair), ..." - only those inside the plotted range. */
+function summarizeMaintenances(markers: readonly ChartMaintenanceMarker[], labels: readonly string[]): string {
+  if (markers.length === 0 || labels.length === 0) return '';
+  const first = Date.parse(labels[0]!);
+  const last = Date.parse(labels[labels.length - 1]!);
+  const shown = markers.filter((m) => Date.parse(m.endedAt) >= first && Date.parse(m.startedAt) <= last);
+  if (shown.length === 0) return '';
+  const parts = shown.map((m) =>
+    tr('{0} ({1})', formatDateTime(m.endedAt), m.manualBaseline ? translate('new baseline') : m.kind === 'Replacement' ? translate('replacement / repair') : translate('minor maintenance')),
+  );
+  return ' · ' + tr('Maintenance: {0}', parts.join(', '));
+}
+
 function summarize(series: TelemetrySeriesInput[], averageLine: boolean): string {
   if (series.length === 0 || series.every((s) => s.points.length === 0)) return translate('No data in range.');
   const parts = series.map((s) => {
@@ -249,6 +384,7 @@ export function TelemetryChart({
   detailedLimits = false,
   showSetpoint = false,
   onEnlarge,
+  maintenances,
 }: TelemetryChartProps) {
   const t = useT();
   const styles = useStyles();
@@ -402,6 +538,15 @@ export function TelemetryChart({
       animation: window.matchMedia('(prefers-reduced-motion: reduce)').matches || series.some((s) => s.points.length > MANY_POINTS) ? false : undefined,
       plugins: {
         title: { display: !!title, text: title },
+        ...(maintenances && maintenances.length > 0
+          ? {
+              maintenanceMarkers: {
+                markers: maintenances,
+                labels,
+                words: { replacement: translate('Replacement'), minor: translate('Minor maintenance'), baseline: translate('New baseline'), warmUp: translate('warm-up') },
+              },
+            }
+          : {}),
         // A compact chart's legend only names the lines: clicking it must not hide one.
         legend: {
           position: 'top',
@@ -452,7 +597,10 @@ export function TelemetryChart({
     };
 
     return { data: chartData, options: chartOptions };
-  }, [series, mode, showControlLimits, averageLine, plainTooltip, detailedLimits, title, timeAxis, compact, emphasizeHover, enlargeable, language]);
+  }, [series, mode, showControlLimits, averageLine, plainTooltip, detailedLimits, title, timeAxis, compact, emphasizeHover, enlargeable, language, maintenances]);
+
+  const labelsForSummary = (data.labels ?? []) as string[];
+  const maintenanceSummary = maintenances ? summarizeMaintenances(maintenances, labelsForSummary) : '';
 
   const isEmpty = series.every((s) => s.points.length === 0);
 
@@ -468,6 +616,12 @@ export function TelemetryChart({
       {!isEmpty && (
         <Text id={summaryId} size={200} className={compact ? styles.summaryHidden : styles.summary}>
           {summarize(series, averageLine)}
+          {maintenanceSummary}
+        </Text>
+      )}
+      {!isEmpty && !compact && maintenanceSummary && (
+        <Text size={200} className={styles.summary}>
+          {t('Blue dashed line: maintenance (long dashes: replacement / repair, short dashes: minor maintenance); light blue after a replacement: the warm-up, still measured against the previous baseline.')}
         </Text>
       )}
     </div>

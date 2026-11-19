@@ -23,18 +23,29 @@ const PHASE_TEXT: Record<string, string> = {
 };
 
 /**
- * What the job does, from its Sensors' kinds (Recalculate | DeleteOnly | CatchUp): a catch-up (calculation switched on) calculates what was
+ * What the job does, from its Sensors' kinds (Recalculate | DeleteOnly | CatchUp | Rebaseline - a maintenance's kind changed): a catch-up (calculation switched on) calculates what was
  * not calculated yet, a delete-only run (Recalc with calculation off) only deletes. Mixed or unknown reads as a recalculation.
  */
-function jobKind(data: RecalculationStatusDto): 'Recalculate' | 'DeleteOnly' | 'CatchUp' {
+function jobKind(data: RecalculationStatusDto): 'Recalculate' | 'DeleteOnly' | 'CatchUp' | 'Rebaseline' {
   const kinds = new Set((data.sensors ?? []).filter((s) => s.phase !== 'Skipped').map((s) => s.kind ?? 'Recalculate'));
   if (kinds.size === 1 && kinds.has('CatchUp')) return 'CatchUp';
+  if (kinds.size === 1 && kinds.has('Rebaseline')) return 'Rebaseline';
   if (kinds.size === 1 && kinds.has('DeleteOnly')) return 'DeleteOnly';
   return 'Recalculate';
 }
 
-const RUNNING_TITLE = { Recalculate: 'Recalculating from the start', DeleteOnly: 'Deleting the calculated values', CatchUp: 'Calculating the values not calculated yet' };
-const FINISHED_TITLE = { Recalculate: 'Recalculation finished', DeleteOnly: 'Calculated values deleted', CatchUp: 'Calculation caught up' };
+const RUNNING_TITLE = {
+  Recalculate: 'Recalculating from the start',
+  DeleteOnly: 'Deleting the calculated values',
+  CatchUp: 'Calculating the values not calculated yet',
+  Rebaseline: 'Recalculating with the changed baseline',
+};
+const FINISHED_TITLE = {
+  Recalculate: 'Recalculation finished',
+  DeleteOnly: 'Calculated values deleted',
+  CatchUp: 'Calculation caught up',
+  Rebaseline: 'Recalculated with the changed baseline',
+};
 
 /**
  * The percentage of the Device's recalculation (polled while it runs) with a Stop button for an Admin, and a short result when it ends.
@@ -77,7 +88,7 @@ export function RecalculationProgress({ deviceId, isAdmin }: { deviceId: number;
         <MessageBar intent="info">
           <MessageBarBody>
             <MessageBarTitle>
-              {RUNNING_TITLE[jobKind(data)]}: {percent.toFixed(1)} %
+              {t(RUNNING_TITLE[jobKind(data)])}: {percent.toFixed(1)} %
             </MessageBarTitle>
             {jobKind(data) === 'DeleteOnly'
               ? t('{0} of {1} Sensor(s) deleted', (data.sensorsFinished ?? 0).toLocaleString(), (data.sensorsTotal ?? 0).toLocaleString())
@@ -111,7 +122,7 @@ export function RecalculationProgress({ deviceId, isAdmin }: { deviceId: number;
   const kind = jobKind(data);
   const intent = data.status === 'Completed' ? 'success' : 'warning';
   let title = t('Recalculation ended with errors');
-  if (data.status === 'Completed') title = FINISHED_TITLE[kind];
+  if (data.status === 'Completed') title = t(FINISHED_TITLE[kind]);
   else if (data.status === 'Cancelled') title = t('Recalculation stopped');
   return (
     <div className={styles.box}>

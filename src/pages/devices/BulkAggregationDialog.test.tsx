@@ -114,20 +114,73 @@ describe('BulkAggregationDialog', { timeout: 30_000 }, () => {
     expect((calls[0]?.body as { sensorIds: number[] }).sensorIds).toEqual([1, 2]);
   });
 
-  it('deactivate: needs only the level and the Sensors, and posts to the Deactivate route', async () => {
-    const calls = recordCalls({ deactivated: 3, skipped: 0, items: [] });
-    const user = userEvent.setup();
-    renderDialog();
+  const preview = (levels: number, buckets: number, issues: number, reviewed: number) => ({
+    deviceId: 4,
+    deleted: false,
+    levels,
+    buckets,
+    issues,
+    reviewedIssues: reviewed,
+    refused: 0,
+    retrainingScheduledForDeviceIds: [],
+    items: [],
+  });
 
-    await user.click(screen.getByRole('radio', { name: 'Deactivate the level' }));
+  it('delete: the chosen level of every Sensor is deleted PERMANENTLY only after the preview and the confirmation', async () => {
+    const calls: Call[] = [];
+    fetchMock().mockImplementation(async (input: RequestInfo | URL) => {
+      const request = input as Request;
+      const path = new URL(request.url).pathname;
+      calls.push({ method: request.method, path, body: await request.clone().json() });
+      return json(path.endsWith('/DeletionPreview') ? preview(3, 90, 2, 1) : { ...preview(3, 90, 2, 1), deleted: true, retrainingScheduledForDeviceIds: [4] });
+    });
+    let closed = false;
+    const user = userEvent.setup();
+    renderDialog(() => {
+      closed = true;
+    });
+
+    await user.click(screen.getByRole('radio', { name: 'Delete the level permanently' }));
     expect(screen.queryByRole('spinbutton', { name: /Lookback/ })).not.toBeInTheDocument();
     await user.selectOptions(screen.getByRole('combobox', { name: /Time scale/ }), 'Days');
     await user.selectOptions(screen.getByRole('combobox', { name: /Aggregation function/ }), 'AVG');
-    await user.click(screen.getByRole('button', { name: 'Deactivate for 3 Sensor(s)' }));
+    await user.click(screen.getByRole('button', { name: 'Delete for 3 Sensor(s)…' }));
 
-    expect(await screen.findByText(/3 deactivated, 0 left as they were\./)).toBeInTheDocument();
-    expect(calls[0]?.path).toBe('/api/Devices/4/AggregationPolicies/Deactivate');
-    expect(calls[0]?.body).toEqual({ timeScale: 'Days', aggregationFunction: 'AVG' });
+    const levels = [1, 2, 3].map((sensorId) => ({ sensorId, timeScale: 'Days', aggregationFunction: 'AVG' }));
+    await waitFor(() => expect(calls[0]).toEqual({ method: 'POST', path: '/api/Devices/4/AggregationPolicies/DeletionPreview', body: { levels, confirm: false } }));
+    expect(await screen.findByText('This cannot be undone.')).toBeInTheDocument();
+    expect(screen.getByText('2 (of them reviewed: 1)')).toBeInTheDocument();
+    const confirm = screen.getByRole('button', { name: 'Delete 3 level(s) permanently' });
+    expect(confirm).toBeDisabled();
+    await user.click(screen.getByRole('checkbox', { name: /deleted permanently/ }));
+    await user.click(confirm);
+
+    await waitFor(() => expect(closed).toBe(true));
+    expect(calls.find((c) => c.path.endsWith('/Delete'))?.body).toEqual({ levels, confirm: true });
+  });
+
+  it('delete from CSV: the three columns of an aggregation sheet name the levels; a bad row stops everything', async () => {
+    const calls = recordCalls(preview(2, 0, 0, 0));
+    const user = userEvent.setup();
+    renderDialog();
+
+    await user.click(screen.getByRole('radio', { name: 'Delete from CSV' }));
+    const box = screen.getByRole('textbox', { name: /paste the cells/ });
+    fireEvent.change(box, { target: { value: 'SensorName,Level,TimeScale,AggregationFunction\next-1,1 hour,Hours,MAX\next-9,1 day,Days,AVG' } });
+    expect(await screen.findByText(/No Sensor "ext-9" on this Device/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete 0 level(s)…' })).toBeDisabled();
+
+    fireEvent.change(box, { target: { value: 'SensorName,Level,TimeScale,AggregationFunction\next-1,1 hour,Hours,MAX\next-3,1 day,Days,p95' } });
+    await user.click(await screen.findByRole('button', { name: 'Delete 2 level(s)…' }));
+
+    await waitFor(() => expect(calls[0]?.path).toBe('/api/Devices/4/AggregationPolicies/DeletionPreview'));
+    expect(calls[0]?.body).toEqual({
+      levels: [
+        { sensorId: 1, timeScale: 'Hours', aggregationFunction: 'MAX' },
+        { sensorId: 3, timeScale: 'Days', aggregationFunction: 'P95' },
+      ],
+      confirm: false,
+    });
   });
 
   it('shows the API remark per Sensor (a level that is stored but not calculated) and the refusal of a bad request', async () => {

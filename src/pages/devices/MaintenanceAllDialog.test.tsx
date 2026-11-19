@@ -58,7 +58,7 @@ describe('MaintenanceAllDialog', { timeout: 20_000 }, () => {
     expect(calls).toEqual([{ method: 'PUT', path: '/api/Devices/4/Maintenance', body: { enabled: true } }]);
   });
 
-  it('with everything in maintenance: ending is preselected, needs no acknowledgement, and starting is disabled', async () => {
+  it('with everything in maintenance: ending is preselected, asks what the maintenance was and a confirmation, and starting is disabled', async () => {
     const bodies: unknown[] = [];
     fetchMock().mockImplementation(async (input: RequestInfo | URL) => {
       const request = input as Request;
@@ -74,11 +74,17 @@ describe('MaintenanceAllDialog', { timeout: 20_000 }, () => {
     expect(screen.getByRole('radio', { name: /End maintenance on all Sensors/ })).toBeChecked();
     expect(screen.getByRole('radio', { name: /Start maintenance on all Sensors/ })).toBeDisabled(); // nothing to start
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    const confirm = screen.getByRole('button', { name: 'End maintenance on 2 Sensor(s)' });
+    expect(confirm).toBeDisabled(); // what was it?
 
-    await user.click(screen.getByRole('button', { name: 'End maintenance on 2 Sensor(s)' }));
+    await user.click(screen.getByRole('radio', { name: /Replacement or repair/ }));
+    expect(confirm).toBeDisabled(); // a confirmation first
+    await user.type(screen.getByRole('textbox', { name: /Note/ }), 'Motor replaced');
+    await user.click(screen.getByRole('checkbox', { name: /changes the baseline/ }));
+    await user.click(confirm);
 
     await waitFor(() => expect(closed).toBe(true));
-    expect(bodies).toEqual([{ enabled: false }]);
+    expect(bodies).toEqual([{ enabled: false, kind: 'Replacement', note: 'Motor replaced' }]);
   });
 
   it('with a mix: nothing is preselected, the counts say how many Sensors each choice changes, and the choice decides what is sent', async () => {
@@ -100,10 +106,12 @@ describe('MaintenanceAllDialog', { timeout: 20_000 }, () => {
     expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();
 
     await user.click(screen.getByRole('radio', { name: /End maintenance on all Sensors/ }));
+    await user.click(screen.getByRole('radio', { name: /Minor maintenance/ }));
+    await user.click(screen.getByRole('checkbox', { name: /baseline of the Sensors stays/ }));
     await user.click(screen.getByRole('button', { name: 'End maintenance on 1 Sensor(s)' }));
 
     await waitFor(() => expect(closed).toBe(true));
-    expect(bodies).toEqual([{ enabled: false }]);
+    expect(bodies).toEqual([{ enabled: false, kind: 'Minor', note: null }]);
   });
 
   it('shows the server\'s refusal and stays open instead of pretending it worked', async () => {
@@ -116,6 +124,8 @@ describe('MaintenanceAllDialog', { timeout: 20_000 }, () => {
       closed = true;
     });
 
+    await user.click(screen.getByRole('radio', { name: /Minor maintenance/ }));
+    await user.click(screen.getByRole('checkbox', { name: /baseline of the Sensors stays/ }));
     await user.click(screen.getByRole('button', { name: 'End maintenance on 1 Sensor(s)' }));
 
     expect(await screen.findByText(/admin privileges/)).toBeInTheDocument();

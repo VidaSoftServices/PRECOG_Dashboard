@@ -18,7 +18,7 @@ describe('useSetSensorMaintenance', () => {
     authStore.setSession({ token: 'abc', principalType: 'User', expiresAt: new Date(Date.now() + 60_000).toISOString() });
   });
 
-  it('PUTs only { enabled } to the Sensor maintenance route - never a MAC address', async () => {
+  it('starting PUTs only { enabled: true } to the Sensor maintenance route - never a MAC address', async () => {
     fetchMock().mockImplementation(
       async () =>
         new Response(JSON.stringify({ deviceId: 2, sensorId: 3, maintenanceMode: true }), {
@@ -28,7 +28,7 @@ describe('useSetSensorMaintenance', () => {
     );
 
     const { result } = renderHook(() => useSetSensorMaintenance(2, 3), { wrapper });
-    result.current.mutate(true);
+    result.current.mutate({ enabled: true });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -36,6 +36,19 @@ describe('useSetSensorMaintenance', () => {
     expect(request.method).toBe('PUT');
     expect(request.url).toContain('/api/Devices/2/Sensors/3/Maintenance');
     expect(await request.clone().json()).toEqual({ enabled: true });
+  });
+
+  it('ending sends what the maintenance was and the note', async () => {
+    fetchMock().mockImplementation(
+      async () => new Response(JSON.stringify({ deviceId: 2, sensorId: 3, maintenanceMode: false }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+
+    const { result } = renderHook(() => useSetSensorMaintenance(2, 3), { wrapper });
+    result.current.mutate({ enabled: false, kind: 'Replacement', note: 'Bearing replaced' });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const request = fetchMock().mock.calls.at(-1)![0] as Request;
+    expect(await request.clone().json()).toEqual({ enabled: false, kind: 'Replacement', note: 'Bearing replaced' });
   });
 
   it('surfaces the server\'s Admin-only refusal as an error instead of swallowing it', async () => {
@@ -48,7 +61,7 @@ describe('useSetSensorMaintenance', () => {
     );
 
     const { result } = renderHook(() => useSetSensorMaintenance(2, 3), { wrapper });
-    result.current.mutate(true);
+    result.current.mutate({ enabled: true });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect((result.current.error as { status?: number }).status).toBe(403);
@@ -60,7 +73,7 @@ describe('useSetDeviceMaintenance', () => {
     authStore.setSession({ token: 'abc', principalType: 'User', expiresAt: new Date(Date.now() + 60_000).toISOString() });
   });
 
-  it('PUTs only { enabled } to the Device-wide maintenance route - one request, no Sensor id, never a MAC address', async () => {
+  it('starting PUTs only { enabled: true } to the Device-wide maintenance route - one request, no Sensor id, never a MAC address', async () => {
     fetchMock().mockImplementation(
       async () =>
         new Response(JSON.stringify({ deviceId: 2, anySensorInMaintenance: true, sensors: [] }), {
@@ -70,7 +83,7 @@ describe('useSetDeviceMaintenance', () => {
     );
 
     const { result } = renderHook(() => useSetDeviceMaintenance(2), { wrapper });
-    result.current.mutate(true);
+    result.current.mutate({ enabled: true });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -91,7 +104,7 @@ describe('useSetDeviceMaintenance', () => {
     );
 
     const { result } = renderHook(() => useSetDeviceMaintenance(2), { wrapper });
-    result.current.mutate(false);
+    result.current.mutate({ enabled: false, kind: 'Minor' });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect((result.current.error as { status?: number }).status).toBe(403);

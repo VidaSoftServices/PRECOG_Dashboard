@@ -383,6 +383,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/Devices/{deviceId}/AggregationPolicies/DeletionPreview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * What deleting aggregation levels permanently would delete: per level its buckets, Issues and reviewed Issues. Changes nothing. Requires Company Admin.
+         * @description PERMANENT: the level, every aggregated bucket and queued bucket of it, and every Issue it raised are deleted for good (the Issues as DELETE /api/Issue/{issueId}/Permanent deletes one: knowledge-share selections, category suggestions, Ollama jobs and Sensor links first; members of a deleted canonical Issue become standalone). Deleting a REVIEWED Issue removes a training example: the Device and every Device learning from it through an approved share get a retraining request. A deactivated level is deleted as well. Refused per level (reported, the rest goes on): NotFound, Raw (the raw/base level is never deleted), InKnowledgeShare (a knowledge share maps the level - remove it from the share first), OllamaBusy (an Ollama job of one of its Issues is processing), Duplicate. A level is named by policyId, or by sensorId + timeScale + aggregationFunction (the columns of an aggregation sheet). At most 2000 levels per request. Company Admin only. The preview is for the confirmation the dashboard asks before the deletion.
+         */
+        post: operations["BulkAggregation_DeletionPreview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Devices/{deviceId}/AggregationPolicies/Delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete aggregation levels PERMANENTLY, with their buckets and their Issues (one or many: bulk). Requires Company Admin and confirm = true.
+         * @description PERMANENT: the level, every aggregated bucket and queued bucket of it, and every Issue it raised are deleted for good (the Issues as DELETE /api/Issue/{issueId}/Permanent deletes one: knowledge-share selections, category suggestions, Ollama jobs and Sensor links first; members of a deleted canonical Issue become standalone). Deleting a REVIEWED Issue removes a training example: the Device and every Device learning from it through an approved share get a retraining request. A deactivated level is deleted as well. Refused per level (reported, the rest goes on): NotFound, Raw (the raw/base level is never deleted), InKnowledgeShare (a knowledge share maps the level - remove it from the share first), OllamaBusy (an Ollama job of one of its Issues is processing), Duplicate. A level is named by policyId, or by sensorId + timeScale + aggregationFunction (the columns of an aggregation sheet). At most 2000 levels per request. Company Admin only. confirm must be true (400 otherwise). One transaction; audited once as 'device.aggregation.delete'. Nothing about the raw readings or the raw level changes, and the levels can be created again later (their history is then aggregated afresh).
+         */
+        post: operations["BulkAggregation_Delete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/Devices/{deviceId}/AggregationPolicies": {
         parameters: {
             query?: never;
@@ -1793,7 +1833,7 @@ export interface paths {
         get: operations["Maintenance_GetDeviceMaintenance"];
         /**
          * Switch maintenance mode on or off for EVERY Sensor of a Device at once. Requires a human Company Admin.
-         * @description The all-Sensors counterpart of PUT /api/Devices/{deviceId}/Sensors/{sensorId}/Maintenance, for a Device with hundreds of Sensors (one request instead of one per Sensor, which the per-Sensor rate limit would not allow). enabled = true puts every Sensor of the Device that is not in maintenance yet into maintenance: telemetry sent for them is accepted (202) but ignored - not stored and not analysed - and data sent meanwhile cannot be recovered. enabled = false takes every Sensor out of maintenance again. Sensors that already have the requested state are left untouched (their maintenanceSince and maintenanceSetByUserId do not change). Maintenance is an operational state: it never changes a Sensor's configuration and never triggers retraining. Only a human Company Admin may change it. A Reader receives 403 with the message "You need admin privileges to set maintenance mode." A Device's DevicePrincipal can never change it. Idempotent: when no Sensor needs to change the call succeeds without writing an audit record. A real change is applied to all affected Sensors in one transaction and audited as ONE event (device.maintenance.on / device.maintenance.off, with the number of Sensors changed) and logged with the acting Admin. The response is the Device's maintenance state after the call, like GET /api/Devices/{deviceId}/Maintenance. Example request: {"enabled": true}.
+         * @description The all-Sensors counterpart of PUT /api/Devices/{deviceId}/Sensors/{sensorId}/Maintenance, for a Device with hundreds of Sensors (one request instead of one per Sensor, which the per-Sensor rate limit would not allow). enabled = true puts every Sensor of the Device that is not in maintenance yet into maintenance: telemetry sent for them is accepted (202) but ignored - not stored and not analysed - and data sent meanwhile cannot be recovered. enabled = false takes every Sensor out of maintenance again. Sensors that already have the requested state are left untouched (their maintenanceSince and maintenanceSetByUserId do not change). Maintenance is an operational state: it never changes a Sensor's configuration and never triggers retraining. Every change is recorded in the maintenance history (GET /api/Devices/{deviceId}/Maintenances). When ending, kind says what the maintenance was for every Sensor taken out of it: "Replacement" (a part replaced or repaired - a new baseline starts after a warm-up measured against the old one) or "Minor" (the baseline stays; the default when omitted); note is an optional text (at most 500 characters). An unknown kind or a longer note is 400. Only a human Company Admin may change it. A Reader receives 403 with the message "You need admin privileges to set maintenance mode." A Device's DevicePrincipal can never change it. Idempotent: when no Sensor needs to change the call succeeds without writing an audit record. A real change is applied to all affected Sensors in one transaction and audited as ONE event (device.maintenance.on / device.maintenance.off, with the number of Sensors changed) and logged with the acting Admin. The response is the Device's maintenance state after the call, like GET /api/Devices/{deviceId}/Maintenance. Example requests: {"enabled": true}, {"enabled": false, "kind": "Minor", "note": "Inspection"}.
          */
         put: operations["Maintenance_SetDeviceMaintenance"];
         post?: never;
@@ -1817,10 +1857,90 @@ export interface paths {
         get: operations["Maintenance_GetSensorMaintenance"];
         /**
          * Switch a Sensor's maintenance mode on or off. Requires a human Company Admin.
-         * @description While a Sensor is in maintenance, telemetry sent for it is accepted (202) but ignored - not stored and not analysed. Maintenance is an operational state: it never changes the Sensor's configuration and never triggers retraining. Only a human Company Admin may change it. A Reader receives 403 with the message "You need admin privileges to set maintenance mode." A Device's DevicePrincipal can never change it - not even on behalf of an Admin's registered MAC address - and is rejected by default with 403 "Device principals cannot access this operation."; a Device can only READ the state (GET). Idempotent: setting the state the Sensor already has succeeds without writing an audit record. Every real change is audited and logged with the acting Admin. Example request: {"enabled": true}.
+         * @description While a Sensor is in maintenance, telemetry sent for it is accepted (202) but ignored - not stored and not analysed. Maintenance is an operational state: it never changes the Sensor's configuration and never triggers retraining. Only a human Company Admin may change it. A Reader receives 403 with the message "You need admin privileges to set maintenance mode." A Device's DevicePrincipal can never change it - not even on behalf of an Admin's registered MAC address - and is rejected by default with 403 "Device principals cannot access this operation."; a Device can only READ the state (GET). Idempotent: setting the state the Sensor already has succeeds without writing an audit record. Every real change is audited and logged with the acting Admin, and recorded in the maintenance history (GET /api/Devices/{deviceId}/Maintenances). When ending, kind says what the maintenance was: "Replacement" (a part was replaced or repaired, the machine's normal state changed: a new baseline starts - for a warm-up period the readings are still measured against the old baseline, so a repair that went wrong shows, then only the readings after the maintenance count) or "Minor" (inspection, lubrication...: the baseline stays; the default when omitted). It can be changed later (PUT /api/Devices/{deviceId}/Maintenances/{id}). note: optional text, at most 500 characters. An unknown kind or a longer note is 400. Example requests: {"enabled": true, "note": "Bearing replacement"}, {"enabled": false, "kind": "Replacement"}.
          */
         put: operations["Maintenance_SetSensorMaintenance"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Devices/{deviceId}/Maintenances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the maintenance history of a Device's Sensors, newest first. Any level with access to the Device.
+         * @description Every maintenance (from switching maintenance mode on to switching it off) with its kind ("Replacement" / "Minor", null while it goes on), note and who did it, and every baseline started by hand (manualBaseline: start = end). A replacement also carries baselineState ("WarmUp": the raw readings are still measured against the previous baseline; "Active": its baseline is the current one; "Superseded": a later replacement started a newer one) and warmUps: when the warm-up of the raw readings and of each enabled aggregation level of the Sensor ends (raw 1 day, hourly levels 3 days, daily 14 days, weekly 8 weeks, monthly 6 months; never fewer than 6 buckets). Filter: sensorId (optional). Paging: skip (default 0), take (default 100, at most 500); total = all matches. 404 when the Device does not exist in the caller's Company or the caller has no access to it.
+         */
+        get: operations["Maintenances_GetHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Devices/{deviceId}/Maintenances/{id}/Preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What changing a maintenance's kind would recalculate. Company Admin only; changes nothing.
+         * @description For the confirmation dialog: the span recalculated (the maintenance's end until now), the raw readings in it and whether they are analysed again (not when calculation is off, there is no setpoint, or the Sensor is not continuous and unidirectional - rawNote says why), the aggregation levels whose evaluation is redone, the Sensor's later replacements (their baselines are recalculated too, their kind stays) and the Sensor's Issues that reach into the span (none is deleted or raised again). kind: the new kind ("Replacement" / "Minor"). 400 for an unknown kind, 409 while the maintenance goes on, 404 when it does not exist on this Device.
+         */
+        get: operations["Maintenances_Preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Devices/{deviceId}/Maintenances/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change the kind and / or the note of a finished maintenance. Company Admin only.
+         * @description kind: "Replacement" or "Minor" (null = unchanged); note: null = unchanged, empty = removed, at most 500 characters. Any finished maintenance of the history can be changed, however far back. A different kind changes the Sensor's baseline segments from the maintenance's end on, so the Sensor is recalculated from there until now: the evaluation of its aggregated buckets is reset (each level evaluates them again at its next refresh) and its raw readings are analysed again by the Device's recalculation job (progress: GET /api/Devices/{deviceId}/Recalculation, kind "Rebaseline"; not for a Sensor with calculation off, without a setpoint, or not continuous and unidirectional). No Issue is deleted and none is raised a second time (an anomaly inside an existing Issue's span opens nothing); the Issues the old baseline caused are removed by the Admin (GET .../Preview lists them). Issues found in the past are not e-mailed. Audited (sensor.maintenance.kind). 400 for an unknown kind or a long note, 409 while the maintenance goes on (its kind is chosen when it ends), 404 when it does not exist on this Device.
+         */
+        put: operations["Maintenances_Update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Devices/{deviceId}/Maintenances/Baseline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a new baseline by hand, without maintenance mode, for some or all Sensors of a Device. Company Admin only.
+         * @description Records a replacement whose start and end are the same instant (manualBaseline in the history): from there the Sensor's readings go through a warm-up measured against the previous baseline, then only the readings after the instant count - exactly as after a maintenance ended as "Replacement". For a change of the machine's normal state that needed no maintenance mode (a machine moved, a process changed). sensorIds: null or empty = every Sensor of the Device; at: UTC instant, null = now, not in the future (1 minute of clock skew is accepted); note: at most 500 characters. A Sensor in maintenance mode right now is left out (ending its maintenance as a replacement does the same). An instant more than a minute in the past recalculates the Sensors from there (see PUT .../Maintenances/{id}). Audited once (device.baseline.start). 400 for an unknown Sensor id, an instant in the future or a long note; 409 when every Sensor asked for is in maintenance.
+         */
+        post: operations["Maintenances_StartBaseline"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2559,6 +2679,113 @@ export interface components {
              * @description Lower control limit, 3 sample standard deviations (calculated like VidaSoft.API.DataFlow.AggregatedValueDto.UpperControlLimit3S).
              */
             lowerControlLimit3S?: number | null;
+        };
+        /** @description The preview or the result of a permanent deletion of aggregation levels. */
+        AggregationLevelDeletionDto: {
+            /**
+             * Format: int32
+             * @description The Device.
+             */
+            deviceId?: number;
+            /** @description False for the preview, true for the deletion. */
+            deleted?: boolean;
+            /**
+             * Format: int32
+             * @description The levels deleted (preview: that would be deleted).
+             */
+            levels?: number;
+            /**
+             * Format: int64
+             * @description Their aggregated buckets.
+             */
+            buckets?: number;
+            /**
+             * Format: int32
+             * @description Their Issues.
+             */
+            issues?: number;
+            /**
+             * Format: int32
+             * @description Of those, the reviewed ones (training examples).
+             */
+            reviewedIssues?: number;
+            /**
+             * Format: int32
+             * @description The levels not deleted (not found, raw, in a knowledge share, an Ollama job busy, listed twice).
+             */
+            refused?: number;
+            /** @description Devices whose retraining was scheduled because reviewed Issues were deleted (the result only). */
+            retrainingScheduledForDeviceIds?: number[] | null;
+            /** @description Every requested level, in request order. */
+            items?: components["schemas"]["AggregationLevelDeletionItemDto"][] | null;
+        };
+        /** @description One requested level in a deletion preview or result. */
+        AggregationLevelDeletionItemDto: {
+            /**
+             * Format: int32
+             * @description The position of the level in the request (0-based).
+             */
+            index?: number;
+            /**
+             * Format: int64
+             * @description The level's id; null when it was not found.
+             */
+            policyId?: number | null;
+            /**
+             * Format: int32
+             * @description The level's Sensor.
+             */
+            sensorId?: number | null;
+            /** @description The Sensor's display name (its external id when it has none). */
+            sensorName?: string | null;
+            /** @description The Sensor's external id. */
+            externalSensorId?: string | null;
+            /** @description The level's time scale. */
+            timeScale?: string | null;
+            /** @description The level's aggregation function. */
+            aggregationFunction?: string | null;
+            /** @description True when the level is enabled (a deactivated level is deleted as well). */
+            enabled?: boolean;
+            /**
+             * Format: int64
+             * @description Its stored aggregated buckets.
+             */
+            buckets?: number;
+            /**
+             * Format: int32
+             * @description The Issues this level raised (deleted with it).
+             */
+            issues?: number;
+            /**
+             * Format: int32
+             * @description Of those, the ones a person reviewed (training examples: deleting them schedules retraining).
+             */
+            reviewedIssues?: number;
+            /**
+             * @description Preview: "WillDelete", "NotFound", "Raw" (the raw level cannot be deleted), "InKnowledgeShare" (a knowledge share maps this level - remove it
+             *     from the share first), "OllamaBusy" (an Ollama job of one of its Issues is processing - try again shortly), "Duplicate" (listed twice).
+             *     Result: "Deleted" or one of the refusals.
+             */
+            outcome?: string | null;
+            /** @description Why a level is not deleted (null when it is). */
+            message?: string | null;
+        };
+        /** @description One aggregation level to delete: either its id, or its Sensor with time scale and function (the columns of an aggregation sheet). */
+        AggregationLevelRef: {
+            /**
+             * Format: int64
+             * @description The level (SensorAggregationPolicy) id. When given, the other fields are not needed.
+             */
+            policyId?: number | null;
+            /**
+             * Format: int32
+             * @description The Sensor of the level (with TimeScale and AggregationFunction).
+             */
+            sensorId?: number | null;
+            /** @description The level's time scale, e.g. "Days" (case insensitive; never "Native": the raw level cannot be deleted). */
+            timeScale?: string | null;
+            /** @description The level's aggregation function, e.g. "AVG" or "P95" (case insensitive; never "Raw"). */
+            aggregationFunction?: string | null;
         };
         /** @description The health of the background analysis since the API process started: which build runs, how long the queues are, how many runs succeeded or failed, and the latest errors. */
         AnalysisDiagnosticsDto: {
@@ -3623,6 +3850,13 @@ export interface components {
              */
             createFromSuggestion?: boolean;
         };
+        /** @description Aggregation levels to delete permanently (or to preview). Company Admin only. */
+        DeleteAggregationLevelsRequest: {
+            /** @description The levels, at most 2000. */
+            levels?: components["schemas"]["AggregationLevelRef"][] | null;
+            /** @description Must be true for the deletion itself (the preview ignores it): the caller confirms that the levels, their buckets and their Issues go for good. */
+            confirm?: boolean;
+        };
         /**
          * @description Confirmation for the permanent, irreversible deletion of a Device. The caller must type the Device's name; the
          *     server compares it itself, so a script or a stray call cannot delete a Device by id alone.
@@ -4656,6 +4890,123 @@ export interface components {
              */
             queued?: boolean;
         };
+        /** @description An Issue that lies in a recalculated span. */
+        MaintenanceAffectedIssueDto: {
+            /**
+             * Format: int64
+             * @description The Issue (GET /api/Issue/{issueId}).
+             */
+            issueId?: number;
+            /**
+             * Format: int64
+             * @description The Issue's Device-scoped number.
+             */
+            issueKey?: number;
+            /**
+             * Format: date-time
+             * @description UTC instant of the Issue's first anomalous reading (or bucket).
+             */
+            measuredAtFrom?: string;
+            /**
+             * Format: date-time
+             * @description UTC instant of the Issue's last anomalous reading (an aggregated Issue: the end of its last bucket).
+             */
+            measuredAtTo?: string;
+            /** @description PendingReview, ReviewedFault or ReviewedFalsePositive. */
+            reviewState?: string | null;
+            /** @description The level that raised it ("raw readings", "Days AVG"...). */
+            level?: string | null;
+        };
+        /** @description What a kind change recalculates (GET .../Maintenances/{id}/Preview): shown before the Admin confirms. */
+        MaintenanceChangePreviewDto: {
+            /**
+             * Format: int64
+             * @description The maintenance whose kind would change.
+             */
+            maintenanceId?: number;
+            /**
+             * Format: int32
+             * @description Its Sensor.
+             */
+            sensorId?: number;
+            /** @description The Sensor's display name (its external id when it has none). */
+            sensorName?: string | null;
+            /** @description The kind now: "Replacement" or "Minor". */
+            currentKind?: string | null;
+            /** @description The kind asked for. */
+            newKind?: string | null;
+            /**
+             * Format: date-time
+             * @description The recalculation starts here: the maintenance's end.
+             */
+            recalculateFrom?: string;
+            /**
+             * Format: date-time
+             * @description ... and runs until now.
+             */
+            recalculateTo?: string;
+            /**
+             * Format: int64
+             * @description The raw readings in that span (the raw analysis runs over them again).
+             */
+            readings?: number;
+            /** @description True when the raw readings are analysed again; false with the reason in VidaSoft.API.DataFlow.MaintenanceChangePreviewDto.RawNote (calculation off, no setpoint, not a continuous unidirectional Sensor). */
+            rawRecalculated?: boolean;
+            /** @description Why the raw readings are not analysed again (null when they are). */
+            rawNote?: string | null;
+            /** @description The aggregation levels whose evaluation is redone (calculation on), e.g. "Days AVG". */
+            levels?: string[] | null;
+            /** @description The later replacements of the Sensor: their baselines are recalculated too (their kind stays). */
+            laterReplacements?: components["schemas"]["SensorMaintenanceRecordDto"][] | null;
+            /** @description The Sensor's Issues that reach into the span. None is deleted or raised again; the Admin removes the ones the old baseline caused. */
+            issues?: components["schemas"]["MaintenanceAffectedIssueDto"][] | null;
+        };
+        /** @description The result of a kind change. */
+        MaintenanceChangeResultDto: {
+            /** @description One maintenance of a Sensor (the maintenance history). */
+            maintenance?: components["schemas"]["SensorMaintenanceRecordDto"] | null;
+            /** @description True when the kind changed and a recalculation was started. */
+            recalculating?: boolean;
+            /** @description The recalculation job of the Device (its progress: GET /api/Devices/{deviceId}/Recalculation); null when the raw readings are not recalculated. */
+            recalculationJobId?: string | null;
+            /**
+             * Format: int32
+             * @description The aggregated buckets whose evaluation was reset (they are evaluated again at the level's next refresh).
+             */
+            aggregatedBucketsReset?: number;
+        };
+        /** @description A page of the maintenance history, newest first. */
+        MaintenanceHistoryDto: {
+            /**
+             * Format: int32
+             * @description The Device.
+             */
+            deviceId?: number;
+            /**
+             * Format: int32
+             * @description The number of maintenances that match (all pages).
+             */
+            total?: number;
+            /** @description The maintenances of this page, newest start first. */
+            items?: components["schemas"]["SensorMaintenanceRecordDto"][] | null;
+        };
+        /** @description The warm-up of one level of the Sensor after a replacement: until this instant the readings are measured against the previous baseline. */
+        MaintenanceWarmUpDto: {
+            /**
+             * Format: int64
+             * @description The aggregation level (the raw level's id for the raw readings).
+             */
+            policyId?: number;
+            /** @description The level's time scale ("Native" for the raw readings, "Days", "Weeks"...). */
+            timeScale?: string | null;
+            /** @description The level's aggregation function ("Raw" for the raw readings, "AVG"...). */
+            aggregationFunction?: string | null;
+            /**
+             * Format: date-time
+             * @description UTC instant the warm-up ends and the new baseline takes over.
+             */
+            warmUpEndsAt?: string;
+        };
         /**
          * @description Merges a duplicate category into a surviving one: every Issue assignment
          *     moves, then the source is retired. Non-destructive - no Issue and no
@@ -5265,6 +5616,71 @@ export interface components {
              */
             maintenanceSetByUserId?: number | null;
         };
+        /** @description One maintenance of a Sensor (the maintenance history). */
+        SensorMaintenanceRecordDto: {
+            /**
+             * Format: int64
+             * @description The maintenance (for PUT /api/Devices/{deviceId}/Maintenances/{id}).
+             */
+            id?: number;
+            /**
+             * Format: int32
+             * @description The Device.
+             */
+            deviceId?: number;
+            /**
+             * Format: int32
+             * @description The Sensor.
+             */
+            sensorId?: number;
+            /** @description The Sensor's display name (its external id when it has none). */
+            sensorName?: string | null;
+            /** @description The Sensor's external id. */
+            externalSensorId?: string | null;
+            /**
+             * Format: date-time
+             * @description UTC instant maintenance mode was switched on (for a baseline started by hand: the chosen instant).
+             */
+            startedAt?: string;
+            /**
+             * Format: date-time
+             * @description UTC instant maintenance mode was switched off; null while it goes on.
+             */
+            endedAt?: string | null;
+            /** @description "Replacement" or "Minor"; null while the maintenance goes on. */
+            kind?: string | null;
+            /** @description True for a baseline started by hand (no maintenance mode: start and end are the same instant). */
+            manualBaseline?: boolean;
+            /** @description The Admin's free text (what was done), at most 500 characters. */
+            note?: string | null;
+            /**
+             * Format: int64
+             * @description Internal User id of the Admin who switched maintenance mode on (or started the baseline by hand).
+             */
+            startedByUserId?: number | null;
+            /**
+             * Format: int64
+             * @description Internal User id of the Admin who switched maintenance mode off.
+             */
+            endedByUserId?: number | null;
+            /**
+             * Format: date-time
+             * @description When the kind was last changed after the end (null = never).
+             */
+            kindChangedAt?: string | null;
+            /**
+             * Format: int64
+             * @description Internal User id of the Admin who last changed the kind afterwards.
+             */
+            kindChangedByUserId?: number | null;
+            /**
+             * @description For a replacement: "WarmUp" (the raw readings are still measured against the previous baseline), "Active" (its baseline is the current one) or
+             *     "Superseded" (a later replacement started a newer one). Null for a minor or a running maintenance.
+             */
+            baselineState?: string | null;
+            /** @description For a replacement: when the warm-up of the raw readings and of each aggregation level of the Sensor ends. Empty otherwise. */
+            warmUps?: components["schemas"]["MaintenanceWarmUpDto"][] | null;
+        };
         /** @description The unit catalog: what units a Sensor definition may use, and what the known metrics are. */
         SensorMetadataCatalogDto: {
             /** @description The canonical units. */
@@ -5276,6 +5692,10 @@ export interface components {
         SetDeviceMaintenanceRequest: {
             /** @description True to put every Sensor of the Device into maintenance mode (telemetry for them is ignored), false to take every Sensor out of it again. */
             enabled: boolean;
+            /** @description Only when ending: what the maintenance was, for every Sensor that is taken out of it ("Replacement" or "Minor"; omitted = "Minor"). See VidaSoft.API.DataFlow.SetSensorMaintenanceRequest.Kind. */
+            kind?: string | null;
+            /** @description Optional free text, at most 500 characters, stored on every Sensor's maintenance that is started or ended by the call. */
+            note?: string | null;
         };
         /** @description Request to enable or disable a Device's machine-access principal. */
         SetDevicePrincipalEnabledRequest: {
@@ -5290,6 +5710,14 @@ export interface components {
         SetSensorMaintenanceRequest: {
             /** @description True to put the Sensor into maintenance mode (telemetry for it is ignored), false to take it out again. */
             enabled: boolean;
+            /**
+             * @description Only when ending (enabled = false): what the maintenance was. "Replacement" - a part was replaced or repaired, the machine's normal state changed: a new
+             *     baseline starts (after a warm-up measured against the old one). "Minor" - an inspection, lubrication...: the baseline stays. Omitted = "Minor" (the
+             *     behaviour before maintenance kinds existed). Ignored when starting. Can be changed later (PUT /api/Devices/{deviceId}/Maintenances/{id}).
+             */
+            kind?: string | null;
+            /** @description Optional free text (what was done), at most 500 characters. When starting it is stored on the new maintenance; when ending it replaces the stored one (if given). */
+            note?: string | null;
         };
         /**
          * @description Target/tolerance configuration effective for a time range. Exactly one of
@@ -5508,6 +5936,42 @@ export interface components {
              * @description Read-only. Anomaly classification for this Period once analysed (0 = no issues, 1 = warning, 2 = critical), or null if not yet analysed or not anomalous.
              */
             anomaly?: number | null;
+        };
+        /** @description Start a new baseline by hand (without maintenance mode), for some or all Sensors of a Device. Company Admin only. */
+        StartBaselineRequest: {
+            /** @description The Sensors; null or empty = every Sensor of the Device. */
+            sensorIds?: number[] | null;
+            /**
+             * Format: date-time
+             * @description UTC instant the new baseline starts at (its warm-up starts there). Null = now. Not in the future; an instant in the past recalculates the Sensors from there.
+             */
+            at?: string | null;
+            /** @description Optional free text, at most 500 characters. */
+            note?: string | null;
+        };
+        /** @description The result of a baseline started by hand. */
+        StartBaselineResultDto: {
+            /**
+             * Format: int32
+             * @description The Device.
+             */
+            deviceId?: number;
+            /**
+             * Format: date-time
+             * @description UTC instant the new baseline starts at.
+             */
+            at?: string;
+            /** @description The Sensors that got the new baseline. */
+            sensorIds?: number[] | null;
+            /** @description Sensors left out: in maintenance mode right now (ending the maintenance as a replacement does the same). */
+            skippedSensorIds?: number[] | null;
+            /** @description The Device's recalculation job when the instant lies in the past; null otherwise. */
+            recalculationJobId?: string | null;
+            /**
+             * Format: int32
+             * @description The aggregated buckets whose evaluation was reset (an instant in the past only).
+             */
+            aggregatedBucketsReset?: number;
         };
         StreamCompatibilityDto: {
             /**
@@ -5768,6 +6232,13 @@ export interface components {
             en?: string | null;
             /** @description The Hungarian description, or null/blank for none. */
             hu?: string | null;
+        };
+        /** @description Change the kind (and / or the note) of a finished maintenance. Company Admin only. */
+        UpdateSensorMaintenanceRequest: {
+            /** @description "Replacement" or "Minor". Null = the kind is not changed. A different kind recalculates the Sensor from the maintenance's end until now. */
+            kind?: string | null;
+            /** @description The note: null = not changed, an empty text removes it. At most 500 characters. */
+            note?: string | null;
         };
         /**
          * @description Only Sensor-level fields. Lookback/Scale/MinIssueScore are updated per
@@ -6235,49 +6706,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 3,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T08:49:36.5565093Z",
+                 *         "measured": "2026-11-13T11:39:13.9321489Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T08:49:36.5565373Z",
+                 *         "measured": "2026-11-14T11:39:13.9321715Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 3,
-                 *         "measured": "2026-11-15T08:49:36.5565376Z",
+                 *         "measured": "2026-11-15T11:39:13.9321728Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 4,
-                 *         "measured": "2026-11-16T08:49:36.5565378Z",
+                 *         "measured": "2026-11-16T11:39:13.932173Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 5,
-                 *         "measured": "2026-11-17T08:49:36.556538Z",
+                 *         "measured": "2026-11-17T11:39:13.9321732Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 6,
-                 *         "measured": "2026-11-18T08:49:36.5565387Z",
+                 *         "measured": "2026-11-18T11:39:13.9321736Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T08:49:36.5565389Z",
+                 *         "measured": "2026-11-13T11:39:13.9321738Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T08:49:36.5565391Z",
+                 *         "measured": "2026-11-14T11:39:13.9321739Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -6288,49 +6759,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 3,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T08:49:36.5565093Z",
+                 *         "measured": "2026-11-13T11:39:13.9321489Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T08:49:36.5565373Z",
+                 *         "measured": "2026-11-14T11:39:13.9321715Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 3,
-                 *         "measured": "2026-11-15T08:49:36.5565376Z",
+                 *         "measured": "2026-11-15T11:39:13.9321728Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 4,
-                 *         "measured": "2026-11-16T08:49:36.5565378Z",
+                 *         "measured": "2026-11-16T11:39:13.932173Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 5,
-                 *         "measured": "2026-11-17T08:49:36.556538Z",
+                 *         "measured": "2026-11-17T11:39:13.9321732Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 6,
-                 *         "measured": "2026-11-18T08:49:36.5565387Z",
+                 *         "measured": "2026-11-18T11:39:13.9321736Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T08:49:36.5565389Z",
+                 *         "measured": "2026-11-13T11:39:13.9321738Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T08:49:36.5565391Z",
+                 *         "measured": "2026-11-14T11:39:13.9321739Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -6341,49 +6812,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 3,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T08:49:36.5565093Z",
+                 *         "measured": "2026-11-13T11:39:13.9321489Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T08:49:36.5565373Z",
+                 *         "measured": "2026-11-14T11:39:13.9321715Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 3,
-                 *         "measured": "2026-11-15T08:49:36.5565376Z",
+                 *         "measured": "2026-11-15T11:39:13.9321728Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 4,
-                 *         "measured": "2026-11-16T08:49:36.5565378Z",
+                 *         "measured": "2026-11-16T11:39:13.932173Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 5,
-                 *         "measured": "2026-11-17T08:49:36.556538Z",
+                 *         "measured": "2026-11-17T11:39:13.9321732Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 6,
-                 *         "measured": "2026-11-18T08:49:36.5565387Z",
+                 *         "measured": "2026-11-18T11:39:13.9321736Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T08:49:36.5565389Z",
+                 *         "measured": "2026-11-13T11:39:13.9321738Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T08:49:36.5565391Z",
+                 *         "measured": "2026-11-14T11:39:13.9321739Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -6737,22 +7208,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T05:49:36.5751368Z",
+                 *             "measured": "2026-11-19T08:39:13.9652038Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T06:19:36.5751559Z",
+                 *             "measured": "2026-11-19T09:09:13.9652903Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T06:49:36.5751561Z",
+                 *             "measured": "2026-11-19T09:39:13.9652907Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T07:19:36.5751562Z",
+                 *             "measured": "2026-11-19T10:09:13.9652909Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -6763,22 +7234,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T07:49:36.5751686Z",
+                 *             "measured": "2026-11-19T10:39:13.965307Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T08:04:36.5751688Z",
+                 *             "measured": "2026-11-19T10:54:13.9653072Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T08:19:36.5751697Z",
+                 *             "measured": "2026-11-19T11:09:13.9653087Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T08:34:36.5751698Z",
+                 *             "measured": "2026-11-19T11:24:13.9653089Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -6789,12 +7260,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T05:49:36.57517Z",
+                 *             "measured": "2026-11-19T08:39:13.9653091Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T06:19:36.5751702Z",
+                 *             "measured": "2026-11-19T09:09:13.9653093Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -6810,22 +7281,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T05:49:36.5751368Z",
+                 *             "measured": "2026-11-19T08:39:13.9652038Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T06:19:36.5751559Z",
+                 *             "measured": "2026-11-19T09:09:13.9652903Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T06:49:36.5751561Z",
+                 *             "measured": "2026-11-19T09:39:13.9652907Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T07:19:36.5751562Z",
+                 *             "measured": "2026-11-19T10:09:13.9652909Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -6836,22 +7307,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T07:49:36.5751686Z",
+                 *             "measured": "2026-11-19T10:39:13.965307Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T08:04:36.5751688Z",
+                 *             "measured": "2026-11-19T10:54:13.9653072Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T08:19:36.5751697Z",
+                 *             "measured": "2026-11-19T11:09:13.9653087Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T08:34:36.5751698Z",
+                 *             "measured": "2026-11-19T11:24:13.9653089Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -6862,12 +7333,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T05:49:36.57517Z",
+                 *             "measured": "2026-11-19T08:39:13.9653091Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T06:19:36.5751702Z",
+                 *             "measured": "2026-11-19T09:09:13.9653093Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -6883,22 +7354,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T05:49:36.5751368Z",
+                 *             "measured": "2026-11-19T08:39:13.9652038Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T06:19:36.5751559Z",
+                 *             "measured": "2026-11-19T09:09:13.9652903Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T06:49:36.5751561Z",
+                 *             "measured": "2026-11-19T09:39:13.9652907Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T07:19:36.5751562Z",
+                 *             "measured": "2026-11-19T10:09:13.9652909Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -6909,22 +7380,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T07:49:36.5751686Z",
+                 *             "measured": "2026-11-19T10:39:13.965307Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T08:04:36.5751688Z",
+                 *             "measured": "2026-11-19T10:54:13.9653072Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T08:19:36.5751697Z",
+                 *             "measured": "2026-11-19T11:09:13.9653087Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T08:34:36.5751698Z",
+                 *             "measured": "2026-11-19T11:24:13.9653089Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -6935,12 +7406,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T05:49:36.57517Z",
+                 *             "measured": "2026-11-19T08:39:13.9653091Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T06:19:36.5751702Z",
+                 *             "measured": "2026-11-19T09:09:13.9653093Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -7195,6 +7666,128 @@ export interface operations {
         responses: {
             /** @description No Content */
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    BulkAggregation_DeletionPreview: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                deviceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["DeleteAggregationLevelsRequest"];
+                "text/json": components["schemas"]["DeleteAggregationLevelsRequest"];
+                "application/*+json": components["schemas"]["DeleteAggregationLevelsRequest"];
+            };
+        };
+        responses: {
+            /** @description Per level what would happen, and the totals. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["AggregationLevelDeletionDto"];
+                    "application/json": components["schemas"]["AggregationLevelDeletionDto"];
+                    "text/json": components["schemas"]["AggregationLevelDeletionDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    BulkAggregation_Delete: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                deviceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["DeleteAggregationLevelsRequest"];
+                "text/json": components["schemas"]["DeleteAggregationLevelsRequest"];
+                "application/*+json": components["schemas"]["DeleteAggregationLevelsRequest"];
+            };
+        };
+        responses: {
+            /** @description Per level what happened, the totals and the retraining scheduled. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["AggregationLevelDeletionDto"];
+                    "application/json": components["schemas"]["AggregationLevelDeletionDto"];
+                    "text/json": components["schemas"]["AggregationLevelDeletionDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7975,49 +8568,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 1,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T08:49:36.5987027Z",
+                 *         "measured": "2026-11-13T11:39:14.001776Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T08:49:36.5987151Z",
+                 *         "measured": "2026-11-14T11:39:14.0018024Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 3,
-                 *         "measured": "2026-11-15T08:49:36.5987153Z",
+                 *         "measured": "2026-11-15T11:39:14.0018028Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 4,
-                 *         "measured": "2026-11-16T08:49:36.5987154Z",
+                 *         "measured": "2026-11-16T11:39:14.0018031Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 5,
-                 *         "measured": "2026-11-17T08:49:36.5987156Z",
+                 *         "measured": "2026-11-17T11:39:14.0018033Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 6,
-                 *         "measured": "2026-11-18T08:49:36.598716Z",
+                 *         "measured": "2026-11-18T11:39:14.0018051Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T08:49:36.5987162Z",
+                 *         "measured": "2026-11-13T11:39:14.0018053Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T08:49:36.5987163Z",
+                 *         "measured": "2026-11-14T11:39:14.0018056Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -8028,49 +8621,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 1,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T08:49:36.5987027Z",
+                 *         "measured": "2026-11-13T11:39:14.001776Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T08:49:36.5987151Z",
+                 *         "measured": "2026-11-14T11:39:14.0018024Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 3,
-                 *         "measured": "2026-11-15T08:49:36.5987153Z",
+                 *         "measured": "2026-11-15T11:39:14.0018028Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 4,
-                 *         "measured": "2026-11-16T08:49:36.5987154Z",
+                 *         "measured": "2026-11-16T11:39:14.0018031Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 5,
-                 *         "measured": "2026-11-17T08:49:36.5987156Z",
+                 *         "measured": "2026-11-17T11:39:14.0018033Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 6,
-                 *         "measured": "2026-11-18T08:49:36.598716Z",
+                 *         "measured": "2026-11-18T11:39:14.0018051Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T08:49:36.5987162Z",
+                 *         "measured": "2026-11-13T11:39:14.0018053Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T08:49:36.5987163Z",
+                 *         "measured": "2026-11-14T11:39:14.0018056Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -8081,49 +8674,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 1,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T08:49:36.5987027Z",
+                 *         "measured": "2026-11-13T11:39:14.001776Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T08:49:36.5987151Z",
+                 *         "measured": "2026-11-14T11:39:14.0018024Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 3,
-                 *         "measured": "2026-11-15T08:49:36.5987153Z",
+                 *         "measured": "2026-11-15T11:39:14.0018028Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 4,
-                 *         "measured": "2026-11-16T08:49:36.5987154Z",
+                 *         "measured": "2026-11-16T11:39:14.0018031Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 5,
-                 *         "measured": "2026-11-17T08:49:36.5987156Z",
+                 *         "measured": "2026-11-17T11:39:14.0018033Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 6,
-                 *         "measured": "2026-11-18T08:49:36.598716Z",
+                 *         "measured": "2026-11-18T11:39:14.0018051Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T08:49:36.5987162Z",
+                 *         "measured": "2026-11-13T11:39:14.0018053Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T08:49:36.5987163Z",
+                 *         "measured": "2026-11-14T11:39:14.0018056Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -11893,6 +12486,13 @@ export interface operations {
                     "text/json": components["schemas"]["DeviceMaintenanceDto"];
                 };
             };
+            /** @description kind is not "Replacement" or "Minor", or note is longer than 500 characters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Unauthorized */
             401: {
                 headers: {
@@ -11997,6 +12597,13 @@ export interface operations {
                     "text/json": components["schemas"]["SensorMaintenanceDto"];
                 };
             };
+            /** @description kind is not "Replacement" or "Minor", or note is longer than 500 characters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Unauthorized */
             401: {
                 headers: {
@@ -12019,6 +12626,267 @@ export interface operations {
                 content?: never;
             };
             /** @description Rate limit exceeded for this client address (policy "MaintenanceWrite"). Honour the Retry-After response header. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Maintenances_GetHistory: {
+        parameters: {
+            query?: {
+                sensorId?: number;
+                skip?: number;
+                take?: number;
+            };
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                deviceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of the history. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["MaintenanceHistoryDto"];
+                    "application/json": components["schemas"]["MaintenanceHistoryDto"];
+                    "text/json": components["schemas"]["MaintenanceHistoryDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found or not accessible to the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Maintenances_Preview: {
+        parameters: {
+            query?: {
+                kind?: string;
+            };
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                deviceId: number;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The preview. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["MaintenanceChangePreviewDto"];
+                    "application/json": components["schemas"]["MaintenanceChangePreviewDto"];
+                    "text/json": components["schemas"]["MaintenanceChangePreviewDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The maintenance is still going on: its kind is chosen when it ends. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Maintenances_Update: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                deviceId: number;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UpdateSensorMaintenanceRequest"];
+                "text/json": components["schemas"]["UpdateSensorMaintenanceRequest"];
+                "application/*+json": components["schemas"]["UpdateSensorMaintenanceRequest"];
+            };
+        };
+        responses: {
+            /** @description The maintenance after the change, and whether a recalculation started. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["MaintenanceChangeResultDto"];
+                    "application/json": components["schemas"]["MaintenanceChangeResultDto"];
+                    "text/json": components["schemas"]["MaintenanceChangeResultDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The maintenance is still going on. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limit exceeded (policy "MaintenanceWrite"). Honour the Retry-After response header. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Maintenances_StartBaseline: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                deviceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["StartBaselineRequest"];
+                "text/json": components["schemas"]["StartBaselineRequest"];
+                "application/*+json": components["schemas"]["StartBaselineRequest"];
+            };
+        };
+        responses: {
+            /** @description The Sensors that got the new baseline. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["StartBaselineResultDto"];
+                    "application/json": components["schemas"]["StartBaselineResultDto"];
+                    "text/json": components["schemas"]["StartBaselineResultDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limit exceeded (policy "MaintenanceWrite"). Honour the Retry-After response header. */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -12236,22 +13104,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T05:49:36.652046Z",
+                 *             "measured": "2026-11-19T08:39:14.1358138Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T06:19:36.6520635Z",
+                 *             "measured": "2026-11-19T09:09:14.1358303Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T06:49:36.6520636Z",
+                 *             "measured": "2026-11-19T09:39:14.1358305Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T07:19:36.6520637Z",
+                 *             "measured": "2026-11-19T10:09:14.1358306Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -12262,22 +13130,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T07:49:36.652076Z",
+                 *             "measured": "2026-11-19T10:39:14.1358428Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T08:04:36.6520762Z",
+                 *             "measured": "2026-11-19T10:54:14.135843Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T08:19:36.6520763Z",
+                 *             "measured": "2026-11-19T11:09:14.1358431Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T08:34:36.6520764Z",
+                 *             "measured": "2026-11-19T11:24:14.1358433Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -12288,12 +13156,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T05:49:36.6520766Z",
+                 *             "measured": "2026-11-19T08:39:14.1358435Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T06:19:36.6520767Z",
+                 *             "measured": "2026-11-19T09:09:14.1358436Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -12309,22 +13177,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T05:49:36.652046Z",
+                 *             "measured": "2026-11-19T08:39:14.1358138Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T06:19:36.6520635Z",
+                 *             "measured": "2026-11-19T09:09:14.1358303Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T06:49:36.6520636Z",
+                 *             "measured": "2026-11-19T09:39:14.1358305Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T07:19:36.6520637Z",
+                 *             "measured": "2026-11-19T10:09:14.1358306Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -12335,22 +13203,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T07:49:36.652076Z",
+                 *             "measured": "2026-11-19T10:39:14.1358428Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T08:04:36.6520762Z",
+                 *             "measured": "2026-11-19T10:54:14.135843Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T08:19:36.6520763Z",
+                 *             "measured": "2026-11-19T11:09:14.1358431Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T08:34:36.6520764Z",
+                 *             "measured": "2026-11-19T11:24:14.1358433Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -12361,12 +13229,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T05:49:36.6520766Z",
+                 *             "measured": "2026-11-19T08:39:14.1358435Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T06:19:36.6520767Z",
+                 *             "measured": "2026-11-19T09:09:14.1358436Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -12382,22 +13250,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T05:49:36.652046Z",
+                 *             "measured": "2026-11-19T08:39:14.1358138Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T06:19:36.6520635Z",
+                 *             "measured": "2026-11-19T09:09:14.1358303Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T06:49:36.6520636Z",
+                 *             "measured": "2026-11-19T09:39:14.1358305Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T07:19:36.6520637Z",
+                 *             "measured": "2026-11-19T10:09:14.1358306Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -12408,22 +13276,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T07:49:36.652076Z",
+                 *             "measured": "2026-11-19T10:39:14.1358428Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T08:04:36.6520762Z",
+                 *             "measured": "2026-11-19T10:54:14.135843Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T08:19:36.6520763Z",
+                 *             "measured": "2026-11-19T11:09:14.1358431Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T08:34:36.6520764Z",
+                 *             "measured": "2026-11-19T11:24:14.1358433Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -12434,12 +13302,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T05:49:36.6520766Z",
+                 *             "measured": "2026-11-19T08:39:14.1358435Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T06:19:36.6520767Z",
+                 *             "measured": "2026-11-19T09:09:14.1358436Z",
                  *             "actual": 13.1
                  *           }
                  *         ]

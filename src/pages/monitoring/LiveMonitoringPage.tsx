@@ -47,6 +47,8 @@ import { POLL_INTERVALS_MS } from '@/lib/pollIntervals';
 import { useLiveMonitoringSchedule, type LiveSensor } from './useLiveMonitoringSchedule';
 import type { SensorDto } from '@/api/hooks/sensors';
 import { useT } from '@/lib/language';
+import { useMaintenanceHistory } from '@/api/hooks/maintenance';
+import { maintenanceMarkers } from '@/lib/maintenanceMarkers';
 import { useArrowStep } from '@/lib/useArrowStep';
 
 const useStyles = makeStyles({
@@ -177,6 +179,12 @@ function SensorLiveCard({
   });
   // Read from the API only while the enlarged chart is open (a page of 50 cards must not make 50 requests).
   const description = useSensorDescriptions([{ deviceId, sensorId: sensor.id, sensorName: sensor.externalSensorId }], enlarged);
+  // The Sensor's maintenances on the enlarged chart (read only while it is open; one request per Device, shared by every card).
+  const maintenanceQuery = useMaintenanceHistory(enlarged ? deviceId : undefined);
+  const markers = useMemo(
+    () => (enlarged ? maintenanceMarkers(maintenanceQuery.data?.items, sensor.id === undefined ? [] : [sensor.id], level?.policyId) : []),
+    [enlarged, maintenanceQuery.data, sensor.id, level?.policyId],
+  );
   const sensorLabel = sensor.name || sensor.externalSensorId || 'Sensor';
   // One definition for the card and the enlarged view, so the modal always shows exactly the data the card has (it moves with every refresh).
   // The enlarged chart draws every Target / Tolerance / UCL / LCL line the API has a value for (never computed here); a line it has none for is simply absent.
@@ -290,7 +298,7 @@ function SensorLiveCard({
               </div>
               {/* The imported description opens beside the chart with the blue "<" edge tab; no description = no tab. */}
               <ChartWithDescription found={description} open={showInfo} onToggle={() => setShowInfo(!showInfo)} height={ENLARGED_CHART_HEIGHT}>
-                <TelemetryChart series={enlargedSeries} height={ENLARGED_CHART_HEIGHT} mode="single" detailedLimits timeAxis="fullDateTime" emphasizeHover plainTooltip />
+                <TelemetryChart series={enlargedSeries} height={ENLARGED_CHART_HEIGHT} mode="single" detailedLimits timeAxis="fullDateTime" emphasizeHover plainTooltip maintenances={markers} />
               </ChartWithDescription>
             </DialogContent>
             <DialogActions>
