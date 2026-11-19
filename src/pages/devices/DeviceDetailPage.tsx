@@ -347,7 +347,7 @@ function ProcessingDialog({
       <Text>
         {turningOff
           ? t('New values for this Sensor will still be stored, but they will no longer trigger any calculation - no analysis and no Issues will be raised from this Sensor - and the Sensor leaves the model: it is no longer trained on, and the Device\'s model is retrained without it. Everything already calculated (analysis results, control limits) and every Issue that is already open is kept as it is; Recalc deletes them (and calculates nothing while calculation is off). Switching calculation on again calculates everything that was not calculated.')
-          : t('Everything not calculated yet - the values that arrived while calculation was off, and whatever a Recalc deleted - is calculated now in the background, one value at a time in time order, exactly as if calculation had been on all along: control limits, anomalies and Issues. Issues a person has reviewed are kept and not duplicated. The progress is shown on this page; new values are calculated as usual when it has caught up. (A bidirectional Sensor or one in maintenance mode is calculated from now on only.)')}
+          : t('Everything not calculated yet - the values that arrived while calculation was off, and whatever a Recalc deleted - is calculated now in the background, in time order and in batches, as the live calculation catches up after a pause: anomalies and Issues. Issues a person has reviewed are kept and not duplicated. The progress is shown on this page; new values are calculated as usual when it has caught up. (A bidirectional Sensor or one in maintenance mode is calculated from now on only.)')}
       </Text>
       {updateSensor.isError && <ErrorState error={updateSensor.error} />}
     </ConfirmDialog>
