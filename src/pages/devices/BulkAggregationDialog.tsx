@@ -46,13 +46,17 @@ import {
 } from '@/lib/aggregationSheet';
 import {
   AGGREGATION_FUNCTION_OPTIONS,
-  DEFAULT_TIME_ZONE,
+  DEFAULT_MIN_EVALUATION_PERCENT,
   SCALE_OPTIONS,
   TIME_SCALE_OPTIONS,
-  timeZoneOptions,
   type Option,
 } from '@/lib/aggregationOptions';
 import { useT } from '@/lib/language';
+
+/** The minimum evaluation field: empty (the API default applies) or a whole number from 0 to 100. */
+function minEvaluationValid(text: string): boolean {
+  return text.trim() === '' || (/^\d+$/.test(text.trim()) && Number(text) <= 100);
+}
 
 const useStyles = makeStyles({
   body: { display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalM },
@@ -111,7 +115,6 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
   const queryClient = useQueryClient();
   const create = useBulkCreateAggregationPolicies(deviceId);
   const deactivate = useBulkDeactivateAggregationPolicies(deviceId);
-  const timeZones = useMemo(() => timeZoneOptions(), []);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const [mode, setMode] = useState<Mode>('create');
@@ -123,7 +126,7 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
   const [scale, setScale] = useState('');
   const [lookback, setLookback] = useState('');
   const [minIssueScore, setMinIssueScore] = useState('');
-  const [timeZone, setTimeZone] = useState(DEFAULT_TIME_ZONE);
+  const [minEvaluation, setMinEvaluation] = useState('');
   const [sheetText, setSheetText] = useState('');
   const [sheetName, setSheetName] = useState('');
   const [result, setResult] = useState<BulkAggregationResultDto | null>(null);
@@ -137,7 +140,7 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
   const ready =
     mode === 'import'
       ? parsed !== null && parsed.problems.length === 0 && parsed.groups.length > 0
-      : count > 0 && timeScale !== '' && aggregationFunction !== '' && (mode === 'deactivate' || (scale !== '' && Number(lookback) > 0));
+      : count > 0 && timeScale !== '' && aggregationFunction !== '' && (mode === 'deactivate' || (scale !== '' && Number(lookback) > 0 && minEvaluationValid(minEvaluation)));
 
   const close = () => {
     if (mutation.isPending) return;
@@ -199,7 +202,7 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
           scale: group.scale,
           lookback: group.lookback,
           minIssueScore: group.minIssueScore ?? undefined,
-          timeZone: group.timeZone,
+          minEvaluationPercent: group.minEvaluationPercent ?? undefined,
         });
         total.created = (total.created ?? 0) + (outcome.created ?? 0);
         total.reactivated = (total.reactivated ?? 0) + (outcome.reactivated ?? 0);
@@ -232,7 +235,7 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
             scale,
             lookback: Number(lookback),
             minIssueScore: minIssueScore ? Number(minIssueScore) : undefined,
-            timeZone,
+            minEvaluationPercent: minEvaluation !== '' ? Number(minEvaluation) : undefined,
           })
         : await deactivate.mutateAsync({ sensorIds, timeScale, aggregationFunction });
     setResult(outcome);
@@ -292,7 +295,7 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
                     <Text size={200}>
                       {t('One row per Sensor and level:')}{' '}<code>{AGGREGATION_SHEET_HEADERS.join(', ')}</code>. <code>{t('sensorName')}</code> {t('is the Sensor’s external id;')}{' '}
                       <code>{t('timeScale')}</code>, <code>{t('aggregationFunction')}</code>, <code>{t('scale')}</code> {t('and')}{' '}<code>{t('lookback')}</code> {t('are required,')}{' '}<code>{t('minIssueScore')}</code> {t('and')}{' '}
-                      <code>{t('timeZone')}</code> {t('are optional (defaults 1 and UTC). The columns')}{' '}<code>{t('level')}</code> {t('and')}{' '}<code>{t('why')}</code> {t('are ignored. A level a Sensor already has gets the sheet’s settings (listed as Updated); a new time zone recalculates its history.')}</Text>
+                      <code>{t('minEvaluation')}</code> {t('are optional (defaults 1 and 10 %). The time zone is the Device’s, there is no column for it. The columns')}{' '}<code>{t('level')}</code> {t('and')}{' '}<code>{t('why')}</code> {t('are ignored. A level a Sensor already has gets the sheet’s settings (listed as Updated).')}</Text>
                     <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center', flexWrap: 'wrap' }}>
                       <Button icon={<ArrowDownload24Regular />} onClick={downloadTemplate}>
                         {t('Download sample (CSV)')}</Button>
@@ -372,14 +375,8 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
                         <Field label={t('Min issue score')} hint={t('Defaults to 1')}>
                           <Input type="number" value={minIssueScore} onChange={(_, d) => setMinIssueScore(d.value)} />
                         </Field>
-                        <Field label={t('Time zone')} hint={t('Slices start and end at this zone\'s calendar boundaries')}>
-                          <Select value={timeZone} onChange={(_, d) => setTimeZone(d.value)}>
-                            {timeZones.map((z) => (
-                              <option key={z.value} value={z.value}>
-                                {z.label}
-                              </option>
-                            ))}
-                          </Select>
+                        <Field label={t('Minimum evaluation (%)')} hint={t('The running slice is evaluated for anomalies only once it covers this share of its length. Defaults to 10')}>
+                          <Input type="number" min="0" max="100" value={minEvaluation} placeholder={String(DEFAULT_MIN_EVALUATION_PERCENT)} onChange={(_, d) => setMinEvaluation(d.value)} />
                         </Field>
                       </div>
                     )}

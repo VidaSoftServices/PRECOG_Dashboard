@@ -219,4 +219,14 @@ export const HU_DEVICES: Record<string, string> = {
   'Ranked similar Issues': 'Hasonló problémák rangsora',
   'No similar historical Issues found': 'Nem található hasonló korábbi probléma',
   'shared knowledge': 'megosztott tudás',
+  // Device time zone, minimum evaluation of an aggregation level (2026-11-19)
+  'Time zone:': 'Időzóna:',
+  'Minimum evaluation (%)': 'Minimális kiértékelés (%)',
+  'The running slice is evaluated for anomalies only once it covers this share of its length': 'A futó szelet csak akkor kerül anomália-kiértékelésre, amikor a hosszának legalább ekkora részét lefedi',
+  'The running slice is evaluated for anomalies only once it covers this share of its length. Defaults to 10': 'A futó szelet csak akkor kerül anomália-kiértékelésre, amikor a hosszának legalább ekkora részét lefedi. Alapértelmezés: 10',
+  'A whole number from 0 to 100': 'Egész szám 0 és 100 között',
+  'Device updated; its aggregation levels are being recalculated in the new time zone': 'Az eszköz frissítve; az aggregációs szintjei az új időzóna szerint újraszámolódnak',
+  'Where the days of this machine start and end (midnight to midnight). Every aggregation level of the Device follows it. Changing it recalculates the aggregated values from the stored readings; the readings themselves are not touched.': 'Itt kezdődnek és érnek véget a gép napjai (éjféltől éjfélig). Az eszköz minden aggregációs szintje ezt követi. A módosítás a tárolt mérésekből újraszámolja az aggregált értékeket; magukat a méréseket nem érinti.',
+  'are optional (defaults 1 and 10 %). The time zone is the Device’s, there is no column for it. The columns': 'nem kötelezők (alapértelmezés: 1 és 10 %). Az időzóna az eszközé, ehhez nincs oszlop. Az oszlopok:',
+  'are ignored. A level a Sensor already has gets the sheet’s settings (listed as Updated).': 'figyelmen kívül maradnak. Ha a szenzornak már van ilyen szintje, megkapja a lap beállításait (Frissítve-ként jelenik meg).',
 };

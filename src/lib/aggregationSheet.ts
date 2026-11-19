@@ -1,28 +1,31 @@
 import { SCALES, csvField, detectDelimiter, normalizeHeader, splitDelimited } from '@/lib/sensorImport';
-import { AGGREGATION_FUNCTION_OPTIONS, DEFAULT_TIME_ZONE, TIME_SCALE_OPTIONS } from '@/lib/aggregationOptions';
+import { AGGREGATION_FUNCTION_OPTIONS, DEFAULT_MIN_EVALUATION_PERCENT, TIME_SCALE_OPTIONS } from '@/lib/aggregationOptions';
 import { isRawPolicy } from '@/lib/policies';
 
 /**
  * The aggregation sheet: one row per (Sensor, aggregation level), read and written as CSV, so the same level can be given to many Sensors
  * (also from a file somebody else prepared) and the levels a Device has can be exported, edited in Excel and imported again.
  *
- *   sensorName, level, timeScale, aggregationFunction, scale, lookback, minIssueScore, timeZone
+ *   sensorName, level, timeScale, aggregationFunction, scale, lookback, minIssueScore, minEvaluation
  *
  * - `sensorName` is the Sensor's `externalSensorId` (the display name is accepted as a fallback; `externalSensorId`, `machineName`, `sensorId`
  *   and `tag` are header aliases).
  * - `level` (a free label such as "napi") and `why` (a remark) are ignored: they carry no setting. Any other unknown column is reported, so a
  *   typo does not silently drop a column.
- * - `minIssueScore` and `timeZone` are optional (the API defaults are 1 and UTC); the rest is required on every row.
+ * - `minIssueScore` and `minEvaluation` are optional (the API defaults are 1 and 10); the rest is required on every row. `minEvaluation` is the
+ *   minimum evaluation in percent (0-100): the open bucket of the level is evaluated for anomalies only once it covers that share of its length.
+ * - There is NO time zone column: the bucket boundaries always follow the Device's time zone (set on the Device). An old sheet that still has a
+ *   `timeZone` / `tz` column is read and the column is ignored without a warning.
  * - Names are case-insensitive and tolerate spaces/underscores in the header; `,` `;` and tab are all read.
  * - The source is always the measured value (Actual): the sheet has no column for it, and target / tolerance are never aggregated.
  * - Rows with the same settings are grouped, so a sheet of 142 Sensors with three levels is three requests, not 426.
  * - Validation is all-or-nothing before the first request (like the Sensor import): every problem is listed with its sheet line.
  */
-export const AGGREGATION_SHEET_HEADERS = ['sensorName', 'level', 'timeScale', 'aggregationFunction', 'scale', 'lookback', 'minIssueScore', 'timeZone'] as const;
+export const AGGREGATION_SHEET_HEADERS = ['sensorName', 'level', 'timeScale', 'aggregationFunction', 'scale', 'lookback', 'minIssueScore', 'minEvaluation'] as const;
 
 export const MAX_AGGREGATION_SHEET_ROWS = 5000;
 
-type Field = 'sensor' | 'timeScale' | 'aggregationFunction' | 'scale' | 'lookback' | 'minIssueScore' | 'timeZone';
+type Field = 'sensor' | 'timeScale' | 'aggregationFunction' | 'scale' | 'lookback' | 'minIssueScore' | 'minEvaluation';
 
 const ALIASES: Record<string, Field> = {
   sensorname: 'sensor',
@@ -39,12 +42,12 @@ const ALIASES: Record<string, Field> = {
   lookbackscale: 'scale',
   lookback: 'lookback',
   minissuescore: 'minIssueScore',
-  timezone: 'timeZone',
-  tz: 'timeZone',
+  minevaluation: 'minEvaluation',
+  minevaluationpercent: 'minEvaluation',
 };
 
-/** Columns that are read and thrown away on purpose - no warning (a label and a remark, not settings). */
-const QUIET_COLUMNS = new Set(['level', 'why']);
+/** Columns that are read and thrown away on purpose - no warning (a label, a remark, and the time zone an older sheet still has: it is the Device's now). */
+const QUIET_COLUMNS = new Set(['level', 'why', 'timezone', 'tz']);
 
 export interface SheetSensor {
   id?: number | null;
@@ -67,7 +70,8 @@ export interface AggregationGroup {
   lookback: number;
   /** null = not given, the API default applies. */
   minIssueScore: number | null;
-  timeZone: string;
+  /** Minimum evaluation in percent (0-100); null = not given, the API default (10) applies. */
+  minEvaluationPercent: number | null;
   sensorIds: number[];
 }
 
@@ -84,16 +88,6 @@ const TIME_SCALE_VALUES = TIME_SCALE_OPTIONS.map((o) => o.value);
 const FUNCTION_VALUES = AGGREGATION_FUNCTION_OPTIONS.map((o) => o.value);
 
 const canon = (values: readonly string[], raw: string): string | null => values.find((v) => v.toLowerCase() === raw.trim().toLowerCase()) ?? null;
-
-function isTimeZone(name: string): boolean {
-  if (name.toLowerCase() === 'utc') return true;
-  try {
-    new Intl.DateTimeFormat('en', { timeZone: name });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /** A whole number as typed; null for anything else (text, decimals, blanks). */
 function wholeNumber(raw: string): number | null {
@@ -120,7 +114,7 @@ export function parseAggregationSheet(text: string, sensors: readonly SheetSenso
 
   const missing = (['sensor', 'timeScale', 'aggregationFunction', 'scale', 'lookback'] as const).filter((f) => !columns.has(f));
   if (missing.length > 0) {
-    const names: Record<Field, string> = { sensor: 'sensorName', timeScale: 'timeScale', aggregationFunction: 'aggregationFunction', scale: 'scale', lookback: 'lookback', minIssueScore: 'minIssueScore', timeZone: 'timeZone' };
+    const names: Record<Field, string> = { sensor: 'sensorName', timeScale: 'timeScale', aggregationFunction: 'aggregationFunction', scale: 'scale', lookback: 'lookback', minIssueScore: 'minIssueScore', minEvaluation: 'minEvaluation' };
     return empty([{ line: 1, field: 'header', message: `Required column(s) missing: ${missing.map((m) => names[m]).join(', ')}.` }], ignored);
   }
   if (table.length === 0) return empty([{ line: 0, field: 'file', message: 'The sheet has a header but no rows.' }], ignored);
@@ -164,15 +158,18 @@ export function parseAggregationSheet(text: string, sensors: readonly SheetSenso
       minIssueScore = wholeNumber(cell('minIssueScore'));
       if (minIssueScore === null) fail('minIssueScore', `"${cell('minIssueScore')}" is not a whole number of zero or more.`);
     }
-    let timeZone = DEFAULT_TIME_ZONE;
-    if (cell('timeZone') !== '') {
-      timeZone = cell('timeZone');
-      if (!isTimeZone(timeZone)) fail('timeZone', `"${timeZone}" is not a time zone name (for example Europe/Budapest or UTC).`);
+    let minEvaluationPercent: number | null = null;
+    if (cell('minEvaluation') !== '') {
+      minEvaluationPercent = wholeNumber(cell('minEvaluation'));
+      if (minEvaluationPercent === null || minEvaluationPercent > 100) {
+        fail('minEvaluation', `"${cell('minEvaluation')}" is not a whole number from 0 to 100 (percent).`);
+        minEvaluationPercent = null;
+      }
     }
 
     if (!sensor || sensor.id == null || !timeScale || !fn || !scale || lookback === null || lookback < 1) return;
     if (minIssueScore === null && cell('minIssueScore') !== '') return;
-    if (cell('timeZone') !== '' && !isTimeZone(timeZone)) return;
+    if (cell('minEvaluation') !== '' && minEvaluationPercent === null) return;
 
     const identity = `${sensor.id}|${timeScale}|${fn}`;
     const first = seen.get(identity);
@@ -182,10 +179,10 @@ export function parseAggregationSheet(text: string, sensors: readonly SheetSenso
     }
     seen.set(identity, line);
 
-    const key = [timeScale, fn, scale, lookback, minIssueScore ?? '', timeZone].join('|');
+    const key = [timeScale, fn, scale, lookback, minIssueScore ?? '', minEvaluationPercent ?? ''].join('|');
     let group = groups.get(key);
     if (!group) {
-      group = { timeScale, aggregationFunction: fn, scale, lookback, minIssueScore, timeZone, sensorIds: [] };
+      group = { timeScale, aggregationFunction: fn, scale, lookback, minIssueScore, minEvaluationPercent, sensorIds: [] };
       groups.set(key, group);
     }
     group.sensorIds.push(sensor.id);
@@ -205,7 +202,7 @@ export function parseAggregationSheet(text: string, sensors: readonly SheetSenso
 export function describeGroup(group: AggregationGroup): string {
   const scale = TIME_SCALE_OPTIONS.find((o) => o.value === group.timeScale)?.label ?? group.timeScale;
   const fn = AGGREGATION_FUNCTION_OPTIONS.find((o) => o.value === group.aggregationFunction)?.label ?? group.aggregationFunction;
-  return `${scale} · ${fn} · lookback ${group.lookback} ${group.scale}${group.minIssueScore !== null ? ` · min issue score ${group.minIssueScore}` : ''}${group.timeZone !== DEFAULT_TIME_ZONE ? ` · ${group.timeZone}` : ''}`;
+  return `${scale} · ${fn} · lookback ${group.lookback} ${group.scale}${group.minIssueScore !== null ? ` · min issue score ${group.minIssueScore}` : ''}${group.minEvaluationPercent !== null ? ` · min evaluation ${group.minEvaluationPercent} %` : ''}`;
 }
 
 export interface ExportAggregationPolicy {
@@ -218,7 +215,7 @@ export interface ExportAggregationPolicy {
   lookback?: number | null;
   minIssueScore?: number | null;
   enabled?: boolean | null;
-  timeZone?: string | null;
+  minEvaluationPercent?: number | null;
 }
 
 const BOM = String.fromCharCode(0xfeff);
@@ -245,7 +242,7 @@ export function buildAggregationExportCsv(policies: readonly ExportAggregationPo
       canon(SCALES, p.scale ?? '') ?? p.scale ?? '',
       p.lookback ?? '',
       p.minIssueScore ?? '',
-      p.timeZone ?? DEFAULT_TIME_ZONE,
+      p.minEvaluationPercent ?? DEFAULT_MIN_EVALUATION_PERCENT,
     ]
       .map((v) => csvField(v))
       .join(',');
@@ -266,9 +263,9 @@ export function buildAggregationTemplateCsv(sensors: readonly SheetSensor[]): st
   const named = sensors.filter((s) => s.externalSensorId || s.name);
   const name = (index: number) => named[index]?.externalSensorId ?? named[index]?.name ?? `sensor_name_${index + 1}`;
   const examples: (string | number)[][] = [
-    [name(0), 'daily average', 'Days', 'AVG', 'Periods', 60, 3, 'UTC'],
-    [name(0), 'daily 95th percentile', 'Days', 'P95', 'Periods', 60, 3, 'UTC'],
-    [name(named.length > 1 ? 1 : 0), 'hourly maximum', 'Hours', 'MAX', 'Periods', 336, 2, 'UTC'],
+    [name(0), 'daily average', 'Days', 'AVG', 'Periods', 60, 3, 10],
+    [name(0), 'daily 95th percentile', 'Days', 'P95', 'Periods', 60, 3, 10],
+    [name(named.length > 1 ? 1 : 0), 'hourly maximum', 'Hours', 'MAX', 'Periods', 336, 2, 10],
   ];
   return BOM + [AGGREGATION_SHEET_HEADERS.join(','), ...examples.map((row) => row.map((v) => csvField(v)).join(','))].join('\r\n') + '\r\n';
 }

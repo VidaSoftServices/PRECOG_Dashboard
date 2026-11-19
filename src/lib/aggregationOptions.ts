@@ -61,18 +61,29 @@ export const AGGREGATION_FUNCTION_OPTIONS: readonly Option[] = [
 /** The Scale (the unit of Lookback): the same set the Sensor forms and the import accept. */
 export const SCALE_OPTIONS: readonly Option[] = SCALES.map((value) => ({ value, label: value === 'Periods' ? 'Periods (number of aggregation periods)' : value }));
 
-export const DEFAULT_TIME_ZONE = 'UTC';
+/** The time zone a Device has until an Admin changes it (the API's default). */
+export const DEFAULT_DEVICE_TIME_ZONE = 'Europe/Budapest';
 
-/** The IANA time zones the browser knows (what the API stores and uses for calendar-aligned boundaries), UTC first. */
-export function timeZoneOptions(): Option[] {
+/** Default of the "minimum evaluation" of an aggregation level, in percent (the API's default). */
+export const DEFAULT_MIN_EVALUATION_PERCENT = 10;
+
+/**
+ * The IANA time zones the browser knows (what the API stores and uses for the calendar-aligned buckets), UTC first, then Europe/Budapest, then the rest.
+ * The Device's time zone is chosen here; every aggregation level of the Device follows it. `current` (the Device's stored zone) is always an option,
+ * even when this browser does not list it, so the select never shows a value that is not one of its options.
+ */
+export function timeZoneOptions(current?: string | null): Option[] {
   let names: string[] = [];
   try {
     names = (Intl as unknown as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf?.('timeZone') ?? [];
   } catch {
     names = [];
   }
-  const rest = names.filter((n) => n !== DEFAULT_TIME_ZONE && n !== 'Etc/UTC');
+  const pinned = ['UTC', DEFAULT_DEVICE_TIME_ZONE];
+  const rest = names.filter((n) => !pinned.includes(n) && n !== 'Etc/UTC');
   // A browser without the list still offers the common ones rather than a free text box.
-  const fallback = ['Europe/Budapest', 'Europe/London', 'Europe/Berlin', 'America/New_York', 'Asia/Tokyo'];
-  return [DEFAULT_TIME_ZONE, ...(rest.length > 0 ? rest : fallback)].map((value) => ({ value, label: value === DEFAULT_TIME_ZONE ? 'UTC (default)' : value }));
+  const fallback = ['Europe/London', 'Europe/Berlin', 'America/New_York', 'Asia/Tokyo'];
+  const all = [...pinned, ...(rest.length > 0 ? rest : fallback)];
+  if (current && !all.includes(current)) all.splice(2, 0, current);
+  return all.map((value) => ({ value, label: value === DEFAULT_DEVICE_TIME_ZONE ? `${value} (default)` : value }));
 }

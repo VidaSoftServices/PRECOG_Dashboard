@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useSelectedDevice } from '@/lib/selectedDevice';
+import { DEFAULT_DEVICE_TIME_ZONE, timeZoneOptions } from '@/lib/aggregationOptions';
 import {
   Button,
   Card,
@@ -427,6 +428,7 @@ export function DeviceDetailPage() {
   const updateDevice = useUpdateDevice(id);
   const disableDevice = useDisableDevice(id);
   const [nameDraft, setNameDraft] = useState('');
+  const [zoneDraft, setZoneDraft] = useState(DEFAULT_DEVICE_TIME_ZONE);
   const [disableConfirmOpen, setDisableConfirmOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteDataOpen, setDeleteDataOpen] = useState(false);
@@ -458,14 +460,19 @@ export function DeviceDetailPage() {
   const visibilitySensor = sensorsQuery.data?.find((s) => s.id === visibilitySensorId) ?? null;
   const sensorsInMaintenance = (sensorsQuery.data ?? []).filter((s) => s.maintenanceMode).length;
 
+  const deviceZone = device.timeZone ?? DEFAULT_DEVICE_TIME_ZONE;
+  const zones = timeZoneOptions(deviceZone);
+
   const startEdit = () => {
     setNameDraft(device.deviceName ?? '');
+    setZoneDraft(deviceZone);
     setEditing(true);
   };
 
   const saveEdit = async () => {
-    await updateDevice.mutateAsync({ deviceName: nameDraft });
-    toast.success(t('Device updated'));
+    // The time zone is sent only when it changed: a change makes the API aggregate the Device's levels afresh in the new zone.
+    await updateDevice.mutateAsync({ deviceName: nameDraft, ...(zoneDraft !== deviceZone ? { timeZone: zoneDraft } : {}) });
+    toast.success(zoneDraft !== deviceZone ? t('Device updated; its aggregation levels are being recalculated in the new time zone') : t('Device updated'));
     setEditing(false);
   };
 
@@ -496,6 +503,18 @@ export function DeviceDetailPage() {
           <div className={styles.editForm}>
             <Field label={t('Name')}>
               <Input value={nameDraft} onChange={(_, d) => setNameDraft(d.value)} />
+            </Field>
+            <Field
+              label={t('Time zone')}
+              hint={t('Where the days of this machine start and end (midnight to midnight). Every aggregation level of the Device follows it. Changing it recalculates the aggregated values from the stored readings; the readings themselves are not touched.')}
+            >
+              <Select value={zoneDraft} onChange={(_, d) => setZoneDraft(d.value)}>
+                {zones.map((z) => (
+                  <option key={z.value} value={z.value}>
+                    {z.label}
+                  </option>
+                ))}
+              </Select>
             </Field>
             <Field label={t('Enabled')}>
               <Switch
@@ -530,6 +549,7 @@ export function DeviceDetailPage() {
           <Body1Strong>{t('Status')}</Body1Strong>
           <EnabledPill enabled={device.enabled} />
           <Text size={200}>{t('Last heartbeat:')}{' '}{formatRelative(device.heartBeat)}</Text>
+          <Text size={200}>{t('Time zone:')}{' '}{deviceZone}</Text>
           <FreshnessPill freshness={freshnessOf(device.heartBeat)} />
           <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
             {formatDateTimeWithZone(device.heartBeat)}

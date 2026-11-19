@@ -26,9 +26,9 @@ describe('parseAggregationSheet', () => {
     expect(result.rowCount).toBe(4);
     expect(result.sensorCount).toBe(3);
     expect(result.groups).toEqual([
-      { timeScale: 'Days', aggregationFunction: 'AVG', scale: 'Periods', lookback: 60, minIssueScore: 3, timeZone: 'UTC', sensorIds: [1, 3] },
-      { timeScale: 'Days', aggregationFunction: 'P95', scale: 'Periods', lookback: 60, minIssueScore: 3, timeZone: 'UTC', sensorIds: [2] },
-      { timeScale: 'Hours', aggregationFunction: 'MAX', scale: 'Periods', lookback: 336, minIssueScore: 2, timeZone: 'UTC', sensorIds: [2] },
+      { timeScale: 'Days', aggregationFunction: 'AVG', scale: 'Periods', lookback: 60, minIssueScore: 3, minEvaluationPercent: null, sensorIds: [1, 3] },
+      { timeScale: 'Days', aggregationFunction: 'P95', scale: 'Periods', lookback: 60, minIssueScore: 3, minEvaluationPercent: null, sensorIds: [2] },
+      { timeScale: 'Hours', aggregationFunction: 'MAX', scale: 'Periods', lookback: 336, minIssueScore: 2, minEvaluationPercent: null, sensorIds: [2] },
     ]);
   });
 
@@ -37,22 +37,39 @@ describe('parseAggregationSheet', () => {
     const result = parseAggregationSheet(text, SENSORS);
     // "Look Back" is not an alias of lookback (header words are joined: "lookback" matches, "look back" too once spaces are dropped)
     expect(result.problems).toEqual([]);
-    expect(result.groups).toEqual([{ timeScale: 'Days', aggregationFunction: 'AVG', scale: 'Periods', lookback: 60, minIssueScore: 3, timeZone: 'UTC', sensorIds: [1] }]);
+    expect(result.groups).toEqual([{ timeScale: 'Days', aggregationFunction: 'AVG', scale: 'Periods', lookback: 60, minIssueScore: 3, minEvaluationPercent: null, sensorIds: [1] }]);
   });
 
-  it('minIssueScore and timeZone are optional (API defaults); a time zone is validated and groups apart', () => {
+  it('minIssueScore and minEvaluation are optional (API defaults); minEvaluation is validated (0-100) and groups apart', () => {
     const text = [
-      'sensorName,timeScale,aggregationFunction,scale,lookback,timeZone',
-      'acceleration_rms_x_eq_1,Days,AVG,Periods,60,Europe/Budapest',
+      'sensorName,timeScale,aggregationFunction,scale,lookback,minEvaluation',
+      'acceleration_rms_x_eq_1,Days,AVG,Periods,60,25',
       'acceleration_rms_x_max_1,Days,AVG,Periods,60,',
     ].join('\n');
     const result = parseAggregationSheet(text, SENSORS);
     expect(result.problems).toEqual([]);
-    expect(result.groups.map((g) => [g.timeZone, g.minIssueScore, g.sensorIds])).toEqual([
-      ['Europe/Budapest', null, [1]],
-      ['UTC', null, [2]],
+    expect(result.groups.map((g) => [g.minEvaluationPercent, g.minIssueScore, g.sensorIds])).toEqual([
+      [25, null, [1]],
+      [null, null, [2]],
     ]);
-    expect(parseAggregationSheet('sensorName,timeScale,aggregationFunction,scale,lookback,timeZone\nacceleration_rms_x_eq_1,Days,AVG,Periods,60,Mars/Olympus', SENSORS).problems[0]).toMatchObject({ line: 2, field: 'timeZone' });
+    const header = 'sensorName,timeScale,aggregationFunction,scale,lookback,minEvaluation';
+    expect(parseAggregationSheet(`${header}\nacceleration_rms_x_eq_1,Days,AVG,Periods,60,101`, SENSORS).problems[0]).toMatchObject({ line: 2, field: 'minEvaluation' });
+    expect(parseAggregationSheet(`${header}\nacceleration_rms_x_eq_1,Days,AVG,Periods,60,-5`, SENSORS).problems[0]).toMatchObject({ line: 2, field: 'minEvaluation' });
+    expect(parseAggregationSheet(`${header}\nacceleration_rms_x_eq_1,Days,AVG,Periods,60,10.5`, SENSORS).problems[0]).toMatchObject({ line: 2, field: 'minEvaluation' });
+    expect(parseAggregationSheet(`${header}\nacceleration_rms_x_eq_1,Days,AVG,Periods,60,0`, SENSORS).groups[0]!.minEvaluationPercent).toBe(0);
+  });
+
+  it('an old sheet that still has a timeZone (or tz) column is read; the column is ignored without a warning, the time zone is the Device’s', () => {
+    const text = [
+      'sensorName,level,timeScale,aggregationFunction,scale,lookback,minIssueScore,timeZone',
+      'acceleration_rms_x_eq_1,napi,Days,AVG,Periods,60,3,Europe/Budapest',
+      'acceleration_rms_x_max_1,napi,Days,AVG,Periods,60,3,Mars/Olympus', // not validated any more: nothing uses it
+    ].join('\n');
+    const result = parseAggregationSheet(text, SENSORS);
+    expect(result.problems).toEqual([]);
+    expect(result.ignoredColumns).toEqual([]);
+    expect(result.groups).toHaveLength(1); // the two rows differ only in the ignored column: one group
+    expect(result.groups[0]!.sensorIds).toEqual([1, 2]);
   });
 
   it('lists every problem with its sheet line and sends nothing (no groups) while any exists', () => {
@@ -94,8 +111,8 @@ describe('parseAggregationSheet', () => {
   });
 
   it('describes a group in one line', () => {
-    expect(describeGroup({ timeScale: 'Days', aggregationFunction: 'P95', scale: 'Periods', lookback: 60, minIssueScore: 3, timeZone: 'Europe/Budapest', sensorIds: [1] })).toBe(
-      '1 day · 95th percentile · lookback 60 Periods · min issue score 3 · Europe/Budapest',
+    expect(describeGroup({ timeScale: 'Days', aggregationFunction: 'P95', scale: 'Periods', lookback: 60, minIssueScore: 3, minEvaluationPercent: 10, sensorIds: [1] })).toBe(
+      '1 day · 95th percentile · lookback 60 Periods · min issue score 3 · min evaluation 10 %',
     );
   });
 });
@@ -103,7 +120,7 @@ describe('parseAggregationSheet', () => {
 describe('buildAggregationExportCsv', () => {
   const policies = [
     { id: 10, sensorId: 1, sourceDataKey: 'Actual', timeScale: 'Native', aggregationFunction: 'Raw', scale: 'years', lookback: 100, minIssueScore: 5, enabled: true },
-    { id: 11, sensorId: 1, sourceDataKey: 'Actual', timeScale: 'Days', aggregationFunction: 'AVG', scale: 'periods', lookback: 60, minIssueScore: 3, enabled: true, timeZone: 'Europe/Budapest' },
+    { id: 11, sensorId: 1, sourceDataKey: 'Actual', timeScale: 'Days', aggregationFunction: 'AVG', scale: 'periods', lookback: 60, minIssueScore: 3, enabled: true, minEvaluationPercent: 25 },
     { id: 12, sensorId: 2, sourceDataKey: 'Actual', timeScale: 'Hours', aggregationFunction: 'MAX', scale: 'periods', lookback: 336, minIssueScore: 2, enabled: true },
     { id: 13, sensorId: 2, sourceDataKey: 'Actual', timeScale: 'Days', aggregationFunction: 'P95', scale: 'periods', lookback: 60, minIssueScore: 3, enabled: false }, // disabled: not exported
     { id: 14, sensorId: 99, sourceDataKey: 'Actual', timeScale: 'Days', aggregationFunction: 'AVG', scale: 'periods', lookback: 1, minIssueScore: 1, enabled: true }, // no such Sensor
@@ -113,9 +130,9 @@ describe('buildAggregationExportCsv', () => {
     const csv = buildAggregationExportCsv(policies, SENSORS);
     const lines = csv.replace('﻿', '').trim().split(/\r\n/);
     expect(lines).toEqual([
-      'sensorName,level,timeScale,aggregationFunction,scale,lookback,minIssueScore,timeZone',
-      'acceleration_rms_x_eq_1,1 day,Days,AVG,Periods,60,3,Europe/Budapest',
-      'acceleration_rms_x_max_1,1 hour,Hours,MAX,Periods,336,2,UTC',
+      'sensorName,level,timeScale,aggregationFunction,scale,lookback,minIssueScore,minEvaluation',
+      'acceleration_rms_x_eq_1,1 day,Days,AVG,Periods,60,3,25',
+      'acceleration_rms_x_max_1,1 hour,Hours,MAX,Periods,336,2,10', // a level without a stored value is exported with the default
     ]);
   });
 
@@ -123,8 +140,8 @@ describe('buildAggregationExportCsv', () => {
     const imported = parseAggregationSheet(buildAggregationExportCsv(policies, SENSORS), SENSORS);
     expect(imported.problems).toEqual([]);
     expect(imported.groups).toEqual([
-      { timeScale: 'Days', aggregationFunction: 'AVG', scale: 'Periods', lookback: 60, minIssueScore: 3, timeZone: 'Europe/Budapest', sensorIds: [1] },
-      { timeScale: 'Hours', aggregationFunction: 'MAX', scale: 'Periods', lookback: 336, minIssueScore: 2, timeZone: 'UTC', sensorIds: [2] },
+      { timeScale: 'Days', aggregationFunction: 'AVG', scale: 'Periods', lookback: 60, minIssueScore: 3, minEvaluationPercent: 25, sensorIds: [1] },
+      { timeScale: 'Hours', aggregationFunction: 'MAX', scale: 'Periods', lookback: 336, minIssueScore: 2, minEvaluationPercent: 10, sensorIds: [2] },
     ]);
     expect(aggregationExportFileName(4)).toBe('aggregation-device-4.csv');
   });
@@ -134,10 +151,10 @@ describe('buildAggregationTemplateCsv', () => {
   it('writes the header and example rows for the Device’s own Sensors, and importing the sample unchanged is valid', () => {
     const csv = buildAggregationTemplateCsv(SENSORS);
     const lines = csv.replace('﻿', '').trim().split(/\r\n/);
-    expect(lines[0]).toBe('sensorName,level,timeScale,aggregationFunction,scale,lookback,minIssueScore,timeZone');
+    expect(lines[0]).toBe('sensorName,level,timeScale,aggregationFunction,scale,lookback,minIssueScore,minEvaluation');
     expect(lines).toHaveLength(4);
-    expect(lines[1]).toBe('acceleration_rms_x_eq_1,daily average,Days,AVG,Periods,60,3,UTC');
-    expect(lines[3]).toBe('acceleration_rms_x_max_1,hourly maximum,Hours,MAX,Periods,336,2,UTC');
+    expect(lines[1]).toBe('acceleration_rms_x_eq_1,daily average,Days,AVG,Periods,60,3,10');
+    expect(lines[3]).toBe('acceleration_rms_x_max_1,hourly maximum,Hours,MAX,Periods,336,2,10');
 
     const parsed = parseAggregationSheet(csv, SENSORS);
     expect(parsed.problems).toEqual([]);

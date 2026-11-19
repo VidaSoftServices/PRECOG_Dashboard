@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Card,
@@ -34,11 +34,10 @@ import { DeleteSetpointsDialog } from './DeleteSetpointsDialog';
 import { isRawPolicy } from '@/lib/policies';
 import {
   AGGREGATION_FUNCTION_OPTIONS,
-  DEFAULT_TIME_ZONE,
+  DEFAULT_MIN_EVALUATION_PERCENT,
   SCALE_OPTIONS,
   SOURCE_DATA_KEY,
   TIME_SCALE_OPTIONS,
-  timeZoneOptions,
 } from '@/lib/aggregationOptions';
 import {
   useAggregationPolicies,
@@ -110,6 +109,11 @@ function AggregationStatus({ deviceId, sensorId, policy }: { deviceId: number; s
   );
 }
 
+/** The minimum evaluation field: empty (the API default applies) or a whole number from 0 to 100. */
+function minEvaluationValid(text: string): boolean {
+  return text.trim() === '' || (/^\d+$/.test(text.trim()) && Number(text) <= 100);
+}
+
 function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId: number; policy: SensorAggregationPolicyDto }) {
   const t = useT();
   const styles = useStyles();
@@ -120,13 +124,14 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
   const [lookback, setLookback] = useState(String(policy.lookback ?? ''));
   const [scale, setScale] = useState(policy.scale ?? '');
   const [minIssueScore, setMinIssueScore] = useState(String(policy.minIssueScore ?? ''));
+  const [minEvaluation, setMinEvaluation] = useState(String(policy.minEvaluationPercent ?? DEFAULT_MIN_EVALUATION_PERCENT));
   const [retrainConfirmOpen, setRetrainConfirmOpen] = useState(false);
   const [deactivateConfirmOpen, setDeactivateConfirmOpen] = useState(false);
   const isRaw = isRawPolicy(policy);
 
   const applyUpdate = () => {
     update.mutate(
-      { lookback: Number(lookback), scale, minIssueScore: Number(minIssueScore) },
+      { lookback: Number(lookback), scale, minIssueScore: Number(minIssueScore), ...(isRaw ? {} : { minEvaluationPercent: Number(minEvaluation) }) },
       { onSuccess: () => toast.success(t('Aggregation policy saved')) },
     );
   };
@@ -160,11 +165,16 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
         <Field label={t('Min issue score')}>
           <Input value={minIssueScore} onChange={(_, d) => setMinIssueScore(d.value)} disabled={!isAdmin} type="number" />
         </Field>
+        {!isRaw && (
+          <Field label={t('Minimum evaluation (%)')} hint={t('The running slice is evaluated for anomalies only once it covers this share of its length')} validationState={minEvaluationValid(minEvaluation) ? 'none' : 'error'} validationMessage={minEvaluationValid(minEvaluation) ? undefined : t('A whole number from 0 to 100')}>
+            <Input value={minEvaluation} onChange={(_, d) => setMinEvaluation(d.value)} disabled={!isAdmin} type="number" min="0" max="100" />
+          </Field>
+        )}
       </div>
       {!isRaw && <AggregationStatus deviceId={deviceId} sensorId={sensorId} policy={policy} />}
       {isAdmin && (
         <div style={{ display: 'flex', gap: tokens.spacingHorizontalM }}>
-          <Button appearance="primary" onClick={save} disabled={update.isPending}>
+          <Button appearance="primary" onClick={save} disabled={update.isPending || (!isRaw && !minEvaluationValid(minEvaluation))}>
             {update.isPending ? t('Saving…') : t('Save')}
           </Button>
           {!isRaw && (
@@ -412,8 +422,7 @@ export function NewPolicyForm({ deviceId, sensorId }: { deviceId: number; sensor
   const [scale, setScale] = useState('');
   const [lookback, setLookback] = useState('');
   const [minIssueScore, setMinIssueScore] = useState('');
-  const [timeZone, setTimeZone] = useState(DEFAULT_TIME_ZONE);
-  const timeZones = useMemo(() => timeZoneOptions(), []);
+  const [minEvaluation, setMinEvaluation] = useState('');
 
   const reset = () => {
     setTimeScale('');
@@ -421,10 +430,10 @@ export function NewPolicyForm({ deviceId, sensorId }: { deviceId: number; sensor
     setScale('');
     setLookback('');
     setMinIssueScore('');
-    setTimeZone(DEFAULT_TIME_ZONE);
+    setMinEvaluation('');
   };
 
-  const canSubmit = timeScale.trim() !== '' && aggregationFunction.trim() !== '' && scale.trim() !== '' && Number(lookback) > 0;
+  const canSubmit = timeScale.trim() !== '' && aggregationFunction.trim() !== '' && scale.trim() !== '' && Number(lookback) > 0 && minEvaluationValid(minEvaluation);
 
   const submit = async () => {
     const body: CreateAggregationPolicyRequest = {
@@ -436,7 +445,7 @@ export function NewPolicyForm({ deviceId, sensorId }: { deviceId: number; sensor
       scale,
       lookback: Number(lookback),
       minIssueScore: minIssueScore ? Number(minIssueScore) : undefined,
-      timeZone,
+      minEvaluationPercent: minEvaluation !== '' ? Number(minEvaluation) : undefined,
     };
     await create.mutateAsync(body);
     toast.success(t('Aggregation level created'));
@@ -468,14 +477,8 @@ export function NewPolicyForm({ deviceId, sensorId }: { deviceId: number; sensor
         <Field label={t('Min issue score')} hint={t('Defaults to 1')}>
           <Input type="number" value={minIssueScore} onChange={(_, d) => setMinIssueScore(d.value)} />
         </Field>
-        <Field label={t('Time zone')} hint={t('Slices start and end at this zone\'s calendar boundaries')}>
-          <Select value={timeZone} onChange={(_, d) => setTimeZone(d.value)}>
-            {timeZones.map((z) => (
-              <option key={z.value} value={z.value}>
-                {z.label}
-              </option>
-            ))}
-          </Select>
+        <Field label={t('Minimum evaluation (%)')} hint={t('The running slice is evaluated for anomalies only once it covers this share of its length. Defaults to 10')} validationState={minEvaluationValid(minEvaluation) ? 'none' : 'error'} validationMessage={minEvaluationValid(minEvaluation) ? undefined : t('A whole number from 0 to 100')}>
+          <Input type="number" min="0" max="100" value={minEvaluation} placeholder={String(DEFAULT_MIN_EVALUATION_PERCENT)} onChange={(_, d) => setMinEvaluation(d.value)} />
         </Field>
       </div>
       {create.isError && <ErrorState error={create.error} />}

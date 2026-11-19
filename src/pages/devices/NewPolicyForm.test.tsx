@@ -38,30 +38,33 @@ describe('aggregation level options', () => {
     }
   });
 
-  it('time zones start with UTC and are IANA names', () => {
+  it('the Device time zones start with UTC and Europe/Budapest (the default) and are IANA names; the Device\'s own zone is always an option', () => {
     const zones = timeZoneOptions();
-    expect(zones[0]).toEqual({ value: 'UTC', label: 'UTC (default)' });
-    expect(zones.some((z) => z.value === 'Europe/Budapest')).toBe(true);
+    expect(zones[0]).toEqual({ value: 'UTC', label: 'UTC' });
+    expect(zones[1]).toEqual({ value: 'Europe/Budapest', label: 'Europe/Budapest (default)' });
+    expect(timeZoneOptions('Pacific/Chatham').some((z) => z.value === 'Pacific/Chatham')).toBe(true);
+    expect(new Set(timeZoneOptions('Europe/Budapest').map((z) => z.value)).size).toBe(timeZoneOptions('Europe/Budapest').length);
   });
 });
 
 describe('NewPolicyForm', { timeout: 20_000 }, () => {
   beforeEach(() => authStore.clearSession());
 
-  it('has dropdowns only - no free text for source, time scale, function, scale or time zone - and never asks for the data key', async () => {
+  it('has dropdowns only - no free text for source, time scale, function or scale - no time zone (it is the Device\'s) and never asks for the data key', async () => {
     const user = userEvent.setup();
     renderForm();
     await user.click(screen.getByRole('button', { name: 'Add aggregation level' }));
 
     expect(screen.queryByLabelText(/source data key/i)).not.toBeInTheDocument();
-    for (const name of ['Time scale', 'Aggregation function', 'Scale', 'Time zone']) {
+    for (const name of ['Time scale', 'Aggregation function', 'Scale']) {
       expect(screen.getByRole('combobox', { name: new RegExp(`^${name}`) })).toBeInTheDocument();
     }
-    expect(screen.getByRole('combobox', { name: /^Time zone/ })).toHaveValue('UTC');
+    expect(screen.queryByRole('combobox', { name: /^Time zone/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('spinbutton', { name: /^Minimum evaluation/ })).toHaveAttribute('placeholder', '10');
     expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
   });
 
-  it('sends the chosen values with the data key Actual and the chosen time zone', async () => {
+  it('sends the chosen values with the data key Actual and the minimum evaluation, and no time zone', async () => {
     const calls: { url: string; body: Record<string, unknown> }[] = [];
     fetchMock().mockImplementation(async (input: RequestInfo | URL) => {
       const request = input as Request;
@@ -79,7 +82,7 @@ describe('NewPolicyForm', { timeout: 20_000 }, () => {
     await user.selectOptions(screen.getByRole('combobox', { name: /^Aggregation function/ }), 'MAX');
     fireEvent.change(screen.getByRole('spinbutton', { name: /^Lookback/ }), { target: { value: '30' } });
     await user.selectOptions(screen.getByRole('combobox', { name: /^Scale/ }), 'Days');
-    await user.selectOptions(screen.getByRole('combobox', { name: /^Time zone/ }), 'Europe/Budapest');
+    fireEvent.change(screen.getByRole('spinbutton', { name: /^Minimum evaluation/ }), { target: { value: '25' } });
     await user.click(screen.getByRole('button', { name: 'Create' }));
 
     await waitFor(() => expect(calls).toHaveLength(1));
@@ -90,7 +93,26 @@ describe('NewPolicyForm', { timeout: 20_000 }, () => {
       aggregationFunction: 'MAX',
       scale: 'Days',
       lookback: 30,
-      timeZone: 'Europe/Budapest',
+      minEvaluationPercent: 25,
     });
+    expect(calls[0]!.body).not.toHaveProperty('timeZone');
+  });
+
+  it('refuses a minimum evaluation outside 0 to 100', async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await user.click(screen.getByRole('button', { name: 'Add aggregation level' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: /^Time scale/ }), 'Days');
+    await user.selectOptions(screen.getByRole('combobox', { name: /^Aggregation function/ }), 'AVG');
+    fireEvent.change(screen.getByRole('spinbutton', { name: /^Lookback/ }), { target: { value: '60' } });
+    await user.selectOptions(screen.getByRole('combobox', { name: /^Scale/ }), 'Periods');
+    expect(screen.getByRole('button', { name: 'Create' })).toBeEnabled();
+
+    fireEvent.change(screen.getByRole('spinbutton', { name: /^Minimum evaluation/ }), { target: { value: '101' } });
+    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
+    expect(screen.getByText('A whole number from 0 to 100')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('spinbutton', { name: /^Minimum evaluation/ }), { target: { value: '0' } });
+    expect(screen.getByRole('button', { name: 'Create' })).toBeEnabled();
   });
 });

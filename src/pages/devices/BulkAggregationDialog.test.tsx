@@ -85,7 +85,8 @@ describe('BulkAggregationDialog', { timeout: 30_000 }, () => {
     expect(calls[0]?.method).toBe('POST');
     expect(calls[0]?.path).toBe('/api/Devices/4/AggregationPolicies');
     const body = calls[0]?.body as Record<string, unknown>;
-    expect(body).toMatchObject({ timeScale: 'Minutes15', aggregationFunction: 'AVG', scale: 'Years', lookback: 100, timeZone: 'UTC' });
+    expect(body).toMatchObject({ timeScale: 'Minutes15', aggregationFunction: 'AVG', scale: 'Years', lookback: 100 });
+    expect(body).not.toHaveProperty('timeZone'); // the Device's time zone applies
     expect(body.sensorIds).toBeUndefined(); // empty = every Sensor of the Device
     expect(body.sourceDataKey).toBeUndefined(); // the source is always the measured value, never a choice
   });
@@ -179,8 +180,8 @@ describe('BulkAggregationDialog: CSV import and export', { timeout: 30_000 }, ()
     expect((await screen.findAllByText(/created, 0 switched on again/)).length).toBeGreaterThan(0);
     expect(calls).toHaveLength(2);
     expect(calls.map((c) => c.path)).toEqual(['/api/Devices/4/AggregationPolicies', '/api/Devices/4/AggregationPolicies']);
-    expect(calls[0]?.body).toEqual({ sensorIds: [1, 2], timeScale: 'Days', aggregationFunction: 'AVG', scale: 'Periods', lookback: 60, minIssueScore: 3, timeZone: 'UTC' });
-    expect(calls[1]?.body).toEqual({ sensorIds: [2], timeScale: 'Hours', aggregationFunction: 'MAX', scale: 'Periods', lookback: 336, minIssueScore: 2, timeZone: 'UTC' });
+    expect(calls[0]?.body).toEqual({ sensorIds: [1, 2], timeScale: 'Days', aggregationFunction: 'AVG', scale: 'Periods', lookback: 60, minIssueScore: 3 });
+    expect(calls[1]?.body).toEqual({ sensorIds: [2], timeScale: 'Hours', aggregationFunction: 'MAX', scale: 'Periods', lookback: 336, minIssueScore: 2 });
   });
 
   it('a level a Sensor already has is reported as Updated with the changes the API lists, and counted in the totals', async () => {
@@ -242,7 +243,7 @@ describe('BulkAggregationDialog: CSV import and export', { timeout: 30_000 }, ()
     fetchMock().mockImplementation(async () =>
       json([
         { id: 10, sensorId: 1, sourceDataKey: 'Actual', timeScale: 'Native', aggregationFunction: 'Raw', scale: 'years', lookback: 100, minIssueScore: 5, enabled: true },
-        { id: 11, sensorId: 1, sourceDataKey: 'Actual', timeScale: 'Days', aggregationFunction: 'AVG', scale: 'periods', lookback: 60, minIssueScore: 3, enabled: true, timeZone: 'UTC' },
+        { id: 11, sensorId: 1, sourceDataKey: 'Actual', timeScale: 'Days', aggregationFunction: 'AVG', scale: 'periods', lookback: 60, minIssueScore: 3, enabled: true, minEvaluationPercent: 25 },
       ]),
     );
     const user = userEvent.setup();
@@ -253,8 +254,8 @@ describe('BulkAggregationDialog: CSV import and export', { timeout: 30_000 }, ()
 
     await waitFor(() => expect(downloads).toHaveLength(1));
     expect(downloads[0]?.name).toBe('aggregation-device-4.csv');
-    expect(downloads[0]?.content).toContain('sensorName,level,timeScale,aggregationFunction,scale,lookback,minIssueScore,timeZone');
-    expect(downloads[0]?.content).toContain('ext-1,1 day,Days,AVG,Periods,60,3,UTC');
+    expect(downloads[0]?.content).toContain('sensorName,level,timeScale,aggregationFunction,scale,lookback,minIssueScore,minEvaluation');
+    expect(downloads[0]?.content).toContain('ext-1,1 day,Days,AVG,Periods,60,3,25');
     expect(downloads[0]?.content).not.toContain('Native');
   });
 });
@@ -274,8 +275,8 @@ describe('BulkAggregationDialog: sample download and upload button', { timeout: 
 
     expect(downloads).toHaveLength(1);
     expect(downloads[0]?.name).toBe('aggregation-template.csv');
-    expect(downloads[0]?.content).toContain('sensorName,level,timeScale,aggregationFunction,scale,lookback,minIssueScore,timeZone');
-    expect(downloads[0]?.content).toContain('ext-1,daily average,Days,AVG,Periods,60,3,UTC');
+    expect(downloads[0]?.content).toContain('sensorName,level,timeScale,aggregationFunction,scale,lookback,minIssueScore,minEvaluation');
+    expect(downloads[0]?.content).toContain('ext-1,daily average,Days,AVG,Periods,60,3,10');
   });
 
   it('a file chosen with the upload button is read into the sheet and checked at once', async () => {
