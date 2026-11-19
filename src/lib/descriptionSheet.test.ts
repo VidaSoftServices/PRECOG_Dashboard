@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchToSensors, parseDescriptionSheet } from './descriptionSheet';
+import { buildDescriptionSheet, matchToSensors, parseDescriptionSheet } from './descriptionSheet';
 
 const sheet = (...rows: string[]) => ['sensorName,description', ...rows].join('\r\n');
 
@@ -58,5 +58,23 @@ describe('language column', () => {
   it('rejects an unknown language and a duplicate Sensor+language', () => {
     const p = parseDescriptionSheet(['sensorName,language,description', 'a_1,de,x', 'a_1,en,y', 'a_1,en,z'].join('\n'));
     expect(p.issues.map((i) => i.line)).toEqual([2, 4]);
+  });
+});
+
+describe('buildDescriptionSheet', () => {
+  it('writes a sheet that parses back to the same rows, quoting what needs it', () => {
+    const sheet = buildDescriptionSheet([
+      { sensorName: 'a_1', language: 'en', description: '## Heading\n\n- one, "two"' },
+      { sensorName: 'a_1', language: 'hu', description: 'Nő a rezgés' },
+      { sensorName: null, language: 'en', description: 'no sensor, left out' },
+      { sensorName: 'b_1', language: 'en', description: '' },
+    ]);
+    expect(sheet.startsWith(String.fromCharCode(0xfeff) + 'sensorName,language,description\r\n')).toBe(true);
+    const parsed = parseDescriptionSheet(sheet);
+    expect(parsed.issues).toEqual([]);
+    expect(parsed.rows.map((r) => [r.sensorName, r.language, r.description])).toEqual([
+      ['a_1', 'en', '## Heading\n\n- one, "two"'],
+      ['a_1', 'hu', 'Nő a rezgés'],
+    ]);
   });
 });

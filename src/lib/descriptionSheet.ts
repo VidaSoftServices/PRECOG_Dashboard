@@ -147,3 +147,25 @@ export function matchToSensors(rows: readonly DescriptionRow[], sensorNames: rea
     withoutDescription: sensorNames.filter((n) => !described.has(n)),
   };
 }
+
+export interface ExportedDescription {
+  sensorName: string | null | undefined;
+  language: string | null | undefined;
+  description: string | null | undefined;
+}
+
+const csvCell = (value: string) => (/[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value);
+
+/**
+ * The stored descriptions as a sheet that can be imported again as it is: the header `sensorName,language,description`, one row per Sensor and
+ * language (EN/HU), a text with line breaks or commas in double quotes (a quote inside written twice), a byte-order mark first so Excel reads the
+ * accents. Rows without a Sensor name or a text are left out.
+ */
+export function buildDescriptionSheet(items: readonly ExportedDescription[]): string {
+  const lines = [DESCRIPTION_COLUMNS.join(',')];
+  for (const item of items) {
+    if (!item.sensorName || !item.description) continue;
+    lines.push([csvCell(item.sensorName), (item.language ?? 'en').toUpperCase(), csvCell(item.description.replace(/\r\n?/g, '\n'))].join(','));
+  }
+  return BOM + lines.join('\r\n') + '\r\n';
+}

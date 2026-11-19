@@ -10,6 +10,7 @@ import {
   Field,
   Select,
   Switch,
+  Textarea,
   Divider,
   MessageBar,
   MessageBarBody,
@@ -28,11 +29,13 @@ import { SensorTypeInput } from '@/components/SensorTypeInput';
 import { ExportSensorMapButton } from './ExportSensorMapButton';
 import { ExportAllSensorsButton } from './ExportAllSensorsButton';
 import { ManageSetpointsDialog } from './ManageSetpointsDialog';
-import { ImportDescriptionsDialog } from './ImportDescriptionsDialog';
+import { DescriptionsDialog } from './DescriptionsDialog';
 import { DeleteDeviceDataDialog, DeleteDeviceDialog } from './DeleteDeviceDialog';
 import { useAppToast } from '@/components/ToastProvider';
 import { useDevice, useUpdateDevice, useDisableDevice } from '@/api/hooks/devices';
 import { useSensors, useCreateSensor, useUpdateSensor, type SensorDto } from '@/api/hooks/sensors';
+import { useSensorDescriptionTexts, useUpdateSensorDescriptions } from '@/api/hooks/sensorDescriptions';
+import { MAX_DESCRIPTION_TEXT } from '@/lib/descriptionSheet';
 import { useSetSensorMaintenance } from '@/api/hooks/maintenance';
 import { MaintenanceAllDialog } from './MaintenanceAllDialog';
 import { RecalculateDialog } from './RecalculateDialog';
@@ -216,17 +219,29 @@ function EditSensorDialog({
   const styles = useStyles();
   const toast = useAppToast();
   const updateSensor = useUpdateSensor(deviceId, sensor.id!);
+  const updateDescriptions = useUpdateSensorDescriptions(deviceId, sensor.id!);
+  const stored = useSensorDescriptionTexts(deviceId, sensor.id, open);
   const [name, setName] = useState(sensor.name ?? '');
   const [sensorType, setSensorType] = useState(sensor.sensorType ?? '');
   const [unitCode, setUnitCode] = useState(sensor.unitCode ?? '');
   const [direction, setDirection] = useState<Direction>((sensor.direction as Direction) ?? 'lowerisbetter');
+  // The two stored descriptions (markdown). The fields stay locked until the stored texts are read, so an unread text is never overwritten with a blank.
+  const storedEn = stored.data?.find((d) => d.language === 'en')?.description ?? '';
+  const storedHu = stored.data?.find((d) => d.language === 'hu')?.description ?? '';
+  const [descEn, setDescEn] = useState<string | null>(null);
+  const [descHu, setDescHu] = useState<string | null>(null);
+  const shownEn = descEn ?? storedEn;
+  const shownHu = descHu ?? storedHu;
+  const descriptionsChanged = shownEn.trim() !== storedEn.trim() || shownHu.trim() !== storedHu.trim();
+  const descriptionTooLong = shownEn.length > MAX_DESCRIPTION_TEXT || shownHu.length > MAX_DESCRIPTION_TEXT;
 
   return (
     <ConfirmDialog
       open={open}
       title={t('Edit {0}', sensor.name || sensor.externalSensorId)}
       confirmLabel="Save"
-      busy={updateSensor.isPending}
+      busy={updateSensor.isPending || updateDescriptions.isPending}
+      confirmDisabled={descriptionTooLong}
       onConfirm={async () => {
         await updateSensor.mutateAsync({
           name: name || null,
@@ -234,6 +249,8 @@ function EditSensorDialog({
           unitCode: unitCode || null,
           direction,
         });
+        // Both languages are replaced by the API, so only send them when they were read and something was changed.
+        if (stored.isSuccess && descriptionsChanged) await updateDescriptions.mutateAsync({ en: shownEn, hu: shownHu });
         toast.success(t('Sensor updated'));
         onClose();
       }}
@@ -252,7 +269,24 @@ function EditSensorDialog({
         <Field label={t('Unit code')}>
           <Input value={unitCode} onChange={(_, d) => setUnitCode(d.value)} />
         </Field>
+        <Field
+          label={t('Description (English)')}
+          hint={t('What this indicator shows - markdown (## heading, **bold**, - list). Shown beside its enlarged chart; leave empty for none.')}
+          validationState={shownEn.length > MAX_DESCRIPTION_TEXT ? 'error' : 'none'}
+          validationMessage={shownEn.length > MAX_DESCRIPTION_TEXT ? t('At most {0} characters.', MAX_DESCRIPTION_TEXT) : undefined}
+        >
+          <Textarea value={shownEn} rows={6} resize="vertical" disabled={!stored.isSuccess} onChange={(_, d) => setDescEn(d.value)} />
+        </Field>
+        <Field
+          label={t('Description (Hungarian)')}
+          validationState={shownHu.length > MAX_DESCRIPTION_TEXT ? 'error' : 'none'}
+          validationMessage={shownHu.length > MAX_DESCRIPTION_TEXT ? t('At most {0} characters.', MAX_DESCRIPTION_TEXT) : undefined}
+        >
+          <Textarea value={shownHu} rows={6} resize="vertical" disabled={!stored.isSuccess} onChange={(_, d) => setDescHu(d.value)} />
+        </Field>
+        {stored.isError && <ErrorState error={stored.error} />}
         {updateSensor.isError && <ErrorState error={updateSensor.error} />}
+        {updateDescriptions.isError && <ErrorState error={updateDescriptions.error} />}
       </div>
     </ConfirmDialog>
   );
@@ -562,7 +596,7 @@ export function DeviceDetailPage() {
             )}
             {isAdmin && (
               <Button icon={<DocumentText24Regular />} onClick={() => setImportDescriptionsOpen(true)}>
-                {t('Import descriptions')}</Button>
+                {t('Descriptions')}</Button>
             )}
             {isAdmin && (
               <Button
@@ -756,7 +790,7 @@ export function DeviceDetailPage() {
       )}
 
       {isAdmin && importDescriptionsOpen && (
-        <ImportDescriptionsDialog deviceId={id} deviceName={deviceQuery.data?.deviceName || deviceQuery.data?.externalDeviceId || `Device ${id}`} open={importDescriptionsOpen} onClose={() => setImportDescriptionsOpen(false)} />
+        <DescriptionsDialog deviceId={id} deviceName={deviceQuery.data?.deviceName || deviceQuery.data?.externalDeviceId || `Device ${id}`} open={importDescriptionsOpen} onClose={() => setImportDescriptionsOpen(false)} />
       )}
       {isAdmin && manageSetpointsOpen && <ManageSetpointsDialog deviceId={id} open={manageSetpointsOpen} onClose={() => setManageSetpointsOpen(false)} />}
 

@@ -31,7 +31,7 @@ export function EnlargeableTelemetryChart({
   const t = useT();
   const styles = useStyles();
   const [open, setOpen] = useState(false);
-  const found = useSensorDescriptions(describedSensors);
+  const found = useSensorDescriptions(describedSensors, open);
   const [showInfo, setShowInfo] = useState(false);
 
   return (

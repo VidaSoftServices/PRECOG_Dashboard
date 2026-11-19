@@ -2775,3 +2775,8 @@ Admin-only **Delete Issue** button in the Issue detail header (next to "Reopen f
 
 - Added `src/lib/language.ts`, `translations*.ts` (about 1,000 texts), the language menu, the language-aware descriptions CSV, `issueMessage.ts` and the Hungarian Issue text on the Issue page; see CLAUDE.md "Two languages".
 - Verified: `tsc`, the full vitest suite (589, one unexplained one-off failure in one run, green on the next two) and `translations.test.ts` (every `t('...')` has a Hungarian text). **Not verified**: a click-through of the pages in Hungarian in a real browser (long fragment-built sentences may read stiffly), and the Issue translation end to end (needs the API change deployed, the `messagehu` column and Ollama).
+
+## Descriptions stored by the API (2026-11-19)
+
+- Replaced the in-memory prototype: `api/hooks/sensorDescriptions.ts`, `DescriptionsDialog` (renamed from "Import descriptions"; adds Export and Remove all), the two description fields of the Sensor edit dialog, `useSensorDescriptions` reading from the API, `buildDescriptionSheet`; `schema.generated.ts` regenerated from the API's real OpenAPI document.
+- Verified: `tsc`, eslint (no errors), the full vitest suite, including `DescriptionsDialog.test.tsx` (stored count, export sheet, import request body by Sensor id, remove after acknowledgement) and the rewritten `useSensorDescriptions.test.tsx`. **Not verified**: the dialog and the edit fields in a real browser, and anything end to end (the API table exists on dev and production since 2026-11-19, but no request has reached it yet).

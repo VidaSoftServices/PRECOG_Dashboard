@@ -141,7 +141,8 @@ function SensorLiveCard({
   // chart therefore reads its own Sensor WITH the limits (every 5 s while the window is open, paused in a rate-limit cooldown).
   const limits = useTelemetryTrailingWithLimits({ family, deviceId, sensorId: sensor.id, periods: 20, enabled: enlarged && !curveFamily, paused: refreshDisabled });
   const [showInfo, setShowInfo] = useState(false);
-  const description = useSensorDescriptions([{ deviceId, sensorName: sensor.externalSensorId }]);
+  // Read from the API only while the enlarged chart is open (a page of 50 cards must not make 50 requests).
+  const description = useSensorDescriptions([{ deviceId, sensorId: sensor.id, sensorName: sensor.externalSensorId }], enlarged);
   const sensorLabel = sensor.name || sensor.externalSensorId || 'Sensor';
   // One definition for the card and the enlarged view, so the modal always shows exactly the data the card has (it moves with every refresh).
   // The enlarged chart draws every Target / Tolerance / UCL / LCL line the API has a value for (never computed here); a line it has none for is simply absent.

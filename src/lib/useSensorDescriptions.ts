@@ -1,31 +1,51 @@
+import { useQueries } from '@tanstack/react-query';
+import { apiClient, unwrap } from '@/api/client';
+import { queryKeys } from '@/api/queryKeys';
 import { useLanguage } from './language';
-import { getDeviceDescriptions, useDescriptionVersion } from './descriptionStore';
-import type { DescriptionRow } from './descriptionSheet';
 
 /** One Sensor whose description a chart or card may show. `label` (for example the Device's name) is shown above the text when given. */
 export interface DescribedSensor {
   deviceId: number | undefined;
-  /** The Sensor's externalSensorId - the sheet's sensorName. */
+  sensorId: number | undefined;
+  /** The Sensor's externalSensorId, only used as the entry's accessible name. */
   sensorName: string | null | undefined;
   label?: string | null;
 }
 
 export interface FoundDescription {
-  row: DescriptionRow;
+  row: { sensorName: string; description: string };
   label?: string | null;
 }
 
-/** The imported descriptions of the given Sensors; a Sensor without one (or a Device with none imported) is simply absent. */
-export function useSensorDescriptions(items: readonly DescribedSensor[] | undefined): FoundDescription[] {
-  useDescriptionVersion();
+/**
+ * The stored descriptions of the given Sensors (read from the API, one small request per Sensor, cached for five minutes), in the chosen
+ * language and in English where the Sensor has no text in that one. A Sensor without any description - or whose read failed - is simply absent,
+ * so nothing is shown for it. `enabled` = false reads nothing (a card whose enlarged chart is closed).
+ */
+export function useSensorDescriptions(items: readonly DescribedSensor[] | undefined, enabled = true): FoundDescription[] {
   const { language } = useLanguage();
+  const list = items ?? [];
+  const results = useQueries({
+    queries: list.map((item) => ({
+      queryKey: queryKeys.sensorDescriptions(item.deviceId ?? -1, item.sensorId ?? -1),
+      queryFn: async ({ signal }: { signal: AbortSignal }) =>
+        unwrap(
+          await apiClient.GET('/api/Devices/{deviceId}/Sensors/{sensorId}/Descriptions', {
+            params: { path: { deviceId: item.deviceId!, sensorId: item.sensorId! } },
+            signal,
+          }),
+        ),
+      enabled: enabled && item.deviceId !== undefined && item.sensorId !== undefined,
+      staleTime: 5 * 60 * 1000,
+      retry: false,
+    })),
+  });
+
   const found: FoundDescription[] = [];
-  for (const item of items ?? []) {
-    if (!item.sensorName) continue;
-    const rows = getDeviceDescriptions(item.deviceId)?.rows.filter((r) => r.sensorName === item.sensorName);
-    // The chosen language, else English (a sheet may not have every Sensor in both languages).
-    const row = rows?.find((r) => r.language === language) ?? rows?.find((r) => r.language === 'en') ?? rows?.[0];
-    if (row) found.push({ row, label: item.label });
-  }
+  list.forEach((item, i) => {
+    const rows = results[i]?.data ?? [];
+    const row = rows.find((r) => r.language === language) ?? rows.find((r) => r.language === 'en') ?? rows[0];
+    if (row?.description) found.push({ row: { sensorName: item.sensorName ?? String(item.sensorId), description: row.description }, label: item.label });
+  });
   return found;
 }

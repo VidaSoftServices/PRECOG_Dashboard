@@ -134,7 +134,7 @@ function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; st
   // The imported descriptions of the chosen Sensors (none imported = empty, and neither the side card nor the modal text appears).
   const describedSensors = effectiveSelection.map((id) => {
     const s = sensors.find((x) => x.id === id);
-    return { deviceId, sensorName: s?.externalSensorId, label: effectiveSelection.length > 1 ? s?.name || s?.externalSensorId : undefined };
+    return { deviceId, sensorId: id, sensorName: s?.externalSensorId, label: effectiveSelection.length > 1 ? s?.name || s?.externalSensorId : undefined };
   });
   const foundDescriptions = useSensorDescriptions(describedSensors);
 
@@ -355,8 +355,8 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
   const labelB = `${deviceB.data?.deviceName ?? 'Device B'} · ${sensorB?.name || sensorB?.externalSensorId || 'Sensor'}`;
   const unitsDiffer = !!(sensorA?.unitCode && sensorB?.unitCode && sensorA.unitCode !== sensorB.unitCode);
   const describedPair = [
-    { deviceId: deviceIdA, sensorName: sensorA?.externalSensorId, label: labelA },
-    { deviceId: deviceIdB, sensorName: sensorB?.externalSensorId, label: labelB },
+    { deviceId: deviceIdA, sensorId: sensorA?.id, sensorName: sensorA?.externalSensorId, label: labelA },
+    { deviceId: deviceIdB, sensorId: sensorB?.id, sensorName: sensorB?.externalSensorId, label: labelB },
   ];
   const foundPair = useSensorDescriptions(describedPair);
 
