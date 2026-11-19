@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
-import { Badge, type BadgeProps } from '@fluentui/react-components';
+import { Badge, Tooltip, type BadgeProps } from '@fluentui/react-components';
 import {
+  MailCheckmark16Regular,
   CheckmarkCircle16Regular,
   Warning16Regular,
   ErrorCircle16Regular,
@@ -11,6 +12,8 @@ import {
   EyeOff16Regular,
 } from '@fluentui/react-icons';
 import type { Freshness } from '@/lib/dateTime';
+import type { IssueEmailFields } from '@/api/domainTypes';
+import { emailSentText } from '@/lib/issueEmail';
 import { useT } from '@/lib/language';
 
 /**
@@ -124,5 +127,22 @@ export function HiddenPill({ visible }: { visible: boolean | null | undefined })
   return (
     <Badge appearance="tint" color="informative" icon={<EyeOff16Regular />}>
       {t('Hidden')}</Badge>
+  );
+}
+
+/**
+ * Shown for an Issue whose e-mail notification reached at least one person (`notificationSentAt`, API): mail icon + text, never color
+ * alone; the time and recipient count are in the tooltip (and written out on the Issue detail page). Renders nothing when no e-mail was
+ * sent (switched off, nobody subscribed, failed, an Issue found in the past, or still pending) - the common case stays quiet.
+ */
+export function EmailSentPill({ issue }: { issue: IssueEmailFields }) {
+  const t = useT();
+  if (!issue.notificationSentAt) return null;
+  const detail = emailSentText(issue, t);
+  return (
+    <Tooltip content={detail} relationship="description">
+      <Badge appearance="tint" color="brand" icon={<MailCheckmark16Regular />}>
+        {t('E-mail sent')}</Badge>
+    </Tooltip>
   );
 }

@@ -57,6 +57,23 @@ describe('IssueListPage', () => {
     expect(await screen.findByText(/Vibration X · .*→/)).toBeInTheDocument();
   });
 
+  it('marks the Issues whose e-mail was sent (icon + text), and only those', async () => {
+    mockApi([
+      { ...issue(7, 11), notificationSentAt: '2026-11-19T10:06:00Z', emailRecipientCount: 3 },
+      issue(8, 11),
+    ]);
+    renderPage();
+    expect(await screen.findByText('E-mail sent')).toBeInTheDocument();
+    expect(screen.getAllByText('E-mail sent')).toHaveLength(1);
+  });
+
+  it('shows no e-mail mark when no Issue was mailed', async () => {
+    mockApi([issue(9, 11)]);
+    renderPage();
+    expect(await screen.findByText(/Vibration X · .*→/)).toBeInTheDocument();
+    expect(screen.queryByText('E-mail sent')).toBeNull();
+  });
+
   it('shows just the time span for an Issue that is not attributable to one Sensor', async () => {
     mockApi([issue(6, null)]);
     renderPage();

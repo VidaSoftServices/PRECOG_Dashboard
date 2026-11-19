@@ -78,4 +78,7 @@ export const HU_STATUS: Record<string, string> = {
   '{0}: latest {1} at {2}': '{0}: legutóbbi {1}, ekkor: {2}',
   ', {0} critical / {1} warning point(s)': ', {0} kritikus / {1} figyelmeztető pont',
   ', average {0} over {1} points': ', átlag {0} ({1} pont alapján)',
+  'E-mail sent': 'E-mail elküldve',
+  'E-mail sent {0}': 'E-mail elküldve: {0}',
+  'E-mail sent {0} to {1} recipient(s)': 'E-mail elküldve: {0}, {1} címzettnek',
 };

@@ -21,7 +21,8 @@ import { DeleteIssueDialog } from './DeleteIssueDialog';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
-import { ReviewStatePill } from '@/components/StatusPill';
+import { EmailSentPill, ReviewStatePill } from '@/components/StatusPill';
+import { emailSentText } from '@/lib/issueEmail';
 import { TelemetryChart } from '@/components/charts/TelemetryChart';
 import { MoveToCanonicalDialog } from '@/components/MoveToCanonicalDialog';
 import { useAppToast } from '@/components/ToastProvider';
@@ -350,9 +351,17 @@ export function IssueDetailPage() {
         <div>
           <Card className={styles.card}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <ReviewStatePill reviewState={issue.reviewState} />
+              <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center', flexWrap: 'wrap' }}>
+                <ReviewStatePill reviewState={issue.reviewState} />
+                <EmailSentPill issue={issue} />
+              </div>
               {!issue.isCanonical && <Badge appearance="outline">{t('member of canonical #')}{issue.canonicalIssueId}</Badge>}
             </div>
+            {issue.notificationSentAt && (
+              <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+                {emailSentText(issue, t)}
+              </Text>
+            )}
             {isAdmin ? (
               <IssueFeedbackEditor
                 key={`${issue.id}-${language}`}

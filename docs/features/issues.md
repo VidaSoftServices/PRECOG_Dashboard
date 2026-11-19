@@ -90,3 +90,12 @@ The Issue detail page's first card has an Admin-only **Feedback** box (`IssueFee
 ## Issue list rows name the Sensor (2026-11-19)
 
 A row of the Issues list (`IssueListPage.tsx`) starts with the name of the Sensor the Issue was raised for (`primarySensorId`, resolved through `useSensors`; the external id when the Sensor has no name) before the from - to span: `Vibration X · 2026-11-19 10:00 → 2026-11-19 10:05`. An Issue that is not attributable to one Sensor shows only the span. The same text is in the radio list of the "Group Issues" dialog. The Issue detail chart marks anomalous points larger (yellow warning, red critical, `smart-analytics.md`). Test: `IssueListPage.test.tsx`.
+
+## E-mail sent mark (2026-11-19)
+
+An Issue whose e-mail notification reached at least one person (the API's Issue e-mail, `PRECOG_API/docs/features/issue-email.md`) shows an **E-mail sent** badge with a mail icon (`EmailSentPill`, `src/components/StatusPill.tsx`; icon + text, never color alone) in its row of the Issues list, next to the review state, and in the first card of the Issue detail page. The list has one row layout for every width, so the badge shows on desktop and phone alike. The tooltip, and on the detail page a line under the badges, say when and to how many people: "E-mail sent 2026-11-19 10:06 to 3 recipient(s)" (`emailSentText`, `src/lib/issueEmail.ts`; without the count when the API does not know it). An Issue with no e-mail (switched off, nobody subscribed, every attempt failed, found in the past, or still waiting for its summary) shows nothing.
+
+- Data: `IssueDto.notificationSentAt` (UTC, null = no e-mail) and `IssueDto.emailRecipientCount`, both straight from the API, which reads them with one query per list page. Nothing is worked out in the browser. A "0 recipient(s)" record (nobody to notify) is not a sent e-mail, and the API already returns null for it.
+- `emailRecipientCount` is not in `schema.generated.ts` yet (the local API was not running when this was built). `IssueEmailFields` in `src/api/domainTypes.ts` types it until the next `npm run gen:api`.
+- Texts in English and Hungarian (`translations.status.ts`): "E-mail sent" / "E-mail elküldve".
+- Tests: `IssueListPage.test.tsx` (the mailed Issue has the badge, an unmailed one does not), `src/lib/issueEmail.test.ts` (the sentence in both languages, with and without the count, empty when none was sent).

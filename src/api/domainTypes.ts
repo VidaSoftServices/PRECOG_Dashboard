@@ -38,6 +38,17 @@ export type TrainingRequestStatus = 'Pending' | 'Claimed' | 'Processing' | 'Comp
 
 export type IssueReviewState = 'PendingReview' | 'ReviewedFault' | 'ReviewedFalsePositive';
 
+/**
+ * The Issue e-mail fields of IssueDto (API 2026-11-19, docs/features/issues.md "E-mail sent mark"): `notificationSentAt` (already in
+ * schema.generated.ts) is the UTC time the Issue e-mail reached at least one recipient, `emailRecipientCount` how many people got it. The
+ * latter was added to the API while the local API was not running, so it is not in schema.generated.ts yet - this supplement types it until
+ * the next `npm run gen:api` (after which the generated IssueDto carries both and this stays a harmless subset of it).
+ */
+export interface IssueEmailFields {
+  notificationSentAt?: string | null;
+  emailRecipientCount?: number | null;
+}
+
 export type KnowledgeShareStatus = 'Draft' | 'Approved' | 'Revoked';
 
 export type CategorySuggestionStatus = 'Pending' | 'Suggested' | 'Accepted' | 'Rejected' | 'Failed';

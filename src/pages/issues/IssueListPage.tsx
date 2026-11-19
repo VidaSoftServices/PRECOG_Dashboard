@@ -7,7 +7,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
 import { EmptyState } from '@/components/states/EmptyState';
-import { ReviewStatePill } from '@/components/StatusPill';
+import { EmailSentPill, ReviewStatePill } from '@/components/StatusPill';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useAppToast } from '@/components/ToastProvider';
 import { useDevices } from '@/api/hooks/devices';
@@ -201,6 +201,7 @@ export function IssueListPage() {
               </div>
               <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center' }}>
                 {issue.isCanonical && issue.memberCount ? <Badge appearance="tint">{issue.memberCount} {t('members')}</Badge> : null}
+                <EmailSentPill issue={issue} />
                 <ReviewStatePill reviewState={issue.reviewState} />
               </div>
             </div>
