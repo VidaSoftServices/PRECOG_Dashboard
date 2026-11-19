@@ -51,6 +51,41 @@ describe('TelemetryChart average line and control limits', () => {
     expect(dataset('Fan 2 · X average')).toMatchObject({ borderColor: seriesPalette[1], pointRadius: 0 });
   });
 
+  it('two series that were measured at different instants: the readings and every reference line run across the other series\' instants instead of breaking into invisible points', () => {
+    // Two Devices never measure at the same second: on the shared time axis each series has empty places between its own readings.
+    const limits = { upperControlLimit3S: 9, lowerControlLimit3S: -9, target: 5, tolerance: 1 };
+    const first = [point(0, 1, limits), point(2, 2, limits), point(4, 3, limits)];
+    const second = [point(1, 10, limits), point(3, 20, limits)];
+    renderChart({
+      series: [{ label: 'Fan 1 · X', points: first, direction: 'lowerisbetter' }, { label: 'Fan 2 · X', points: second, direction: 'lowerisbetter' }],
+      mode: 'compare',
+      showControlLimits: true,
+      showSetpoint: true,
+    });
+
+    expect(labels()).toEqual(expect.arrayContaining(['Fan 1 · X UCL3', 'Fan 1 · X LCL3', 'Fan 1 · X Target', 'Fan 1 · X Tolerance', 'Fan 2 · X UCL3', 'Fan 2 · X Target']));
+    // the first series has values only at its own three instants of the five ...
+    expect(dataset('Fan 1 · X UCL3').data).toEqual([9, null, 9, null, 9]);
+    // ... and every such line (the readings too) bridges the empty places
+    for (const name of ['UCL3', 'LCL3', 'Target', 'Tolerance']) {
+      expect(dataset(`Fan 1 · X ${name}`)).toMatchObject({ spanGaps: true });
+      expect(dataset(`Fan 2 · X ${name}`)).toMatchObject({ spanGaps: true });
+    }
+    expect(dataset('Fan 1 · X')).toMatchObject({ spanGaps: true });
+    expect(dataset('Fan 2 · X')).toMatchObject({ spanGaps: true });
+  });
+
+  it('one series: its own readings are not bridged (a real gap in the data stays a gap), but the reference lines of the Sensor are drawn through it', () => {
+    renderChart({
+      series: [{ label: 'Fan 1 · X', points: [point(0, 1, { target: 5, tolerance: 1, upperControlLimit3S: 9, upperControlLimit2S: 8, lowerControlLimit2S: 2, lowerControlLimit3S: 1 }), point(1, null), point(2, 3, { target: 5, tolerance: 1, upperControlLimit3S: 9, upperControlLimit2S: 8, lowerControlLimit2S: 2, lowerControlLimit3S: 1 })], direction: 'lowerisbetter' }],
+      mode: 'single',
+      detailedLimits: true,
+    });
+
+    expect(dataset('Fan 1 · X')).toMatchObject({ spanGaps: false });
+    for (const name of ['Target', 'Tolerance', 'UCL3', 'UCL2', 'LCL2', 'LCL3']) expect(dataset(`Fan 1 · X ${name}`)).toMatchObject({ spanGaps: true });
+  });
+
   it('says the average (and how many readings it is made of) in the text summary, with the series\' unit', () => {
     renderChart({ series: [{ label: 'Fan 1 · X', points: A, unitLabel: 'mm/s' }], mode: 'compare', averageLine: true });
 

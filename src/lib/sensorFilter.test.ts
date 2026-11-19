@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { filterSensors } from './sensorFilter';
+import { filterByLabel, filterSensors } from './sensorFilter';
 
 const sensors = [
   { id: 1, name: '1# Velocity RMS X (equivalent RMS)', externalSensorId: 'velocity_rms_x_eq_1' },
@@ -22,5 +22,29 @@ describe('filterSensors', () => {
 
   it('finds nothing for an unknown text and never fails on a Sensor without names', () => {
     expect(filterSensors(sensors, 'zzz')).toEqual([]);
+  });
+});
+
+describe('filterByLabel', () => {
+  const rows = [
+    { label: 'Vibration X', id: 'a' },
+    { label: 'Vibration X \u00b7 1 day \u00b7 Average', id: 'b' },
+    { label: 'Vibration X \u00b7 1 hour \u00b7 Maximum', id: 'c' },
+    { label: 'Temperature \u00b7 1 day \u00b7 Average \u00b7 Calculation off', id: 'd' },
+  ];
+  const ids = (text: string) => filterByLabel(rows, text, (r) => r.label).map((r) => r.id);
+
+  it('keeps every row for an empty filter', () => expect(ids('  ')).toEqual(['a', 'b', 'c', 'd']));
+
+  it('searches the whole text of the row, so the aggregation level can be filtered', () => {
+    expect(ids('1 day')).toEqual(['b', 'd']);
+    expect(ids('maximum')).toEqual(['c']);
+    expect(ids('calculation off')).toEqual(['d']);
+  });
+
+  it('needs every word, in any order, case-insensitively', () => {
+    expect(ids('AVERAGE vibration')).toEqual(['b']);
+    expect(ids('x day')).toEqual(['b']);
+    expect(ids('zzz')).toEqual([]);
   });
 });

@@ -34,13 +34,13 @@ import { useKnowledgeCompatibility } from '@/api/hooks/knowledgeSharing';
 import { useIssues } from '@/api/hooks/issues';
 import { useNumberSearchParam } from '@/lib/useNumberSearchParam';
 import { useDeviceSelection } from '@/lib/selectedDevice';
-import { filterSensors } from '@/lib/sensorFilter';
+import { filterByLabel } from '@/lib/sensorFilter';
 import { splitShownSensors } from '@/lib/sensorVisibility';
 import { findSameSensor } from '@/lib/sensorLink';
 import { useDeviceAggregationPolicies } from '@/api/hooks/deviceConfiguration';
 import { useAggregatedPoints } from '@/api/hooks/aggregatedPoints';
 import { AggregationSelect } from '@/components/AggregationSelect';
-import { aggregatedRange, levelsOfSensor, levelsOfSensors, MIN_AGGREGATED_BUCKETS as MIN_BUCKETS_SHOWN, pickLevel, type LevelPolicy } from '@/lib/aggregationLevels';
+import { aggregatedRange, levelOfSensorByKey, levelsOfSensor, levelsOfSensors, MIN_AGGREGATED_BUCKETS as MIN_BUCKETS_SHOWN, pickLevel, type LevelPolicy } from '@/lib/aggregationLevels';
 import { toApiIso, formatDateTime, parseApiDate } from '@/lib/dateTime';
 import { useAuth } from '@/auth/AuthContext';
 import { useBreakpoint } from '@/lib/useMediaQuery';
@@ -158,7 +158,8 @@ function SensorAnalytics({
 
   // A Sensor hidden with the Device page's "Visible" switch is not offered here (an Issue that involves it still shows it elsewhere).
   const { shown: sensors, hiddenCount } = useMemo(() => splitShownSensors(sensorsQuery.data), [sensorsQuery.data]);
-  const visibleSensors = useMemo(() => filterSensors(sensors, sensorFilter), [sensors, sensorFilter]);
+  // The filter searches what a row shows (name, direction, "Calculation off") and the external id, every word of it.
+  const visibleSensors = filterByLabel(sensors, sensorFilter, (s) => `${s.name || s.externalSensorId} (${s.direction})${calculationOffSuffix(s, t)} ${s.name ?? ''} ${s.externalSensorId ?? ''}`);
   const pickedIds = selectedSensorIds.filter((id) => sensors.some((s) => s.id === id));
   const effectiveSelection = (pickedIds.length > 0 ? pickedIds : sensors.slice(0, 1).map((s) => s.id!)).slice(0, multi ? MAX_OVERLAY_SENSORS : 1);
   const primarySensor = sensors.find((s) => s.id === effectiveSelection[0]);
@@ -395,6 +396,12 @@ function SensorAnalytics({
   );
 }
 
+/** A Sensor row value of the Compare Devices lists: "sensorId" (raw readings) or "sensorId|level key". */
+function parseChoice(value: string): { sensorId: number; levelKey: string } {
+  const [id, ...rest] = value.split('|');
+  return { sensorId: Number(id), levelKey: rest.join('|') };
+}
+
 /** Two-Device comparison mode with compatibility-aware Sensor mapping (decision #17). */
 function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { deviceIdA: number; deviceIdB: number; start: Date; end: Date }) {
   const t = useT();
@@ -409,6 +416,11 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
 
   const [sensorIdA, setSensorIdA] = useState<number | undefined>();
   const [sensorIdB, setSensorIdB] = useState<number | undefined>();
+  // The aggregation level chosen with each Sensor ('' = the raw readings): every row of a Sensor list is "name" or "name . level".
+  const [levelKeyA, setLevelKeyA] = useState('');
+  const [levelKeyB, setLevelKeyB] = useState('');
+  const policiesA = useDeviceAggregationPolicies(deviceIdA);
+  const policiesB = useDeviceAggregationPolicies(deviceIdB);
   const [filterA, setFilterA] = useState('');
   const [filterB, setFilterB] = useState('');
   // Linked (the default): choosing a Sensor on one side chooses the Sensor of the same name on the other side.
@@ -419,42 +431,76 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
   const shownB = useMemo(() => splitShownSensors(sensorsB.data).shown, [sensorsB.data]);
   const effectiveSensorA = sensorIdA !== undefined && shownA.some((s) => s.id === sensorIdA) ? sensorIdA : shownA[0]?.id;
   const effectiveSensorB = sensorIdB !== undefined && shownB.some((s) => s.id === sensorIdB) ? sensorIdB : shownB[0]?.id;
+  // The level of each side: only while that Sensor really has it (otherwise the raw readings).
+  const levelA = levelKeyA === '' ? undefined : levelOfSensorByKey(policiesA.data, effectiveSensorA, levelKeyA);
+  const levelB = levelKeyB === '' ? undefined : levelOfSensorByKey(policiesB.data, effectiveSensorB, levelKeyB);
 
   // The same indicator on the other Device (same external id, else the same name). The link icon is light grey while there is none.
   const counterpartInB = findSameSensor(shownB, shownA.find((s) => s.id === effectiveSensorA));
   const counterpartInA = findSameSensor(shownA, shownB.find((s) => s.id === effectiveSensorB));
   const linkAvailable = counterpartInB !== undefined;
-  const chooseA = (id: number) => {
-    setSensorIdA(id);
-    const other = linked ? findSameSensor(shownB, shownA.find((s) => s.id === id)) : undefined;
-    if (other?.id != null) setSensorIdB(other.id);
+  // A row value is "sensorId" (raw readings) or "sensorId|level key". Linked: the other side gets the same indicator and, when it has it, the same level.
+  const chooseA = (value: string) => {
+    const { sensorId, levelKey } = parseChoice(value);
+    setSensorIdA(sensorId);
+    setLevelKeyA(levelKey);
+    const other = linked ? findSameSensor(shownB, shownA.find((s) => s.id === sensorId)) : undefined;
+    if (other?.id != null) {
+      setSensorIdB(other.id);
+      setLevelKeyB(levelKey !== '' && levelOfSensorByKey(policiesB.data, other.id, levelKey) ? levelKey : '');
+    }
   };
-  const chooseB = (id: number) => {
-    setSensorIdB(id);
-    const other = linked ? findSameSensor(shownA, shownB.find((s) => s.id === id)) : undefined;
-    if (other?.id != null) setSensorIdA(other.id);
+  const chooseB = (value: string) => {
+    const { sensorId, levelKey } = parseChoice(value);
+    setSensorIdB(sensorId);
+    setLevelKeyB(levelKey);
+    const other = linked ? findSameSensor(shownA, shownB.find((s) => s.id === sensorId)) : undefined;
+    if (other?.id != null) {
+      setSensorIdA(other.id);
+      setLevelKeyA(levelKey !== '' && levelOfSensorByKey(policiesA.data, other.id, levelKey) ? levelKey : '');
+    }
   };
   const toggleLink = () => {
     const on = !linked;
     setLinked(on);
-    // Linking again lines the right side up with the left one when it has the same indicator.
-    if (on && counterpartInB?.id != null) setSensorIdB(counterpartInB.id);
+    // Linking again lines the right side up with the left one when it has the same indicator (and the same level, when it has it).
+    if (on && counterpartInB?.id != null) {
+      setSensorIdB(counterpartInB.id);
+      setLevelKeyB(levelA && levelOfSensorByKey(policiesB.data, counterpartInB.id, levelA.key) ? levelA.key : '');
+    }
   };
 
-  // The chosen Sensor stays in its list even when it does not match the filter, so the select never shows a value that is not an option.
-  const optionsFor = (sensors: typeof sensorsA.data, filter: string, chosen: number | undefined) => {
-    const all = sensors ?? [];
-    const matching = filterSensors(all, filter);
-    const pinned = all.find((s) => s.id === chosen);
+  // One row per Sensor and per aggregation level it has: "name" (raw readings) and "name . 1 day . Average".
+  const rowsFor = (sensors: typeof shownA, policies: typeof policiesA.data) =>
+    sensors.flatMap((s) => [
+      { value: String(s.id), label: `${s.name || s.externalSensorId}${calculationOffSuffix(s, t)}`, search: `${s.name ?? ''} ${s.externalSensorId ?? ''}` },
+      ...levelsOfSensor(policies, s.id).map((level) => ({
+        value: `${s.id}|${level.key}`,
+        label: `${s.name || s.externalSensorId} \u00b7 ${t(level.label)}${level.calculationEnabled ? '' : ` \u00b7 ${t('Calculation off')}`}`,
+        search: `${s.name ?? ''} ${s.externalSensorId ?? ''}`,
+      })),
+    ]);
+  // The filter box searches the WHOLE text of a row (name AND aggregation level, every word), so the levels can be filtered too. The chosen row stays in its
+  // list even when it does not match, so the select never shows a value that is not an option.
+  const visibleRows = (all: ReturnType<typeof rowsFor>, filter: string, chosen: string) => {
+    const matching = filterByLabel(all, filter, (r) => `${r.label} ${r.search}`);
+    const pinned = all.find((r) => r.value === chosen);
     return pinned && !matching.includes(pinned) ? [pinned, ...matching] : matching;
   };
-  const optionsA = optionsFor(shownA, filterA, effectiveSensorA);
-  const optionsB = optionsFor(shownB, filterB, effectiveSensorB);
+  const valueA = effectiveSensorA === undefined ? '' : levelA ? `${effectiveSensorA}|${levelA.key}` : String(effectiveSensorA);
+  const valueB = effectiveSensorB === undefined ? '' : levelB ? `${effectiveSensorB}|${levelB.key}` : String(effectiveSensorB);
+  const rowsA = visibleRows(rowsFor(shownA, policiesA.data), filterA, valueA);
+  const rowsB = visibleRows(rowsFor(shownB, policiesB.data), filterB, valueB);
 
   const familyA = familyFor((deviceA.data?.applicationMode as 'continuous' | 'periodic') ?? 'continuous', sensorsA.data?.find((s) => s.id === effectiveSensorA)?.direction);
   const familyB = familyFor((deviceB.data?.applicationMode as 'continuous' | 'periodic') ?? 'continuous', sensorsB.data?.find((s) => s.id === effectiveSensorB)?.direction);
 
-  const dataA = useTelemetryDateRange({ family: familyA, deviceId: deviceIdA, sensorId: effectiveSensorA, startDate: toApiIso(start), endDate: toApiIso(end), maxPoints: MAX_CHART_POINTS });
+  const rawA = useTelemetryDateRange({ family: familyA, deviceId: deviceIdA, sensorId: effectiveSensorA, startDate: toApiIso(start), endDate: toApiIso(end), maxPoints: MAX_CHART_POINTS, enabled: levelA === undefined });
+  const widenedA = aggregatedRange(start, end, levelA?.bucketMs ?? 86_400_000);
+  const widenedB = aggregatedRange(start, end, levelB?.bucketMs ?? 86_400_000);
+  const aggA = useAggregatedPoints({ deviceId: deviceIdA, sensorId: effectiveSensorA, policyId: levelA?.policyId, range: { startDate: widenedA.startDate, endDate: widenedA.endDate }, enabled: levelA !== undefined, refetchMs: 30_000 });
+  // The chart reads the aggregated buckets of a chosen level, otherwise the raw readings.
+  const dataA = levelA ? aggA : rawA;
   // The maintenances of both chosen Sensors (each Device has its own history).
   const maintenanceA = useMaintenanceHistory(deviceIdA);
   const maintenanceB = useMaintenanceHistory(deviceIdB);
@@ -465,7 +511,9 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
     ].sort((a, b) => Date.parse(a.endedAt) - Date.parse(b.endedAt)),
     [maintenanceA.data, maintenanceB.data, effectiveSensorA, effectiveSensorB],
   );
-  const dataB = useTelemetryDateRange({ family: familyB, deviceId: deviceIdB, sensorId: effectiveSensorB, startDate: toApiIso(start), endDate: toApiIso(end), maxPoints: MAX_CHART_POINTS });
+  const rawB = useTelemetryDateRange({ family: familyB, deviceId: deviceIdB, sensorId: effectiveSensorB, startDate: toApiIso(start), endDate: toApiIso(end), maxPoints: MAX_CHART_POINTS, enabled: levelB === undefined });
+  const aggB = useAggregatedPoints({ deviceId: deviceIdB, sensorId: effectiveSensorB, policyId: levelB?.policyId, range: { startDate: widenedB.startDate, endDate: widenedB.endDate }, enabled: levelB !== undefined, refetchMs: 30_000 });
+  const dataB = levelB ? aggB : rawB;
 
   const stream = compatibility.data?.streams?.find(
     (s) => s.sourceSensorId === effectiveSensorA || s.targetSensorId === effectiveSensorB,
@@ -477,8 +525,8 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
   // converted: when the units differ the values are drawn as they are, and the notice below says so.
   const sensorA = sensorsA.data?.find((s) => s.id === effectiveSensorA);
   const sensorB = sensorsB.data?.find((s) => s.id === effectiveSensorB);
-  const labelA = `${deviceA.data?.deviceName ?? 'Device A'} · ${sensorA?.name || sensorA?.externalSensorId || 'Sensor'}`;
-  const labelB = `${deviceB.data?.deviceName ?? 'Device B'} · ${sensorB?.name || sensorB?.externalSensorId || 'Sensor'}`;
+  const labelA = `${deviceA.data?.deviceName ?? 'Device A'} · ${sensorA?.name || sensorA?.externalSensorId || 'Sensor'}${levelA ? ` · ${t(levelA.label)}` : ''}`;
+  const labelB = `${deviceB.data?.deviceName ?? 'Device B'} · ${sensorB?.name || sensorB?.externalSensorId || 'Sensor'}${levelB ? ` · ${t(levelB.label)}` : ''}`;
   const unitsDiffer = !!(sensorA?.unitCode && sensorB?.unitCode && sensorA.unitCode !== sensorB.unitCode);
   const describedPair = [
     { deviceId: deviceIdA, sensorId: sensorA?.id, sensorName: sensorA?.externalSensorId, label: labelA },
@@ -494,10 +542,10 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
         <div className={styles.column}>
           <Text size={200}>{t('Device A Sensor')}</Text>
           <Input aria-label={t('Filter Device A Sensors')} placeholder={t('Filter Sensors by name…')} contentBefore={<Search24Regular />} value={filterA} onChange={(_, d) => setFilterA(d.value)} />
-          <Select aria-label={t('Device A Sensor')} value={effectiveSensorA !== undefined ? String(effectiveSensorA) : ''} onChange={(_, d) => chooseA(Number(d.value))}>
-            {optionsA.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name || s.externalSensorId}{calculationOffSuffix(s, t)}
+          <Select aria-label={t('Device A Sensor')} value={valueA} onChange={(_, d) => chooseA(d.value)}>
+            {rowsA.map((row) => (
+              <option key={row.value} value={row.value}>
+                {row.label}
               </option>
             ))}
           </Select>
@@ -523,10 +571,10 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
         <div className={styles.column}>
           <Text size={200}>{t('Device B Sensor')}</Text>
           <Input aria-label={t('Filter Device B Sensors')} placeholder={t('Filter Sensors by name…')} contentBefore={<Search24Regular />} value={filterB} onChange={(_, d) => setFilterB(d.value)} />
-          <Select aria-label={t('Device B Sensor')} value={effectiveSensorB !== undefined ? String(effectiveSensorB) : ''} onChange={(_, d) => chooseB(Number(d.value))}>
-            {optionsB.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name || s.externalSensorId}{calculationOffSuffix(s, t)}
+          <Select aria-label={t('Device B Sensor')} value={valueB} onChange={(_, d) => chooseB(d.value)}>
+            {rowsB.map((row) => (
+              <option key={row.value} value={row.value}>
+                {row.label}
               </option>
             ))}
           </Select>
@@ -552,8 +600,8 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
               title={t('{0} and {1}', labelA, labelB)}
               describedSensors={describedPair}
               series={[
-                { label: labelA, points: dataA.data ?? [], bidirectional: sensorA?.direction === 'bidirectional', direction: sensorA?.direction, unitLabel: sensorA?.unitLabel },
-                { label: labelB, points: dataB.data ?? [], bidirectional: sensorB?.direction === 'bidirectional', direction: sensorB?.direction, unitLabel: sensorB?.unitLabel },
+                { label: labelA, points: dataA.data ?? [], bidirectional: !levelA && sensorA?.direction === 'bidirectional', direction: sensorA?.direction, unitLabel: sensorA?.unitLabel },
+                { label: labelB, points: dataB.data ?? [], bidirectional: !levelB && sensorB?.direction === 'bidirectional', direction: sensorB?.direction, unitLabel: sensorB?.unitLabel },
               ]}
               mode="compare"
               averageLine

@@ -270,6 +270,9 @@ function detailedDatasets(
     borderDash: dash,
     borderWidth: width,
     pointRadius: 0,
+    // A reference line has no markers, so a null between two values would cut it into invisible single points: it runs across the gaps
+    // (where another series of the shared time axis has a reading and this one has none).
+    spanGaps: true,
     ...(emphasizeHover ? { pointHoverRadius: 0 } : {}),
     ...extra,
   });
@@ -417,7 +420,9 @@ export function TelemetryChart({
         borderColor: color,
         backgroundColor: color,
         borderDash: dash,
-        spanGaps: false,
+        // Two series of a comparison have their own instants (two Devices never measure at the same second): on the shared axis each
+        // one has empty places between its readings, which the line must bridge. A single series only has the gaps of its own data.
+        spanGaps: mode === 'compare',
         tension: manyPoints ? 0 : 0.2,
         // A long range (a day of 5-second readings is ~17,000 points) is drawn as a line: markers only where a point is anomalous.
         pointRadius: aligned.map((p) => (p && (!manyPoints || anomalyLevel(p) > 0) ? POINT_RADIUS : 0)),
@@ -447,6 +452,7 @@ export function TelemetryChart({
             borderColor: limitColor,
             borderDash: limitDash,
             pointRadius: 0,
+            spanGaps: true,
             ...(emphasizeHover ? { pointHoverRadius: 0 } : {}),
             borderWidth: 1.5,
           });
@@ -462,6 +468,7 @@ export function TelemetryChart({
             borderColor: color,
             borderDash: lineDash,
             pointRadius: 0,
+            spanGaps: true,
             ...(emphasizeHover ? { pointHoverRadius: 0 } : {}),
             borderWidth: 1.5,
           });
@@ -507,6 +514,7 @@ export function TelemetryChart({
             borderColor: anomalyColors.warning,
             borderDash: [4, 4],
             pointRadius: 0,
+            spanGaps: true,
             ...(emphasizeHover ? { pointHoverRadius: 0 } : {}),
             borderWidth: 1.5,
           });

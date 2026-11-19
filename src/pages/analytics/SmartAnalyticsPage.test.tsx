@@ -295,6 +295,64 @@ describe('SmartAnalyticsPage and hidden Sensors', { timeout: 40_000 }, () => {
     expect(selectB).toHaveValue('11'); // stays
   });
 
+  it('two-Device comparison: every Sensor row also exists once per aggregation level (name and level in one row); linked, the other side gets the same level', async () => {
+    aggregation = {
+      policies: [
+        { id: 21, sensorId: 1, sourceDataKey: 'Actual', timeScale: 'Days', aggregationFunction: 'AVG', enabled: true },
+        { id: 22, sensorId: 11, sourceDataKey: 'Actual', timeScale: 'Days', aggregationFunction: 'AVG', enabled: true },
+        { id: 23, sensorId: 11, sourceDataKey: 'Actual', timeScale: 'Hours', aggregationFunction: 'MAX', enabled: true },
+      ],
+      values: [{ bucketStart: '2026-10-20T22:00:00Z', bucketEnd: '2026-10-21T22:00:00Z', value: 3.5, sampleCount: 100, calculatedAt: '2026-10-21T10:00:00Z' }],
+    };
+    mockApi({ 4: [sensor(1, 'Vibration X'), sensor(2, 'Vibration Y')], 5: [sensor(11, 'Vibration X'), sensor(12, 'Vibration Y')] });
+    const user = userEvent.setup();
+    await openComparison();
+    const selectA = await screen.findByRole('combobox', { name: 'Device A Sensor' });
+    const selectB = screen.getByRole('combobox', { name: 'Device B Sensor' });
+
+    // the raw row first, then one row per level the Sensor has (a Sensor without a level has only its own row)
+    await waitFor(() => expect(within(selectA).getAllByRole('option').map((o) => o.textContent)).toEqual(['Vibration X', 'Vibration X · 1 day · Average', 'Vibration Y']));
+    expect(within(selectB).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'Vibration X', 'Vibration X · 1 hour · Maximum', 'Vibration X · 1 day · Average', 'Vibration Y',
+    ]);
+
+    await user.selectOptions(selectA, '1|days|avg');
+    expect(selectA).toHaveValue('1|days|avg');
+    expect(selectB).toHaveValue('11|days|avg'); // linked: the same indicator at the same level
+    await waitFor(() => expect(lastDrawn().some((label) => label.includes('Fan 1 · Vibration X · 1 day · Average'))).toBe(true));
+    expect(valueRequests.some((r) => r.includes('/api/Devices/4/Sensors/1/AggregationPolicies/21/Values'))).toBe(true);
+    expect(valueRequests.some((r) => r.includes('/api/Devices/5/Sensors/11/AggregationPolicies/22/Values'))).toBe(true);
+
+    // a Sensor row without a level goes back to the raw readings on that side only
+    await user.click(screen.getByRole('button', { name: /Unlink the two Sensor lists/ }));
+    await user.selectOptions(selectB, '12');
+    expect(selectB).toHaveValue('12');
+    expect(selectA).toHaveValue('1|days|avg');
+  });
+
+  it('two-Device comparison: the filter box searches the whole text of a row, so the aggregation level can be filtered too (every word, any order)', async () => {
+    aggregation = {
+      policies: [
+        { id: 21, sensorId: 1, sourceDataKey: 'Actual', timeScale: 'Days', aggregationFunction: 'AVG', enabled: true },
+        { id: 23, sensorId: 11, sourceDataKey: 'Actual', timeScale: 'Hours', aggregationFunction: 'MAX', enabled: true },
+        { id: 24, sensorId: 11, sourceDataKey: 'Actual', timeScale: 'Days', aggregationFunction: 'AVG', enabled: true },
+      ],
+      values: [],
+    };
+    mockApi({ 4: [sensor(1, 'Vibration X'), sensor(2, 'Vibration Y')], 5: [sensor(11, 'Vibration X'), sensor(12, 'Vibration Y')] });
+    const user = userEvent.setup();
+    await openComparison();
+    const selectB = await screen.findByRole('combobox', { name: 'Device B Sensor' });
+    await waitFor(() => expect(within(selectB).getAllByRole('option')).toHaveLength(4)); // X, X hour, X day, Y
+
+    await user.type(screen.getByRole('textbox', { name: 'Filter Device B Sensors' }), 'average day');
+    const shown = () => within(selectB).getAllByRole('option').map((o) => o.textContent);
+    // only the rows with that level (the chosen row stays in the list so the select never shows a value that is not an option)
+    await waitFor(() => expect(shown()).toContain('Vibration X \u00b7 1 day \u00b7 Average'));
+    expect(shown().filter((label) => label?.includes('1 hour'))).toEqual([]);
+    expect(shown()).not.toContain('Vibration Y');
+  });
+
   it('two-Device comparison: the link icon is light grey when the other Device has no Sensor with that name', async () => {
     mockApi({ 4: [sensor(1, 'Vibration X')], 5: [sensor(11, 'Temperature')] });
     await openComparison();
