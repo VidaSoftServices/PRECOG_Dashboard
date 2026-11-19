@@ -4,6 +4,8 @@ The Device page's setpoint tools: "Export all sensors" (with each Sensor's curre
 
 Related: the API side of this feature is in [../../../PRECOG_API/docs/features/setpoints.md](../../../PRECOG_API/docs/features/setpoints.md).
 
+**Not used by the Dashboard (2026-11-19):** the API also has `GET /api/Devices/{deviceId}/Setpoints/Effective` - the Setpoint effective *now* of every Sensor, compact, readable by a DevicePrincipal. It was added for the Vibration_Duo firmware's local Wi-Fi portal (target and tolerance on its charts, only with a network; `Vibration_Duo/docs/LOCAL_WIFI_PORTAL.md` 3.1). The Dashboard keeps using the full-history `GET .../Setpoints`; `src/api/schema.generated.ts` was **not** regenerated for it (nothing here calls it - `npm run gen:api` picks it up the next time the schema is refreshed). The tolerance-line rule the portal copied is this Dashboard's: lower is better -> target + tolerance, higher is better -> target - tolerance, bidirectional -> each side beyond its own target.
+
 The text below was moved verbatim from `CLAUDE.md` (Dashboard) on 2026-11-19; dates and "superseded" notes are the original ones. Keep this file up to date with every change to the feature.
 
 ## Device page: Export sensor for hardware, Export all sensors, Manage Setpoints, deleting setpoints
