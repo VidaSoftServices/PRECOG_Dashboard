@@ -23,6 +23,8 @@ export function bucketToPoint(sensorId: number, bucket: AggregatedValueDto): Tel
     upperControlLimit2S: bucket.upperControlLimit2S ?? null,
     lowerControlLimit2S: bucket.lowerControlLimit2S ?? null,
     lowerControlLimit3S: bucket.lowerControlLimit3S ?? null,
+    // The level's own evaluation of the bucket (0 / 1 warning / 2 critical), so the chart marks it like an anomalous raw reading.
+    anomaly: bucket.anomaly ?? null,
   };
 }
 

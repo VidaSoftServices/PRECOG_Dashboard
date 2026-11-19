@@ -12,6 +12,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useAppToast } from '@/components/ToastProvider';
 import { useDevices } from '@/api/hooks/devices';
 import { useIssues, useGroupIssues } from '@/api/hooks/issues';
+import { useSensors } from '@/api/hooks/sensors';
 import { useDeviceSelection } from '@/lib/selectedDevice';
 import { formatDateTime } from '@/lib/dateTime';
 import { useAuth } from '@/auth/AuthContext';
@@ -62,6 +63,13 @@ export function IssueListPage() {
 
   const issuesQuery = useIssues(effectiveDeviceId, { includeMembers, take: 200 });
   const groupIssues = useGroupIssues(effectiveDeviceId ?? -1);
+  // The Sensor (indicator) an Issue was raised for is written in its row, next to the time span.
+  const sensorsQuery = useSensors(effectiveDeviceId);
+  const sensorNameOf = (sensorId: number | null | undefined): string | undefined => {
+    if (sensorId == null) return undefined;
+    const sensor = sensorsQuery.data?.find((x) => x.id === sensorId);
+    return sensor ? sensor.name || sensor.externalSensorId || undefined : undefined;
+  };
 
   const filtered = useMemo(() => {
     const issues = issuesQuery.data ?? [];
@@ -176,6 +184,7 @@ export function IssueListPage() {
                 )}
                 <div>
                   <Text weight="semibold">
+                    {sensorNameOf(issue.primarySensorId) ? `${sensorNameOf(issue.primarySensorId)} · ` : ''}
                     {formatDateTime(issue.measuredAtFrom)} → {formatDateTime(issue.measuredAtTo)}
                   </Text>
                   {!issue.isCanonical && (
@@ -226,7 +235,7 @@ export function IssueListPage() {
             {selectedIds.map((id) => {
               const issue = filtered.find((i) => i.id === id);
               return (
-                <Radio key={id} value={String(id)} label={issue ? `#${issue.issueKey} · ${formatDateTime(issue.measuredAtFrom)}` : `#${id}`} />
+                <Radio key={id} value={String(id)} label={issue ? `#${issue.issueKey} · ${sensorNameOf(issue.primarySensorId) ? `${sensorNameOf(issue.primarySensorId)} · ` : ''}${formatDateTime(issue.measuredAtFrom)}` : `#${id}`} />
               );
             })}
           </RadioGroup>

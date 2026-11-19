@@ -871,6 +871,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/Devices/{deviceId}/Setpoints/Effective": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Setpoint effective at one instant (default now) for every Sensor of a Device, with the Sensor's direction. Compact; readable by a DevicePrincipal.
+         * @description Read-only. One row per Sensor that has a Setpoint whose [ValidFrom, ValidTo) window contains `at` (UTC; omit for now); a Sensor without one has no row. Each row carries the Sensor's direction and only the Target / Tolerance values the Setpoint has (values that are null are left out of the JSON). It exists so a small client (the Vibration_Duo firmware's local Wi-Fi portal) needs one short answer instead of the whole history of GET .../Setpoints. Visible to every caller who can see the Device (Admin: the whole Company; Reader: granted Devices; a DevicePrincipal: its own Device). 404 for an unknown or not accessible Device.
+         */
+        get: operations["DeviceConfiguration_GetDeviceEffectiveSetpoints"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/DeviceGroups": {
         parameters: {
             query?: never;
@@ -2679,6 +2699,11 @@ export interface components {
              * @description Lower control limit, 3 sample standard deviations (calculated like VidaSoft.API.DataFlow.AggregatedValueDto.UpperControlLimit3S).
              */
             lowerControlLimit3S?: number | null;
+            /**
+             * Format: int32
+             * @description Read-only. The anomaly classification of the bucket from its last evaluation, the same as a raw reading's (0 = no issues, 1 = warning, 2 = critical), or null if the bucket was not evaluated (calculation off, not yet analysed) or is not anomalous.
+             */
+            anomaly?: number | null;
         };
         /** @description The preview or the result of a permanent deletion of aggregation levels. */
         AggregationLevelDeletionDto: {
@@ -4049,6 +4074,62 @@ export interface components {
              * @description Read-only, server-generated. UTC creation timestamp.
              */
             createdAt?: string;
+        };
+        /**
+         * @description The Setpoint of one Sensor that is effective at one instant, together with the Sensor's direction - one row of
+         *     GET /api/Devices/{deviceId}/Setpoints/Effective. Compact on purpose (a Device can have hundreds of Sensors and the caller can be a
+         *     microcontroller): a value the Sensor's direction does not use is left out of the JSON instead of being written as null.
+         */
+        DeviceEffectiveSetpointDto: {
+            /**
+             * Format: int32
+             * @description The Device-scoped id of the Sensor.
+             */
+            sensorId?: number;
+            /** @description The Sensor's direction, lower case: "lowerisbetter", "higherisbetter" or "bidirectional". It tells on which side of the target the tolerance lies (lower is better: target + tolerance; higher is better: target - tolerance; bidirectional: each of the two sides beyond its own target). */
+            direction?: string | null;
+            /**
+             * Format: double
+             * @description Symmetric target ("lowerisbetter" / "higherisbetter"). Left out when the Setpoint has none.
+             */
+            target?: number | null;
+            /**
+             * Format: double
+             * @description Symmetric tolerance. Left out when the Setpoint has none.
+             */
+            tolerance?: number | null;
+            /**
+             * Format: double
+             * @description Upper-side target ("bidirectional"). Left out when the Setpoint has none.
+             */
+            targetAbove?: number | null;
+            /**
+             * Format: double
+             * @description Lower-side target ("bidirectional"). Left out when the Setpoint has none.
+             */
+            targetBelow?: number | null;
+            /**
+             * Format: double
+             * @description Upper-side tolerance ("bidirectional"). Left out when the Setpoint has none.
+             */
+            toleranceAbove?: number | null;
+            /**
+             * Format: double
+             * @description Lower-side tolerance ("bidirectional"). Left out when the Setpoint has none.
+             */
+            toleranceBelow?: number | null;
+        };
+        /** @description The Setpoints effective at one instant for every Sensor of a Device that has one (GET /api/Devices/{deviceId}/Setpoints/Effective). */
+        DeviceEffectiveSetpointsDto: {
+            /** Format: int32 */
+            deviceId?: number;
+            /**
+             * Format: date-time
+             * @description The instant the Setpoints are effective at (UTC): the request's `at`, or the server's now.
+             */
+            at?: string;
+            /** @description One row per Sensor that has an effective Setpoint, ordered by SensorId. A Sensor without one has no row. */
+            setpoints?: components["schemas"]["DeviceEffectiveSetpointDto"][] | null;
         };
         /** @description Response shape for a DeviceGroup, including its current member Devices. */
         DeviceGroupDto: {
@@ -6706,49 +6787,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 3,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T11:39:13.9321489Z",
+                 *         "measured": "2026-11-13T17:44:15.495272Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T11:39:13.9321715Z",
+                 *         "measured": "2026-11-14T17:44:15.4953012Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 3,
-                 *         "measured": "2026-11-15T11:39:13.9321728Z",
+                 *         "measured": "2026-11-15T17:44:15.4953014Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 4,
-                 *         "measured": "2026-11-16T11:39:13.932173Z",
+                 *         "measured": "2026-11-16T17:44:15.4953016Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 5,
-                 *         "measured": "2026-11-17T11:39:13.9321732Z",
+                 *         "measured": "2026-11-17T17:44:15.4953018Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 6,
-                 *         "measured": "2026-11-18T11:39:13.9321736Z",
+                 *         "measured": "2026-11-18T17:44:15.4953024Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T11:39:13.9321738Z",
+                 *         "measured": "2026-11-13T17:44:15.4953026Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T11:39:13.9321739Z",
+                 *         "measured": "2026-11-14T17:44:15.4953028Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -6759,49 +6840,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 3,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T11:39:13.9321489Z",
+                 *         "measured": "2026-11-13T17:44:15.495272Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T11:39:13.9321715Z",
+                 *         "measured": "2026-11-14T17:44:15.4953012Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 3,
-                 *         "measured": "2026-11-15T11:39:13.9321728Z",
+                 *         "measured": "2026-11-15T17:44:15.4953014Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 4,
-                 *         "measured": "2026-11-16T11:39:13.932173Z",
+                 *         "measured": "2026-11-16T17:44:15.4953016Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 5,
-                 *         "measured": "2026-11-17T11:39:13.9321732Z",
+                 *         "measured": "2026-11-17T17:44:15.4953018Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 6,
-                 *         "measured": "2026-11-18T11:39:13.9321736Z",
+                 *         "measured": "2026-11-18T17:44:15.4953024Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T11:39:13.9321738Z",
+                 *         "measured": "2026-11-13T17:44:15.4953026Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T11:39:13.9321739Z",
+                 *         "measured": "2026-11-14T17:44:15.4953028Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -6812,49 +6893,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 3,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T11:39:13.9321489Z",
+                 *         "measured": "2026-11-13T17:44:15.495272Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T11:39:13.9321715Z",
+                 *         "measured": "2026-11-14T17:44:15.4953012Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 3,
-                 *         "measured": "2026-11-15T11:39:13.9321728Z",
+                 *         "measured": "2026-11-15T17:44:15.4953014Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 4,
-                 *         "measured": "2026-11-16T11:39:13.932173Z",
+                 *         "measured": "2026-11-16T17:44:15.4953016Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 5,
-                 *         "measured": "2026-11-17T11:39:13.9321732Z",
+                 *         "measured": "2026-11-17T17:44:15.4953018Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 6,
-                 *         "measured": "2026-11-18T11:39:13.9321736Z",
+                 *         "measured": "2026-11-18T17:44:15.4953024Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T11:39:13.9321738Z",
+                 *         "measured": "2026-11-13T17:44:15.4953026Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T11:39:13.9321739Z",
+                 *         "measured": "2026-11-14T17:44:15.4953028Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -7208,22 +7289,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T08:39:13.9652038Z",
+                 *             "measured": "2026-11-19T14:44:15.5224443Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T09:09:13.9652903Z",
+                 *             "measured": "2026-11-19T15:14:15.5224681Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T09:39:13.9652907Z",
+                 *             "measured": "2026-11-19T15:44:15.5224684Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T10:09:13.9652909Z",
+                 *             "measured": "2026-11-19T16:14:15.5224686Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -7234,22 +7315,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T10:39:13.965307Z",
+                 *             "measured": "2026-11-19T16:44:15.5224853Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T10:54:13.9653072Z",
+                 *             "measured": "2026-11-19T16:59:15.5224855Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T11:09:13.9653087Z",
+                 *             "measured": "2026-11-19T17:14:15.5224865Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T11:24:13.9653089Z",
+                 *             "measured": "2026-11-19T17:29:15.5224867Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -7260,12 +7341,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T08:39:13.9653091Z",
+                 *             "measured": "2026-11-19T14:44:15.522487Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T09:09:13.9653093Z",
+                 *             "measured": "2026-11-19T15:14:15.5224872Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -7281,22 +7362,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T08:39:13.9652038Z",
+                 *             "measured": "2026-11-19T14:44:15.5224443Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T09:09:13.9652903Z",
+                 *             "measured": "2026-11-19T15:14:15.5224681Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T09:39:13.9652907Z",
+                 *             "measured": "2026-11-19T15:44:15.5224684Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T10:09:13.9652909Z",
+                 *             "measured": "2026-11-19T16:14:15.5224686Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -7307,22 +7388,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T10:39:13.965307Z",
+                 *             "measured": "2026-11-19T16:44:15.5224853Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T10:54:13.9653072Z",
+                 *             "measured": "2026-11-19T16:59:15.5224855Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T11:09:13.9653087Z",
+                 *             "measured": "2026-11-19T17:14:15.5224865Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T11:24:13.9653089Z",
+                 *             "measured": "2026-11-19T17:29:15.5224867Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -7333,12 +7414,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T08:39:13.9653091Z",
+                 *             "measured": "2026-11-19T14:44:15.522487Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T09:09:13.9653093Z",
+                 *             "measured": "2026-11-19T15:14:15.5224872Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -7354,22 +7435,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T08:39:13.9652038Z",
+                 *             "measured": "2026-11-19T14:44:15.5224443Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T09:09:13.9652903Z",
+                 *             "measured": "2026-11-19T15:14:15.5224681Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T09:39:13.9652907Z",
+                 *             "measured": "2026-11-19T15:44:15.5224684Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T10:09:13.9652909Z",
+                 *             "measured": "2026-11-19T16:14:15.5224686Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -7380,22 +7461,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T10:39:13.965307Z",
+                 *             "measured": "2026-11-19T16:44:15.5224853Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T10:54:13.9653072Z",
+                 *             "measured": "2026-11-19T16:59:15.5224855Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T11:09:13.9653087Z",
+                 *             "measured": "2026-11-19T17:14:15.5224865Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T11:24:13.9653089Z",
+                 *             "measured": "2026-11-19T17:29:15.5224867Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -7406,12 +7487,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T08:39:13.9653091Z",
+                 *             "measured": "2026-11-19T14:44:15.522487Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T09:09:13.9653093Z",
+                 *             "measured": "2026-11-19T15:14:15.5224872Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -8568,49 +8649,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 1,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T11:39:14.001776Z",
+                 *         "measured": "2026-11-13T17:44:15.5577367Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T11:39:14.0018024Z",
+                 *         "measured": "2026-11-14T17:44:15.5578247Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 3,
-                 *         "measured": "2026-11-15T11:39:14.0018028Z",
+                 *         "measured": "2026-11-15T17:44:15.5578251Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 4,
-                 *         "measured": "2026-11-16T11:39:14.0018031Z",
+                 *         "measured": "2026-11-16T17:44:15.5578253Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 5,
-                 *         "measured": "2026-11-17T11:39:14.0018033Z",
+                 *         "measured": "2026-11-17T17:44:15.5578255Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 6,
-                 *         "measured": "2026-11-18T11:39:14.0018051Z",
+                 *         "measured": "2026-11-18T17:44:15.5578261Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T11:39:14.0018053Z",
+                 *         "measured": "2026-11-13T17:44:15.5578263Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T11:39:14.0018056Z",
+                 *         "measured": "2026-11-14T17:44:15.557827Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -8621,49 +8702,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 1,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T11:39:14.001776Z",
+                 *         "measured": "2026-11-13T17:44:15.5577367Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T11:39:14.0018024Z",
+                 *         "measured": "2026-11-14T17:44:15.5578247Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 3,
-                 *         "measured": "2026-11-15T11:39:14.0018028Z",
+                 *         "measured": "2026-11-15T17:44:15.5578251Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 4,
-                 *         "measured": "2026-11-16T11:39:14.0018031Z",
+                 *         "measured": "2026-11-16T17:44:15.5578253Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 5,
-                 *         "measured": "2026-11-17T11:39:14.0018033Z",
+                 *         "measured": "2026-11-17T17:44:15.5578255Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 6,
-                 *         "measured": "2026-11-18T11:39:14.0018051Z",
+                 *         "measured": "2026-11-18T17:44:15.5578261Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T11:39:14.0018053Z",
+                 *         "measured": "2026-11-13T17:44:15.5578263Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T11:39:14.0018056Z",
+                 *         "measured": "2026-11-14T17:44:15.557827Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -8674,49 +8755,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 1,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T11:39:14.001776Z",
+                 *         "measured": "2026-11-13T17:44:15.5577367Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T11:39:14.0018024Z",
+                 *         "measured": "2026-11-14T17:44:15.5578247Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 3,
-                 *         "measured": "2026-11-15T11:39:14.0018028Z",
+                 *         "measured": "2026-11-15T17:44:15.5578251Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 4,
-                 *         "measured": "2026-11-16T11:39:14.0018031Z",
+                 *         "measured": "2026-11-16T17:44:15.5578253Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 5,
-                 *         "measured": "2026-11-17T11:39:14.0018033Z",
+                 *         "measured": "2026-11-17T17:44:15.5578255Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 6,
-                 *         "measured": "2026-11-18T11:39:14.0018051Z",
+                 *         "measured": "2026-11-18T17:44:15.5578261Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 1,
-                 *         "measured": "2026-11-13T11:39:14.0018053Z",
+                 *         "measured": "2026-11-13T17:44:15.5578263Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 2,
-                 *         "measured": "2026-11-14T11:39:14.0018056Z",
+                 *         "measured": "2026-11-14T17:44:15.557827Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -9192,6 +9273,49 @@ export interface operations {
                     "text/plain": components["schemas"]["DeviceSetpointDto"][];
                     "application/json": components["schemas"]["DeviceSetpointDto"][];
                     "text/json": components["schemas"]["DeviceSetpointDto"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    DeviceConfiguration_GetDeviceEffectiveSetpoints: {
+        parameters: {
+            query?: {
+                at?: string;
+            };
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                deviceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The effective Setpoints. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["DeviceEffectiveSetpointsDto"];
+                    "application/json": components["schemas"]["DeviceEffectiveSetpointsDto"];
+                    "text/json": components["schemas"]["DeviceEffectiveSetpointsDto"];
                 };
             };
             /** @description Unauthorized */
@@ -13104,22 +13228,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T08:39:14.1358138Z",
+                 *             "measured": "2026-11-19T14:44:15.6870022Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T09:09:14.1358303Z",
+                 *             "measured": "2026-11-19T15:14:15.6870417Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T09:39:14.1358305Z",
+                 *             "measured": "2026-11-19T15:44:15.687042Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T10:09:14.1358306Z",
+                 *             "measured": "2026-11-19T16:14:15.6870421Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -13130,22 +13254,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T10:39:14.1358428Z",
+                 *             "measured": "2026-11-19T16:44:15.6870719Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T10:54:14.135843Z",
+                 *             "measured": "2026-11-19T16:59:15.6870721Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T11:09:14.1358431Z",
+                 *             "measured": "2026-11-19T17:14:15.6870724Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T11:24:14.1358433Z",
+                 *             "measured": "2026-11-19T17:29:15.6870725Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -13156,12 +13280,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T08:39:14.1358435Z",
+                 *             "measured": "2026-11-19T14:44:15.6870727Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T09:09:14.1358436Z",
+                 *             "measured": "2026-11-19T15:14:15.6870729Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -13177,22 +13301,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T08:39:14.1358138Z",
+                 *             "measured": "2026-11-19T14:44:15.6870022Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T09:09:14.1358303Z",
+                 *             "measured": "2026-11-19T15:14:15.6870417Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T09:39:14.1358305Z",
+                 *             "measured": "2026-11-19T15:44:15.687042Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T10:09:14.1358306Z",
+                 *             "measured": "2026-11-19T16:14:15.6870421Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -13203,22 +13327,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T10:39:14.1358428Z",
+                 *             "measured": "2026-11-19T16:44:15.6870719Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T10:54:14.135843Z",
+                 *             "measured": "2026-11-19T16:59:15.6870721Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T11:09:14.1358431Z",
+                 *             "measured": "2026-11-19T17:14:15.6870724Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T11:24:14.1358433Z",
+                 *             "measured": "2026-11-19T17:29:15.6870725Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -13229,12 +13353,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T08:39:14.1358435Z",
+                 *             "measured": "2026-11-19T14:44:15.6870727Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T09:09:14.1358436Z",
+                 *             "measured": "2026-11-19T15:14:15.6870729Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -13250,22 +13374,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T08:39:14.1358138Z",
+                 *             "measured": "2026-11-19T14:44:15.6870022Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T09:09:14.1358303Z",
+                 *             "measured": "2026-11-19T15:14:15.6870417Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T09:39:14.1358305Z",
+                 *             "measured": "2026-11-19T15:44:15.687042Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T10:09:14.1358306Z",
+                 *             "measured": "2026-11-19T16:14:15.6870421Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -13276,22 +13400,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T10:39:14.1358428Z",
+                 *             "measured": "2026-11-19T16:44:15.6870719Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T10:54:14.135843Z",
+                 *             "measured": "2026-11-19T16:59:15.6870721Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-19T11:09:14.1358431Z",
+                 *             "measured": "2026-11-19T17:14:15.6870724Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-19T11:24:14.1358433Z",
+                 *             "measured": "2026-11-19T17:29:15.6870725Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -13302,12 +13426,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-19T08:39:14.1358435Z",
+                 *             "measured": "2026-11-19T14:44:15.6870727Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-19T09:09:14.1358436Z",
+                 *             "measured": "2026-11-19T15:14:15.6870729Z",
                  *             "actual": 13.1
                  *           }
                  *         ]

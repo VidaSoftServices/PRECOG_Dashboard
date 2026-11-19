@@ -321,6 +321,8 @@ export function unitLabelOfDataset(series: TelemetrySeriesInput[], datasetLabel:
 }
 
 const POINT_RADIUS = 3;
+/** The marker of an anomalous point (warning = 1, critical = 2): at least twice the radius of a normal value's marker. */
+const ANOMALY_POINT_RADIUS = POINT_RADIUS * 2.5;
 
 /** True when a canvas position lies on the chart's legend, where a click toggles a series instead of enlarging the chart. */
 function isInsideLegend(chart: ChartJS, x: number | null, y: number | null): boolean {
@@ -338,7 +340,7 @@ function anomalyLevel(point: TelemetryPoint): number {
 
 function anomalyPointColor(point: TelemetryPoint, base: string): string {
   const level = anomalyLevel(point);
-  if (level === 2) return anomalyColors.critical;
+  if (level >= 2) return anomalyColors.critical;
   if (level === 1) return anomalyColors.warning;
   return base;
 }
@@ -425,7 +427,8 @@ export function TelemetryChart({
         spanGaps: mode === 'compare',
         tension: manyPoints ? 0 : 0.2,
         // A long range (a day of 5-second readings is ~17,000 points) is drawn as a line: markers only where a point is anomalous.
-        pointRadius: aligned.map((p) => (p && (!manyPoints || anomalyLevel(p) > 0) ? POINT_RADIUS : 0)),
+        // An anomalous point (warning yellow, critical red, see anomalyPointColor) has a marker at least twice as large as a normal one.
+        pointRadius: aligned.map((p) => (!p ? 0 : anomalyLevel(p) > 0 ? ANOMALY_POINT_RADIUS : manyPoints ? 0 : POINT_RADIUS)),
         ...(emphasizeHover ? { pointHoverRadius: POINT_RADIUS * 5, pointHoverBorderWidth: 2 } : {}),
         pointBackgroundColor: aligned.map((p) => (p ? anomalyPointColor(p, color) : color)),
         borderWidth: 2,

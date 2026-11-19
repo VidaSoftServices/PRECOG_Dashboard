@@ -86,6 +86,30 @@ describe('TelemetryChart average line and control limits', () => {
     for (const name of ['Target', 'Tolerance', 'UCL3', 'UCL2', 'LCL2', 'LCL3']) expect(dataset(`Fan 1 · X ${name}`)).toMatchObject({ spanGaps: true });
   });
 
+  it('an anomalous point has a marker at least twice as large as a normal value: warning yellow, critical red, and no extra legend entry', () => {
+    renderChart({
+      series: [{ label: 'Fan 1 · X', points: [point(0, 1), point(1, 2, { anomaly: 1 }), point(2, 3, { anomaly: 2 }), point(3, 4, { anomalyAbove: 0, anomalyBelow: 2 })] }],
+      mode: 'single',
+    });
+    const actual = dataset('Fan 1 · X') as unknown as { pointRadius: number[]; pointBackgroundColor: string[] };
+    const [normal, warning, critical, bidirectional] = actual.pointRadius as [number, number, number, number];
+    expect(warning).toBeGreaterThanOrEqual(normal * 2);
+    expect(critical).toBeGreaterThanOrEqual(normal * 2);
+    expect(bidirectional).toBeGreaterThanOrEqual(normal * 2);
+    expect(actual.pointBackgroundColor[1]).toBe('#E0A100');
+    expect(actual.pointBackgroundColor[2]).toBe('#C23B22');
+    expect(actual.pointBackgroundColor[3]).toBe('#C23B22');
+    expect(labels()).toEqual(['Fan 1 · X']); // nothing is added to the legend
+  });
+
+  it('a long range keeps markers only on the anomalous points, and those are large too', () => {
+    const many = Array.from({ length: 1600 }, (_, i) => point(i, i, i === 5 ? { anomaly: 2 } : {}));
+    renderChart({ series: [{ label: 'Fan 1 · X', points: many }], mode: 'single' });
+    const radius = (dataset('Fan 1 · X') as unknown as { pointRadius: number[] }).pointRadius;
+    expect(radius[4]).toBe(0);
+    expect(radius[5]).toBeGreaterThan(0);
+  });
+
   it('says the average (and how many readings it is made of) in the text summary, with the series\' unit', () => {
     renderChart({ series: [{ label: 'Fan 1 · X', points: A, unitLabel: 'mm/s' }], mode: 'compare', averageLine: true });
 
@@ -131,7 +155,7 @@ describe('TelemetryChart average line and control limits', () => {
     renderChart({ series: [{ label: 'Long', points: many }], mode: 'compare' });
 
     const radius = dataset('Long').pointRadius as number[];
-    expect(radius.filter((r) => r > 0)).toEqual([3]); // the single anomalous point keeps its marker
+    expect(radius.filter((r) => r > 0)).toEqual([7.5]); // the single anomalous point keeps its marker
     expect(radius).toHaveLength(1600);
     expect(drawn.current!.options.animation).toBe(false);
   });

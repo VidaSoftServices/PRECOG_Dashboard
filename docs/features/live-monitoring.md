@@ -210,3 +210,7 @@ Live Monitoring chart details (follow-up): the **small card charts** are `Teleme
 > This line stood at the end of the CLAUDE.md section "Sheet headers are UpperCamelCase (2026-11-19, the user's rule)", which stays in CLAUDE.md.
 
 Live Monitoring: the "Calculation off" label of a Sensor sits in the bottom right corner of its small chart (not in the card header).
+
+## Anomaly markers (2026-11-19)
+
+The Live Monitoring charts (cards and the enlarged chart) mark an anomalous reading with a marker at least twice as large as a normal value's - warning yellow, critical red; not in the legend. See `smart-analytics.md` ("Anomaly markers on the charts").

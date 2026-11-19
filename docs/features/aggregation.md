@@ -53,3 +53,7 @@ The Sensor Policies page's **New aggregation level** form (`NewPolicyForm` in `S
 - **Bulk aggregation**: "Deactivate the level" became **Delete the level permanently** (time scale + function for all or chosen Sensors), and **Delete from CSV** is new: a sheet with `SensorName, TimeScale, AggregationFunction` (`AGGREGATION_DELETION_SHEET_HEADERS` = `SensorName, Level, TimeScale, AggregationFunction`; every other column is ignored, so an aggregation sheet or an export works as it is), parsed by `parseAggregationDeletionSheet` (`src/lib/aggregationSheet.ts`; raw level, unknown Sensor, missing column, a level listed twice = problems, nothing is sent while any exists). Both open the dialog above.
 - The prepared `delete-aggregation-AHU1/KS4/KS5.csv` (Downloads) are such sheets: the levels production has that the new `aggregation-*.csv` do not (see the API's aggregation doc for the reasoning of the sixth version).
 - Tests: `aggregationDeletionSheet.test.ts`, `BulkAggregationDialog.test.tsx` (delete mode: preview, checkbox, the request body; delete from CSV).
+
+## Anomaly of a bucket on the chart (2026-11-19)
+
+`GET .../AggregationPolicies/{policyId}/Values` now returns `anomaly` per bucket (0 / 1 warning / 2 critical, null = not evaluated); the Dashboard's `bucketToPoint` passes it to the chart, which draws an anomalous bucket with a large yellow / red marker like a raw reading (`smart-analytics.md`, "Anomaly markers on the charts").
