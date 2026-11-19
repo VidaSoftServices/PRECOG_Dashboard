@@ -3,6 +3,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ErrorState } from '@/components/states/ErrorState';
 import { useAppToast } from '@/components/ToastProvider';
 import { useUpdateSensor, type SensorDto } from '@/api/hooks/sensors';
+import { useT } from '@/lib/language';
 
 /**
  * Shows or hides one Sensor in Live Monitoring and Smart Analytics (`Sensor.visible`). A presentation flag only: nothing is
@@ -21,6 +22,7 @@ export function VisibilityDialog({
   open: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
   const toast = useAppToast();
   const updateSensor = useUpdateSensor(deviceId, sensor.id!);
   const hiding = sensor.visible !== false;
@@ -28,23 +30,23 @@ export function VisibilityDialog({
 
   const confirm = async () => {
     await updateSensor.mutateAsync({ visible: !hiding });
-    toast.success(hiding ? `Hidden from Live Monitoring and Smart Analytics: ${label}` : `Shown in Live Monitoring and Smart Analytics: ${label}`);
+    toast.success(hiding ? t('Hidden from Live Monitoring and Smart Analytics: {0}', label) : t('Shown in Live Monitoring and Smart Analytics: {0}', label));
     onClose();
   };
 
   return (
     <ConfirmDialog
       open={open}
-      title={hiding ? `Hide ${label}?` : `Show ${label} again?`}
-      confirmLabel={hiding ? 'Hide Sensor' : 'Show Sensor'}
+      title={hiding ? t('Hide {0}?', label) : t('Show {0} again?', label)}
+      confirmLabel={hiding ? t('Hide Sensor') : t('Show Sensor')}
       busy={updateSensor.isPending}
       onConfirm={() => void confirm().catch(() => undefined)}
       onCancel={onClose}
     >
       <Text>
         {hiding
-          ? 'This Sensor will no longer appear in Live Monitoring or in the Sensor pickers of Smart Analytics - for everybody. Nothing else changes: its data is still stored, calculated and used to train the model, it stays on this page, and an Issue that involves it still shows it.'
-          : 'This Sensor will appear in Live Monitoring and in the Sensor pickers of Smart Analytics again.'}
+          ? t('This Sensor will no longer appear in Live Monitoring or in the Sensor pickers of Smart Analytics - for everybody. Nothing else changes: its data is still stored, calculated and used to train the model, it stays on this page, and an Issue that involves it still shows it.')
+          : t('This Sensor will appear in Live Monitoring and in the Sensor pickers of Smart Analytics again.')}
       </Text>
       {updateSensor.isError && <ErrorState error={updateSensor.error} />}
     </ConfirmDialog>

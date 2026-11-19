@@ -6,6 +6,7 @@ import { useAppToast } from '@/components/ToastProvider';
 import { fetchDeviceAggregationPolicies, fetchDeviceSetpoints } from '@/api/hooks/deviceConfiguration';
 import { downloadTextFile } from '@/lib/downloadFile';
 import { buildSensorsExportCsv, sensorsExportFileName, type ExportSensor } from '@/lib/sensorExport';
+import { useT } from '@/lib/language';
 
 /**
  * "Export all current sensors": downloads every Sensor of the Device as a sheet the "Import Sensors" dialog takes back as it is
@@ -15,6 +16,7 @@ import { buildSensorsExportCsv, sensorsExportFileName, type ExportSensor } from 
  * The full setpoint history (every interval) is the "Manage Setpoints" export.
  */
 export function ExportAllSensorsButton({ deviceId, sensors }: { deviceId: number; sensors: readonly ExportSensor[] }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const toast = useAppToast();
   const [busy, setBusy] = useState(false);
@@ -26,7 +28,7 @@ export function ExportAllSensorsButton({ deviceId, sensors }: { deviceId: number
       const [policies, setpoints] = await Promise.all([fetchDeviceAggregationPolicies(queryClient, deviceId), fetchDeviceSetpoints(queryClient, deviceId)]);
       downloadTextFile(sensorsExportFileName(deviceId), buildSensorsExportCsv(sensors, policies ?? [], setpoints ?? []));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'The export failed.', 'Export failed');
+      toast.error(e instanceof Error ? e.message : t('The export failed.'), t('Export failed'));
     } finally {
       setBusy(false);
     }
@@ -35,8 +37,7 @@ export function ExportAllSensorsButton({ deviceId, sensors }: { deviceId: number
   return (
     <Tooltip content="Download every Sensor of this Device as a sheet that Import Sensors can take back (to change many Sensors at once)" relationship="description">
       <Button icon={busy ? <Spinner size="tiny" /> : <ArrowDownload24Regular />} onClick={() => void exportAll()} disabled={busy || sensors.length === 0}>
-        Export all sensors
-      </Button>
+        {t('Export all sensors')}</Button>
     </Tooltip>
   );
 }

@@ -7,6 +7,7 @@ import { ApiError } from '@/api/client';
 import { useDeleteSetpoint, type SetpointDto } from '@/api/hooks/setpoints';
 import { formatDateTimeWithZone } from '@/lib/dateTime';
 import { describeValues } from '@/lib/setpointSheet';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   list: { display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalXXS, maxHeight: '300px', overflowY: 'auto', margin: `${tokens.spacingVerticalS} 0` },
@@ -30,6 +31,7 @@ export function DeleteSetpointsDialog({
   open: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const deleteSetpoint = useDeleteSetpoint(deviceId, sensorId);
@@ -81,7 +83,7 @@ export function DeleteSetpointsDialog({
     } finally {
       setBusy(false);
     }
-    if (deleted > 0) toast.success(`${deleted} setpoint(s) deleted.`);
+    if (deleted > 0) toast.success(t('{0} setpoint(s) deleted.', deleted));
     if (failed.length > 0) setFailures(failed);
     else if (stoppedBy === null) {
       setSelected(new Set());
@@ -94,9 +96,9 @@ export function DeleteSetpointsDialog({
   return (
     <ConfirmDialog
       open={open}
-      title="Delete setpoints"
+      title={t('Delete setpoints')}
       intent="destructive"
-      confirmLabel={selected.size > 0 ? `Delete ${selected.size} setpoint(s)` : 'Delete'}
+      confirmLabel={selected.size > 0 ? t('Delete {0} setpoint(s)', selected.size) : t('Delete')}
       confirmDisabled={selected.size === 0}
       busy={busy}
       onConfirm={() => void confirm()}
@@ -104,17 +106,15 @@ export function DeleteSetpointsDialog({
     >
       <MessageBar intent="warning">
         <MessageBarBody>
-          The picked intervals are removed permanently. The others keep their own validity, so a gap can remain; a measurement with no
-          effective setpoint is not analysed. Issues already found are not changed.
-        </MessageBarBody>
+          {t('The picked intervals are removed permanently. The others keep their own validity, so a gap can remain; a measurement with no effective setpoint is not analysed. Issues already found are not changed.')}</MessageBarBody>
       </MessageBar>
       <Checkbox
-        label={`Select all (${rows.length})`}
+        label={t('Select all ({0})', rows.length)}
         checked={allSelected}
         onChange={(_, d) => setSelected(d.checked ? new Set(rows.map((r) => r.id)) : new Set())}
         style={{ marginTop: tokens.spacingVerticalS }}
       />
-      <div className={styles.list} role="group" aria-label="Setpoints to delete">
+      <div className={styles.list} role="group" aria-label={t('Setpoints to delete')}>
         {rows.map((row) => (
           <Checkbox
             key={row.id}
@@ -127,7 +127,7 @@ export function DeleteSetpointsDialog({
       {failures.length > 0 && (
         <MessageBar intent="error">
           <MessageBarBody>
-            <Text block>{failures.length} deletion(s) failed:</Text>
+            <Text block>{failures.length} {t('deletion(s) failed:')}</Text>
             {failures.map((f) => (
               <Text key={f} block size={200}>
                 {f}

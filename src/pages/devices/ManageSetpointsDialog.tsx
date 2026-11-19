@@ -40,6 +40,7 @@ import {
   type ExistingInterval,
   type SheetSensor,
 } from '@/lib/setpointSheet';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   surface: { maxWidth: '960px', width: '96vw' },
@@ -62,6 +63,7 @@ const MAX_OPERATION_LINES = 200;
  * See lib/setpointSheet.ts for the exact rules.
  */
 export function ManageSetpointsDialog({ deviceId, open, onClose }: { deviceId: number; open: boolean; onClose: () => void }) {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const queryClient = useQueryClient();
@@ -156,9 +158,9 @@ export function ManageSetpointsDialog({ deviceId, open, onClose }: { deviceId: n
           const failed = result.filter((o) => o.failures.length > 0).length;
           const deleted = result.reduce((n, o) => n + o.deleted, 0);
           const created = result.reduce((n, o) => n + o.created, 0);
-          if (controller.signal.aborted) toast.info(`Stopped: ${deleted} deleted, ${created} created.`);
-          else if (failed > 0) toast.error(`${deleted} deleted, ${created} created, ${failed} Sensor(s) with problems.`);
-          else toast.success(`${deleted} deleted, ${created} created.`);
+          if (controller.signal.aborted) toast.info(t('Stopped: {0} deleted, {1} created.', deleted, created));
+          else if (failed > 0) toast.error(t('{0} deleted, {1} created, {2} Sensor(s) with problems.', deleted, created, failed));
+          else toast.success(t('{0} deleted, {1} created.', deleted, created));
         },
       },
     );
@@ -177,29 +179,23 @@ export function ManageSetpointsDialog({ deviceId, open, onClose }: { deviceId: n
     <Dialog open={open} onOpenChange={(_, d) => !d.open && close()}>
       <DialogSurface className={styles.surface}>
         <DialogBody>
-          <DialogTitle>Manage Setpoints</DialogTitle>
+          <DialogTitle>{t('Manage Setpoints')}</DialogTitle>
           <DialogContent className={styles.content}>
             <Text size={200} className={styles.muted}>
-              Export every setpoint interval of every Sensor of this Device, edit the sheet, and import the whole sheet back. For every Sensor that
-              appears in the sheet, its stored setpoints become <b>exactly the rows of the sheet</b>: a row you delete removes that interval, a row you
-              add creates one, a changed row replaces its interval (the interval is identified by its <b>validFrom</b>). A Sensor that keeps only its name
-              (an empty row) loses <b>all</b> its setpoints. A Sensor that is <b>not in the sheet at all is not touched</b>. Dates are UTC; empty validTo =
-              open-ended.
-            </Text>
+              {t('Export every setpoint interval of every Sensor of this Device, edit the sheet, and import the whole sheet back. For every Sensor that appears in the sheet, its stored setpoints become')}{' '}<b>{t('exactly the rows of the sheet')}</b>{t(': a row you delete removes that interval, a row you add creates one, a changed row replaces its interval (the interval is identified by its')}{' '}<b>{t('validFrom')}</b>{t('). A Sensor that keeps only its name (an empty row) loses')}{' '}<b>{t('all')}</b> {t('its setpoints. A Sensor that is')}{' '}<b>{t('not in the sheet at all is not touched')}</b>{t('. Dates are UTC; empty validTo = open-ended.')}</Text>
 
             <div className={styles.row}>
               <Button icon={<ArrowDownload24Regular />} onClick={() => void exportAll()} disabled={exporting || !sensorsQuery.isSuccess}>
-                {exporting ? 'Exporting…' : 'Export all setpoints'}
+                {exporting ? t('Exporting…') : t('Export all setpoints')}
               </Button>
               <Button icon={<DocumentArrowUp24Regular />} onClick={() => fileRef.current?.click()} disabled={running}>
-                Choose .csv file
-              </Button>
+                {t('Choose .csv file')}</Button>
               <input
                 ref={fileRef}
                 type="file"
                 accept=".csv,.tsv,.txt,text/csv,text/plain"
                 hidden
-                aria-label="Setpoint CSV file"
+                aria-label={t('Setpoint CSV file')}
                 onChange={(e) => {
                   void readFile(e.target.files?.[0]);
                   e.target.value = '';
@@ -209,8 +205,8 @@ export function ManageSetpointsDialog({ deviceId, open, onClose }: { deviceId: n
             {exportError !== null && <ErrorState error={exportError} />}
 
             <Field
-              label="Setpoint sheet"
-              hint={`Header: ${SETPOINT_SHEET_HEADERS.join(', ')}. Up to ${MAX_SETPOINT_ROWS} rows. Tab-, semicolon- and comma-separated text all work.`}
+              label={t('Setpoint sheet')}
+              hint={t('Header: {0}. Up to {1} rows. Tab-, semicolon- and comma-separated text all work.', SETPOINT_SHEET_HEADERS.join(', '), MAX_SETPOINT_ROWS)}
             >
               <Textarea
                 className={styles.textarea}
@@ -227,7 +223,7 @@ export function ManageSetpointsDialog({ deviceId, open, onClose }: { deviceId: n
               />
             </Field>
 
-            {(sensorsQuery.isLoading || setpointsQuery.isLoading) && <Text size={200}>Loading the Device&apos;s Sensors and stored setpoints…</Text>}
+            {(sensorsQuery.isLoading || setpointsQuery.isLoading) && <Text size={200}>{t('Loading the Device\'s Sensors and stored setpoints…')}</Text>}
             {setpointsQuery.isError && <ErrorState error={setpointsQuery.error} onRetry={() => setpointsQuery.refetch()} />}
 
             {parsed.fileErrors.map((message) => (
@@ -237,22 +233,21 @@ export function ManageSetpointsDialog({ deviceId, open, onClose }: { deviceId: n
             ))}
             {parsed.ignoredColumns.length > 0 && (
               <MessageBar intent="warning">
-                <MessageBarBody>Ignored column(s) the importer does not know: {parsed.ignoredColumns.join(', ')}.</MessageBarBody>
+                <MessageBarBody>{t('Ignored column(s) the importer does not know:')}{' '}{parsed.ignoredColumns.join(', ')}.</MessageBarBody>
               </MessageBar>
             )}
             {parsed.issues.length > 0 && (
               <>
                 <Text role="status">
-                  <b>{parsed.issues.length} problem(s)</b> - fix them to import; nothing is sent while any exists.
-                </Text>
-                <ul className={styles.problems} aria-label="Rows with problems">
+                  <b>{parsed.issues.length} {t('problem(s)')}</b> {t('- fix them to import; nothing is sent while any exists.')}</Text>
+                <ul className={styles.problems} aria-label={t('Rows with problems')}>
                   {parsed.issues.slice(0, MAX_LISTED).map((i, n) => (
                     <li key={n}>
-                      Line {i.line} [{i.field}
+                      {t('Line')}{' '}{i.line} [{i.field}
                       {i.value ? ` = "${i.value}"` : ''}]: {i.message}
                     </li>
                   ))}
-                  {parsed.issues.length > MAX_LISTED && <li>…and {parsed.issues.length - MAX_LISTED} more.</li>}
+                  {parsed.issues.length > MAX_LISTED && <li>{t('…and')}{' '}{parsed.issues.length - MAX_LISTED} {t('more.')}</li>}
                 </ul>
               </>
             )}
@@ -260,16 +255,16 @@ export function ManageSetpointsDialog({ deviceId, open, onClose }: { deviceId: n
             {hasSheet && parsed.issues.length === 0 && parsed.fileErrors.length === 0 && dataReady && !outcomes && (
               <>
                 <Text role="status">
-                  {`${summary.sensorsInSheet} Sensor(s) in the sheet, ${summary.sensorsChanged} would change: ${summary.created} interval(s) created, ${summary.replaced} replaced, ${summary.deleted} deleted, ${summary.unchanged} already as in the sheet. ${sheetSensors.length - summary.sensorsInSheet} other Sensor(s) of this Device are not in the sheet and are not touched.`}
+                  {t('{0} Sensor(s) in the sheet, {1} would change: {2} interval(s) created, {3} replaced, {4} deleted, {5} already as in the sheet. {6} other Sensor(s) of this Device are not in the sheet and are not touched.', summary.sensorsInSheet, summary.sensorsChanged, summary.created, summary.replaced, summary.deleted, summary.unchanged, sheetSensors.length - summary.sensorsInSheet)}
                 </Text>
                 {operationLines.length > 0 && (
                   <>
-                    <Body1Strong>What will be done</Body1Strong>
-                    <ul className={styles.list} aria-label="Planned changes">
+                    <Body1Strong>{t('What will be done')}</Body1Strong>
+                    <ul className={styles.list} aria-label={t('Planned changes')}>
                       {operationLines.slice(0, MAX_OPERATION_LINES).map((line, n) => (
                         <li key={n}>{line}</li>
                       ))}
-                      {operationLines.length > MAX_OPERATION_LINES && <li>…and {operationLines.length - MAX_OPERATION_LINES} more.</li>}
+                      {operationLines.length > MAX_OPERATION_LINES && <li>{t('…and')}{' '}{operationLines.length - MAX_OPERATION_LINES} {t('more.')}</li>}
                     </ul>
                   </>
                 )}
@@ -277,13 +272,12 @@ export function ManageSetpointsDialog({ deviceId, open, onClose }: { deviceId: n
                   <Checkbox
                     checked={understood}
                     onChange={(_, d) => setUnderstood(!!d.checked)}
-                    label={`I understand that ${removals} stored setpoint interval(s) will be permanently deleted${summary.replaced > 0 ? ` (${summary.replaced} of them are created again with the sheet's values)` : ''}.`}
+                    label={t('I understand that {0} stored setpoint interval(s) will be permanently deleted{1}.', removals, summary.replaced > 0 ? ` (${summary.replaced} of them are created again with the sheet's values)` : '')}
                   />
                 )}
                 {removals > 0 && (
                   <Text size={200} className={styles.muted}>
-                    A Sensor without an effective setpoint is not analysed for that time. Issues already found are not changed; no retraining is scheduled.
-                  </Text>
+                    {t('A Sensor without an effective setpoint is not analysed for that time. Issues already found are not changed; no retraining is scheduled.')}</Text>
                 )}
               </>
             )}
@@ -292,7 +286,7 @@ export function ManageSetpointsDialog({ deviceId, open, onClose }: { deviceId: n
               <div role="status" aria-live="polite">
                 <ProgressBar value={progress.total === 0 ? 0 : progress.done / progress.total} />
                 <Text size={200}>
-                  Applying… {progress.done} / {progress.total}
+                  {t('Applying…')}{' '}{progress.done} / {progress.total}
                 </Text>
               </div>
             )}
@@ -301,13 +295,11 @@ export function ManageSetpointsDialog({ deviceId, open, onClose }: { deviceId: n
               <div role="status">
                 <MessageBar intent={failedOutcomes.length > 0 ? 'warning' : 'success'}>
                   <MessageBarBody>
-                    {outcomes.reduce((n, o) => n + o.deleted, 0)} deleted, {outcomes.reduce((n, o) => n + o.created, 0)} created
-                    {failedOutcomes.length > 0 && `, ${failedOutcomes.length} Sensor(s) with problems`}.
-                    {abortRef.current?.signal.aborted && ' The run was stopped before the end.'} Importing the same sheet again finishes whatever did not go through.
-                  </MessageBarBody>
+                    {outcomes.reduce((n, o) => n + o.deleted, 0)} {t('deleted,')}{' '}{outcomes.reduce((n, o) => n + o.created, 0)} {t('created')}{failedOutcomes.length > 0 && t(', {0} Sensor(s) with problems', failedOutcomes.length)}.
+                    {abortRef.current?.signal.aborted && t(' The run was stopped before the end.')} {t('Importing the same sheet again finishes whatever did not go through.')}</MessageBarBody>
                 </MessageBar>
                 {failedOutcomes.length > 0 && (
-                  <ul className={styles.problems} aria-label="Sensors with problems">
+                  <ul className={styles.problems} aria-label={t('Sensors with problems')}>
                     {failedOutcomes.slice(0, MAX_LISTED).map((o) => (
                       <li key={o.sensorName}>
                         {o.sensorName}: {o.failures.join(' ')}
@@ -322,15 +314,13 @@ export function ManageSetpointsDialog({ deviceId, open, onClose }: { deviceId: n
           <DialogActions>
             {running ? (
               <Button appearance="secondary" onClick={() => abortRef.current?.abort()}>
-                Stop
-              </Button>
+                {t('Stop')}</Button>
             ) : (
               <Button appearance="secondary" onClick={close}>
-                Close
-              </Button>
+                {t('Close')}</Button>
             )}
             <Button appearance="primary" onClick={start} disabled={!canApply}>
-              {operations > 0 && parsed.issues.length === 0 ? `Apply ${operations} change(s)` : 'Apply'}
+              {operations > 0 && parsed.issues.length === 0 ? t('Apply {0} change(s)', operations) : t('Apply')}
             </Button>
           </DialogActions>
         </DialogBody>

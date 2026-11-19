@@ -13,6 +13,7 @@ import {
   useSetIssueCategoryEnabled,
   useMergeIssueCategory,
 } from '@/api/hooks/issueCategories';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   row: {
@@ -25,6 +26,7 @@ const useStyles = makeStyles({
 });
 
 export function CategoriesPage() {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const categoriesQuery = useIssueCategories(true);
@@ -36,7 +38,7 @@ export function CategoriesPage() {
   const [mergeTarget, setMergeTarget] = useState<number | undefined>();
   const mergeCategory = useMergeIssueCategory(mergingId ?? -1);
 
-  if (categoriesQuery.isLoading) return <LoadingState label="Loading categories…" />;
+  if (categoriesQuery.isLoading) return <LoadingState label={t('Loading categories…')} />;
   if (categoriesQuery.isError) return <ErrorState error={categoriesQuery.error} onRetry={() => categoriesQuery.refetch()} />;
 
   const categories = categoriesQuery.data ?? [];
@@ -44,12 +46,11 @@ export function CategoriesPage() {
   return (
     <>
       <PageHeader
-        title="Categories"
-        description="Company-scoped Issue category catalog."
+        title={t('Categories')}
+        description={t('Company-scoped Issue category catalog.')}
         actions={
           <Button icon={<AddCircle24Regular />} onClick={() => setDialogOpen(true)}>
-            New category
-          </Button>
+            {t('New category')}</Button>
         }
       />
 
@@ -64,8 +65,7 @@ export function CategoriesPage() {
                 </Text>
               )}
               <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-                {category.assignedIssueCount ?? 0} issue(s)
-              </Text>
+                {category.assignedIssueCount ?? 0} {t('issue(s)')}</Text>
             </div>
             <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center' }}>
               <EnabledPill enabled={category.enabled} />
@@ -77,8 +77,7 @@ export function CategoriesPage() {
                   setMergeTarget(undefined);
                 }}
               >
-                Merge
-              </Button>
+                {t('Merge')}</Button>
               <UseSetEnabledSwitch categoryId={category.id!} enabled={category.enabled ?? false} categoryName={category.name ?? 'category'} />
             </div>
           </div>
@@ -87,13 +86,13 @@ export function CategoriesPage() {
 
       <ConfirmDialog
         open={dialogOpen}
-        title="New category"
+        title={t('New category')}
         confirmLabel="Create"
         busy={createCategory.isPending}
         confirmDisabled={!name}
         onConfirm={async () => {
           await createCategory.mutateAsync({ name, description: description || undefined });
-          toast.success('Category created');
+          toast.success(t('Category created'));
           setName('');
           setDescription('');
           setDialogOpen(false);
@@ -101,10 +100,10 @@ export function CategoriesPage() {
         onCancel={() => setDialogOpen(false)}
       >
         <div className={styles.formGrid}>
-          <Field label="Name" required>
+          <Field label={t('Name')} required>
             <Input value={name} onChange={(_, d) => setName(d.value)} />
           </Field>
-          <Field label="Description">
+          <Field label={t('Description')}>
             <Input value={description} onChange={(_, d) => setDescription(d.value)} />
           </Field>
           {createCategory.isError && <ErrorState error={createCategory.error} />}
@@ -113,25 +112,23 @@ export function CategoriesPage() {
 
       <ConfirmDialog
         open={mergingId !== null}
-        title="Merge category"
+        title={t('Merge category')}
         confirmLabel="Merge"
         busy={mergeCategory.isPending}
         confirmDisabled={!mergeTarget}
         onConfirm={async () => {
           await mergeCategory.mutateAsync(mergeTarget!);
-          toast.success('Category merged');
+          toast.success(t('Category merged'));
           setMergingId(null);
         }}
         onCancel={() => setMergingId(null)}
       >
         <div className={styles.formGrid}>
           <Text size={200}>
-            Every Issue on this category will be reassigned to the target, and the source category will be retired
-            (kept for audit, not deleted).
-          </Text>
-          <Field label="Target category">
+            {t('Every Issue on this category will be reassigned to the target, and the source category will be retired (kept for audit, not deleted).')}</Text>
+          <Field label={t('Target category')}>
             <Select value={mergeTarget !== undefined ? String(mergeTarget) : ''} onChange={(_, d) => setMergeTarget(Number(d.value))}>
-              <option value="">Select…</option>
+              <option value="">{t('Select…')}</option>
               {categories.filter((c) => c.id !== mergingId && c.enabled).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -147,14 +144,15 @@ export function CategoriesPage() {
 }
 
 function UseSetEnabledSwitch({ categoryId, enabled, categoryName }: { categoryId: number; enabled: boolean; categoryName: string }) {
+  const t = useT();
   const toast = useAppToast();
   const setEnabled = useSetIssueCategoryEnabled(categoryId);
   return (
     <Switch
       checked={enabled}
-      aria-label={`${categoryName} enabled`}
+      aria-label={t('{0} enabled', categoryName)}
       onChange={(_, d) =>
-        setEnabled.mutate(d.checked, { onSuccess: () => toast.success(d.checked ? 'Category enabled' : 'Category retired') })
+        setEnabled.mutate(d.checked, { onSuccess: () => toast.success(d.checked ? t('Category enabled') : t('Category retired')) })
       }
     />
   );

@@ -39,6 +39,7 @@ import { useCompany, useUpdateCompanyName } from '@/api/hooks/company';
 import { useDevices } from '@/api/hooks/devices';
 import { isSafeHttpsUrl } from '@/lib/safeExternalUrl';
 import { activateProps } from '@/lib/useActivateProps';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   toolbar: { display: 'flex', gap: tokens.spacingHorizontalM, marginBottom: tokens.spacingVerticalL, alignItems: 'flex-end', flexWrap: 'wrap' },
@@ -49,6 +50,7 @@ const useStyles = makeStyles({
 });
 
 function CompanyProfileTab() {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const companyQuery = useCompany();
@@ -56,10 +58,10 @@ function CompanyProfileTab() {
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
 
-  if (companyQuery.isLoading) return <LoadingState label="Loading Company profile…" />;
+  if (companyQuery.isLoading) return <LoadingState label={t('Loading Company profile…')} />;
   if (companyQuery.isError) return <ErrorState error={companyQuery.error} onRetry={() => companyQuery.refetch()} />;
   const company = companyQuery.data;
-  if (!company) return <EmptyState title="Company profile unavailable" />;
+  if (!company) return <EmptyState title={t('Company profile unavailable')} />;
 
   const startEdit = () => {
     setNameDraft(company.name ?? '');
@@ -68,7 +70,7 @@ function CompanyProfileTab() {
 
   const saveName = async () => {
     await updateName.mutateAsync(nameDraft.trim());
-    toast.success('Company name updated');
+    toast.success(t('Company name updated'));
     setEditingName(false);
   };
 
@@ -90,7 +92,7 @@ function CompanyProfileTab() {
           <Body1Strong>{company.name}</Body1Strong>
           <br />
           <Badge appearance="tint" color={company.profileSource === 'Local' ? 'informative' : 'subtle'}>
-            {company.profileSource === 'Local' ? 'Locally managed' : 'Synchronized from WordPress'}
+            {company.profileSource === 'Local' ? t('Locally managed') : t('Synchronized from WordPress')}
           </Badge>
         </div>
       </div>
@@ -106,28 +108,26 @@ function CompanyProfileTab() {
 
       {editingName ? (
         <div className={styles.toolbar}>
-          <Field label="Company name">
+          <Field label={t('Company name')}>
             <Input value={nameDraft} onChange={(_, d) => setNameDraft(d.value)} />
           </Field>
           <Button appearance="primary" disabled={!nameDraft.trim() || updateName.isPending} onClick={saveName}>
-            {updateName.isPending ? 'Saving…' : 'Save'}
+            {updateName.isPending ? t('Saving…') : t('Save')}
           </Button>
           <Button appearance="secondary" onClick={() => setEditingName(false)} disabled={updateName.isPending}>
-            Cancel
-          </Button>
+            {t('Cancel')}</Button>
         </div>
       ) : company.nameEditable ? (
         <div>
           <Button icon={<Edit24Regular />} onClick={startEdit}>
-            Rename Company
-          </Button>
+            {t('Rename Company')}</Button>
         </div>
       ) : (
         <MessageBar intent="info">
           <MessageBarBody>
             {company.profileSource === 'MirroredDatabase'
-              ? "This Company's name, logo, and website are synchronized from WordPress and can't be edited here - update them at the source instead."
-              : "This Company's name can't be edited by your account."}
+              ? t('This Company\'s name, logo, and website are synchronized from WordPress and can\'t be edited here - update them at the source instead.')
+              : t('This Company\'s name can\'t be edited by your account.')}
           </MessageBarBody>
         </MessageBar>
       )}
@@ -137,6 +137,7 @@ function CompanyProfileTab() {
 }
 
 function LocationRow({ location }: { location: LocationDto }) {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const updateLocation = useUpdateLocation(location.id!);
@@ -159,8 +160,7 @@ function LocationRow({ location }: { location: LocationDto }) {
             setEditing(true);
           }}
         >
-          Edit
-        </Button>
+          {t('Edit')}</Button>
       </div>
     );
   }
@@ -168,10 +168,10 @@ function LocationRow({ location }: { location: LocationDto }) {
   return (
     <div className={styles.row}>
       <div className={styles.toolbar} style={{ marginBottom: 0 }}>
-        <Field label="Location name">
+        <Field label={t('Location name')}>
           <Input value={nameDraft} onChange={(_, d) => setNameDraft(d.value)} />
         </Field>
-        <Field label="Location code">
+        <Field label={t('Location code')}>
           <Input value={codeDraft} onChange={(_, d) => setCodeDraft(d.value)} />
         </Field>
         <Button
@@ -180,15 +180,14 @@ function LocationRow({ location }: { location: LocationDto }) {
           disabled={updateLocation.isPending}
           onClick={async () => {
             await updateLocation.mutateAsync({ name: nameDraft || undefined, code: codeDraft || undefined });
-            toast.success('Location updated');
+            toast.success(t('Location updated'));
             setEditing(false);
           }}
         >
-          {updateLocation.isPending ? 'Saving…' : 'Save'}
+          {updateLocation.isPending ? t('Saving…') : t('Save')}
         </Button>
         <Button size="small" appearance="secondary" onClick={() => setEditing(false)}>
-          Cancel
-        </Button>
+          {t('Cancel')}</Button>
       </div>
       {updateLocation.isError && <ErrorState error={updateLocation.error} />}
     </div>
@@ -198,6 +197,7 @@ function LocationRow({ location }: { location: LocationDto }) {
 const locationTypes = ['Enterprise', 'Site', 'Building', 'Floor', 'Area', 'Room', 'ProductionLine', 'WorkCell'];
 
 function LocationsTab() {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const locationsQuery = useLocations();
@@ -208,10 +208,10 @@ function LocationsTab() {
   return (
     <>
       <div className={styles.toolbar}>
-        <Field label="Name">
+        <Field label={t('Name')}>
           <Input value={name} onChange={(_, d) => setName(d.value)} />
         </Field>
-        <Field label="Type">
+        <Field label={t('Type')}>
           <Select value={locationType} onChange={(_, d) => setLocationType(d.value)}>
             {locationTypes.map((t) => (
               <option key={t} value={t}>
@@ -225,16 +225,15 @@ function LocationsTab() {
           disabled={!name || createLocation.isPending}
           onClick={async () => {
             await createLocation.mutateAsync({ name, locationType });
-            toast.success('Location created');
+            toast.success(t('Location created'));
             setName('');
           }}
         >
-          Add
-        </Button>
+          {t('Add')}</Button>
       </div>
       {createLocation.isError && <ErrorState error={createLocation.error} />}
       {locationsQuery.isLoading && <LoadingState label="" />}
-      {locationsQuery.data && locationsQuery.data.length === 0 && <EmptyState title="No locations yet" />}
+      {locationsQuery.data && locationsQuery.data.length === 0 && <EmptyState title={t('No locations yet')} />}
       <Card>
         {locationsQuery.data?.map((loc) => (
           <LocationRow key={loc.id} location={loc} />
@@ -245,6 +244,7 @@ function LocationsTab() {
 }
 
 function DeviceGroupMembersPanel({ group }: { group: DeviceGroupDto }) {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const devicesQuery = useDevices();
@@ -255,10 +255,10 @@ function DeviceGroupMembersPanel({ group }: { group: DeviceGroupDto }) {
 
   return (
     <Card className={styles.card}>
-      <Body1Strong>{group.name} - members</Body1Strong>
+      <Body1Strong>{group.name} {t('- members')}</Body1Strong>
       {devicesQuery.isLoading && <LoadingState label="" />}
       {devicesQuery.data?.map((device) => {
-        const label = device.deviceName || device.externalDeviceId || `Device ${device.id}`;
+        const label = device.deviceName || device.externalDeviceId || t('Device {0}', device.id);
         return (
           <Checkbox
             key={device.id}
@@ -269,12 +269,12 @@ function DeviceGroupMembersPanel({ group }: { group: DeviceGroupDto }) {
               if (d.checked === true) {
                 addMember.mutate(
                   { groupId: group.id!, deviceId: device.id! },
-                  { onSuccess: () => toast.success(`${label} added to ${group.name}`) },
+                  { onSuccess: () => toast.success(t('{0} added to {1}', label, group.name)) },
                 );
               } else {
                 removeMember.mutate(
                   { groupId: group.id!, deviceId: device.id! },
-                  { onSuccess: () => toast.success(`${label} removed from ${group.name}`) },
+                  { onSuccess: () => toast.success(t('{0} removed from {1}', label, group.name)) },
                 );
               }
             }}
@@ -287,6 +287,7 @@ function DeviceGroupMembersPanel({ group }: { group: DeviceGroupDto }) {
 }
 
 function DeviceGroupsTab() {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const groupsQuery = useDeviceGroups();
@@ -300,7 +301,7 @@ function DeviceGroupsTab() {
   return (
     <>
       <div className={styles.toolbar}>
-        <Field label="Name">
+        <Field label={t('Name')}>
           <Input value={name} onChange={(_, d) => setName(d.value)} />
         </Field>
         <Button
@@ -308,15 +309,14 @@ function DeviceGroupsTab() {
           disabled={!name || createGroup.isPending}
           onClick={async () => {
             await createGroup.mutateAsync({ name });
-            toast.success('Device group created');
+            toast.success(t('Device group created'));
             setName('');
           }}
         >
-          Add
-        </Button>
+          {t('Add')}</Button>
       </div>
       {groupsQuery.isLoading && <LoadingState label="" />}
-      {groups.length === 0 && <EmptyState title="No Device groups yet" />}
+      {groups.length === 0 && <EmptyState title={t('No Device groups yet')} />}
       <Card style={{ marginBottom: tokens.spacingVerticalM }}>
         {groups.map((group) => (
           <div
@@ -325,7 +325,7 @@ function DeviceGroupsTab() {
             style={{ cursor: 'pointer', background: selectedGroupId === group.id ? tokens.colorBrandBackground2 : undefined }}
             {...activateProps(() => setSelectedGroupId(group.id))}
           >
-            <Text weight="semibold">{group.name}</Text> <Text size={200}>{(group.deviceIds ?? []).length} Device(s)</Text>
+            <Text weight="semibold">{group.name}</Text> <Text size={200}>{(group.deviceIds ?? []).length} {t('Device(s)')}</Text>
           </div>
         ))}
       </Card>
@@ -334,8 +334,7 @@ function DeviceGroupsTab() {
       ) : (
         groups.length > 0 && (
           <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-            Select a Device group above to manage its Device membership.
-          </Text>
+            {t('Select a Device group above to manage its Device membership.')}</Text>
         )
       )}
     </>
@@ -343,13 +342,13 @@ function DeviceGroupsTab() {
 }
 
 function DeviceClassesTab() {
+  const t = useT();
   const styles = useStyles();
   const classesQuery = useDeviceClasses();
   return (
     <>
       <Text size={200} style={{ display: 'block', marginBottom: tokens.spacingVerticalM, color: tokens.colorNeutralForeground3 }}>
-        Read-only reference catalog - the API has no write operations for Device classes.
-      </Text>
+        {t('Read-only reference catalog - the API has no write operations for Device classes.')}</Text>
       {classesQuery.isLoading && <LoadingState label="" />}
       <Card>
         {classesQuery.data?.map((c) => (
@@ -363,15 +362,16 @@ function DeviceClassesTab() {
 }
 
 export function AdminSettingsPage() {
+  const t = useT();
   const [tab, setTab] = useState('profile');
   return (
     <>
-      <PageHeader title="Company Settings" description="Company profile, Locations, Device groups, and the Device-class reference catalog." />
+      <PageHeader title={t('Company Settings')} description={t('Company profile, Locations, Device groups, and the Device-class reference catalog.')} />
       <TabList selectedValue={tab} onTabSelect={(_, d) => setTab(String(d.value))} style={{ marginBottom: tokens.spacingVerticalL }}>
-        <Tab value="profile">Profile</Tab>
-        <Tab value="locations">Locations</Tab>
-        <Tab value="groups">Device groups</Tab>
-        <Tab value="classes">Device classes</Tab>
+        <Tab value="profile">{t('Profile')}</Tab>
+        <Tab value="locations">{t('Locations')}</Tab>
+        <Tab value="groups">{t('Device groups')}</Tab>
+        <Tab value="classes">{t('Device classes')}</Tab>
       </TabList>
       {tab === 'profile' && <CompanyProfileTab />}
       {tab === 'locations' && <LocationsTab />}

@@ -4,6 +4,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ErrorState } from '@/components/states/ErrorState';
 import { useAppToast } from '@/components/ToastProvider';
 import { useDeleteIssuePermanently } from '@/api/hooks/issues';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   body: { display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalM },
@@ -32,6 +33,7 @@ export function DeleteIssuesDialog({
   /** Called with the ids that were really deleted (also after a failure part-way). */
   onDone: (deleted: number[]) => void;
 }) {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const remove = useDeleteIssuePermanently(deviceId);
@@ -59,10 +61,10 @@ export function DeleteIssuesDialog({
         deleted.push(id);
         setDone(deleted.length);
       }
-      toast.success(`${deleted.length} Issue(s) deleted${reviewedCount > 0 ? '; retraining was requested for the reviewed ones' : ''}.`);
+      toast.success(t('{0} Issue(s) deleted{1}.', deleted.length, reviewedCount > 0 ? '; retraining was requested for the reviewed ones' : ''));
     } catch (error) {
       setFailure(error);
-      if (deleted.length > 0) toast.info(`${deleted.length} of ${issueIds.length} Issue(s) were deleted before the error.`);
+      if (deleted.length > 0) toast.info(t('{0} of {1} Issue(s) were deleted before the error.', deleted.length, issueIds.length));
     } finally {
       setRunning(false);
     }
@@ -77,9 +79,9 @@ export function DeleteIssuesDialog({
   return (
     <ConfirmDialog
       open={open}
-      title={`Delete ${issueIds.length} Issue(s) permanently?`}
+      title={t('Delete {0} Issue(s) permanently?', issueIds.length)}
       intent="destructive"
-      confirmLabel={`Delete ${issueIds.length} Issue(s)`}
+      confirmLabel={t('Delete {0} Issue(s)', issueIds.length)}
       confirmDisabled={!acknowledged || issueIds.length === 0}
       busy={running}
       onConfirm={() => void confirm()}
@@ -87,27 +89,24 @@ export function DeleteIssuesDialog({
     >
       <div className={styles.body}>
         <Text>
-          Each selected Issue is deleted permanently, with its category suggestion, Ollama summary and knowledge-share selections. It cannot be undone.
-          Measured and calculated values and model history are not touched. Members of a deleted canonical Issue’s group become standalone Issues.
-        </Text>
+          {t('Each selected Issue is deleted permanently, with its category suggestion, Ollama summary and knowledge-share selections. It cannot be undone. Measured and calculated values and model history are not touched. Members of a deleted canonical Issue’s group become standalone Issues.')}</Text>
         {reviewedCount > 0 && (
           <MessageBar intent="warning">
             <MessageBarBody>
-              {reviewedCount} of them {reviewedCount === 1 ? 'was' : 'were'} reviewed by a person and {reviewedCount === 1 ? 'is a training example' : 'are training examples'}:
-              deleting {reviewedCount === 1 ? 'it' : 'them'} requests retraining for this Device and for the Devices that receive {reviewedCount === 1 ? 'it' : 'them'} through an
-              approved knowledge share.
-            </MessageBarBody>
+              {reviewedCount === 1
+                ? t('1 of them was reviewed by a person and is a training example: deleting it requests retraining for this Device and for the Devices that receive it through an approved knowledge share.')
+                : t('{0} of them were reviewed by a person and are training examples: deleting them requests retraining for this Device and for the Devices that receive them through an approved knowledge share.', reviewedCount)}</MessageBarBody>
           </MessageBar>
         )}
         <Checkbox
           checked={acknowledged}
           onChange={(_, d) => setAcknowledged(d.checked === true)}
-          label={`I understand that these ${issueIds.length} Issue(s) are deleted permanently.`}
+          label={t('I understand that these {0} Issue(s) are deleted permanently.', issueIds.length)}
         />
-        {running && <ProgressBar value={issueIds.length ? done / issueIds.length : 0} aria-label="Deleting Issues" />}
+        {running && <ProgressBar value={issueIds.length ? done / issueIds.length : 0} aria-label={t('Deleting Issues')} />}
         {failure !== null && (
           <>
-            <Text>{done} of {issueIds.length} deleted; it stopped at the first error and left the rest untouched.</Text>
+            <Text>{done} {t('of')}{' '}{issueIds.length} {t('deleted; it stopped at the first error and left the rest untouched.')}</Text>
             <ErrorState error={failure} />
           </>
         )}

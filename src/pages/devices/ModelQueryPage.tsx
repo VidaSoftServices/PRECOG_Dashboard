@@ -10,6 +10,7 @@ import { useDevice } from '@/api/hooks/devices';
 import { useRunModelQuery } from '@/api/hooks/modelQuery';
 import { formatDateTime } from '@/lib/dateTime';
 import { activateProps } from '@/lib/useActivateProps';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   row: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}` },
@@ -17,6 +18,7 @@ const useStyles = makeStyles({
 });
 
 export function ModelQueryPage() {
+  const t = useT();
   const styles = useStyles();
   const navigate = useNavigate();
   const { deviceId } = useParams<{ deviceId: string }>();
@@ -27,54 +29,53 @@ export function ModelQueryPage() {
   return (
     <>
       <PageHeader
-        title={`Model query · ${deviceQuery.data?.deviceName ?? ''}`}
+        title={t('Model query · {0}', deviceQuery.data?.deviceName ?? '')}
         titleDisplay="compact"
-        description="Ranks historically similar canonical Issues against this Device's active model. Similarity, not a probability of failure."
+        description={t('Ranks historically similar canonical Issues against this Device\'s active model. Similarity, not a probability of failure.')}
         actions={
           <Button icon={<Search24Regular />} appearance="primary" disabled={runQuery.isPending} onClick={() => runQuery.mutate(undefined)}>
-            {runQuery.isPending ? 'Querying…' : 'Run query'}
+            {runQuery.isPending ? t('Querying…') : t('Run query')}
           </Button>
         }
       />
 
       {runQuery.isError && <ErrorState error={runQuery.error} />}
-      {!runQuery.data && !runQuery.isPending && <EmptyState title="Run a query to see results" description="Rate-limited to 20 requests/minute - use deliberately, not on every page load." />}
-      {runQuery.isPending && <LoadingState label="Querying model…" />}
+      {!runQuery.data && !runQuery.isPending && <EmptyState title={t('Run a query to see results')} description={t('Rate-limited to 20 requests/minute - use deliberately, not on every page load.')} />}
+      {runQuery.isPending && <LoadingState label={t('Querying model…')} />}
 
       {runQuery.data && (
         <>
           <Card className={styles.card}>
-            <Body1Strong>Model version {runQuery.data.versionNumber}</Body1Strong>
+            <Body1Strong>{t('Model version')}{' '}{runQuery.data.versionNumber}</Body1Strong>
             <Text size={200} style={{ display: 'block', color: tokens.colorNeutralForeground3 }}>
-              Reference time: {formatDateTime(runQuery.data.referenceTime)} · Sensors: {(runQuery.data.sensorIds ?? []).length}
+              {t('Reference time:')}{' '}{formatDateTime(runQuery.data.referenceTime)} {t('· Sensors:')}{' '}{(runQuery.data.sensorIds ?? []).length}
             </Text>
           </Card>
 
           {runQuery.data.categorySuggestion && (
             <Card className={styles.card}>
-              <Body1Strong>Category evidence</Body1Strong>
+              <Body1Strong>{t('Category evidence')}</Body1Strong>
               {runQuery.data.categorySuggestion.suggestedCategoryName ? (
                 <Text>
-                  Suggested: {runQuery.data.categorySuggestion.suggestedCategoryName}
-                  {runQuery.data.categorySuggestion.hasConflict && <Badge color="warning" style={{ marginLeft: 8 }}>Conflicting evidence</Badge>}
+                  {t('Suggested:')}{' '}{runQuery.data.categorySuggestion.suggestedCategoryName}
+                  {runQuery.data.categorySuggestion.hasConflict && <Badge color="warning" style={{ marginLeft: 8 }}>{t('Conflicting evidence')}</Badge>}
                 </Text>
               ) : (
-                <Text size={200}>No unanimous category evidence.</Text>
+                <Text size={200}>{t('No unanimous category evidence.')}</Text>
               )}
               <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-                {runQuery.data.categorySuggestion.confirmedCategoryCount ?? 0} confirmed category label(s) among similar Issues.
-              </Text>
+                {runQuery.data.categorySuggestion.confirmedCategoryCount ?? 0} {t('confirmed category label(s) among similar Issues.')}</Text>
             </Card>
           )}
 
-          <Body1Strong>Ranked similar Issues</Body1Strong>
-          {(runQuery.data.rankedIssues ?? []).length === 0 && <EmptyState title="No similar historical Issues found" />}
+          <Body1Strong>{t('Ranked similar Issues')}</Body1Strong>
+          {(runQuery.data.rankedIssues ?? []).length === 0 && <EmptyState title={t('No similar historical Issues found')} />}
           <Card style={{ marginTop: tokens.spacingVerticalS }}>
             {(runQuery.data.rankedIssues ?? []).map((issue) => (
               <div key={issue.issueId} className={styles.row} style={{ cursor: 'pointer' }} {...activateProps(() => navigate(`/issues/${issue.issueId}`))}>
                 <div>
                   <Text weight="semibold">
-                    {issue.relevancePercent?.toFixed(1)}% similar {issue.isSharedKnowledge && <Badge appearance="outline">shared knowledge</Badge>}
+                    {issue.relevancePercent?.toFixed(1)}{t('% similar')}{' '}{issue.isSharedKnowledge && <Badge appearance="outline">{t('shared knowledge')}</Badge>}
                   </Text>
                   <br />
                   <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>

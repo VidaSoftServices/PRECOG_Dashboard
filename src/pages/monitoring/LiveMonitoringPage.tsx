@@ -24,6 +24,8 @@ import {
 } from '@fluentui/react-components';
 import { Dismiss24Regular, ArrowClockwise16Regular, ArrowClockwise24Regular, FullScreenMaximize16Regular, ChevronLeft24Regular, ChevronRight24Regular, DataTrending24Regular, Search24Regular } from '@fluentui/react-icons';
 import { PageHeader } from '@/components/PageHeader';
+import { ChartWithDescription } from '@/components/SensorDescription';
+import { useSensorDescriptions } from '@/lib/useSensorDescriptions';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
 import { EmptyState } from '@/components/states/EmptyState';
@@ -40,6 +42,7 @@ import { formatRelative, formatDateTime, freshnessOf } from '@/lib/dateTime';
 import { POLL_INTERVALS_MS } from '@/lib/pollIntervals';
 import { useLiveMonitoringSchedule, type LiveSensor } from './useLiveMonitoringSchedule';
 import type { SensorDto } from '@/api/hooks/sensors';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   toolbar: {
@@ -102,6 +105,8 @@ const useStyles = makeStyles({
   },
 });
 
+const ENLARGED_CHART_HEIGHT = 'calc(85vh - 230px)';
+
 function SensorLiveCard({
   deviceId,
   sensor,
@@ -119,6 +124,7 @@ function SensorLiveCard({
   refreshDisabled: boolean;
   onRefresh: () => void;
 }) {
+  const t = useT();
   const styles = useStyles();
   const family = familyFor(applicationMode, sensor.direction);
   const curveFamily = isCurveFamily(family);
@@ -134,6 +140,8 @@ function SensorLiveCard({
   // The control limits are not stored: the API calculates them when it reads, and the batched read the cards use leaves them out. The enlarged
   // chart therefore reads its own Sensor WITH the limits (every 5 s while the window is open, paused in a rate-limit cooldown).
   const limits = useTelemetryTrailingWithLimits({ family, deviceId, sensorId: sensor.id, periods: 20, enabled: enlarged && !curveFamily, paused: refreshDisabled });
+  const [showInfo, setShowInfo] = useState(false);
+  const description = useSensorDescriptions([{ deviceId, sensorName: sensor.externalSensorId }]);
   const sensorLabel = sensor.name || sensor.externalSensorId || 'Sensor';
   // One definition for the card and the enlarged view, so the modal always shows exactly the data the card has (it moves with every refresh).
   // The enlarged chart draws every Target / Tolerance / UCL / LCL line the API has a value for (never computed here); a line it has none for is simply absent.
@@ -155,8 +163,8 @@ function SensorLiveCard({
               appearance="subtle"
               size="small"
               icon={<FullScreenMaximize16Regular />}
-              aria-label={`Enlarge chart of ${sensorLabel}`}
-              title="Open the chart in a large window"
+              aria-label={t('Enlarge chart of {0}', sensorLabel)}
+              title={t('Open the chart in a large window')}
               onClick={() => setEnlarged(true)}
             />
           )}
@@ -165,8 +173,8 @@ function SensorLiveCard({
               appearance="subtle"
               size="small"
               icon={refreshing ? <Spinner size="extra-tiny" /> : <ArrowClockwise16Regular />}
-              aria-label={`Refresh ${sensor.name || sensor.externalSensorId}`}
-              title="Refresh this Sensor now"
+              aria-label={t('Refresh {0}', sensor.name || sensor.externalSensorId)}
+              title={t('Refresh this Sensor now')}
               disabled={refreshDisabled || refreshing}
               onClick={onRefresh}
             />
@@ -176,8 +184,8 @@ function SensorLiveCard({
 
       {curveFamily ? (
         <EmptyState
-          title="Not applicable to Periodic Sensors"
-          description="Curve runs aren't a regular clock tick - use Smart Analytics to inspect the most recent curve period for this Sensor."
+          title={t('Not applicable to Periodic Sensors')}
+          description={t('Curve runs aren\'t a regular clock tick - use Smart Analytics to inspect the most recent curve period for this Sensor.')}
         />
       ) : trailing.isError ? (
         <ErrorState error={trailing.error} />
@@ -185,13 +193,13 @@ function SensorLiveCard({
         // Real, honest state - the first refresh of the Sensors on screen has not come back yet (the schedule makes one batched request
         // for all of them, see CLAUDE.md's "Live Monitoring" section), so there is nothing to show rather than a faked "live" value.
         // trailing.isFetching is true while that request is on its way.
-        <LoadingState label={trailing.isFetching ? 'Refreshing…' : 'Waiting for first refresh…'} />
+        <LoadingState label={trailing.isFetching ? t('Refreshing…') : t('Waiting for first refresh…')} />
       ) : (
         <>
           <div className={styles.valueRow}>
             <span className={styles.bigValue}>{latest?.actual ?? '—'}</span>
             <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-              {latest ? formatRelative(latest.measured) : 'no data'}
+              {latest ? formatRelative(latest.measured) : t('no data')}
             </Text>
           </div>
           {/* Clicking the chart opens it large (mouse convenience); the keyboard and screen-reader route is the "Enlarge" button above. */}
@@ -210,8 +218,8 @@ function SensorLiveCard({
                   <Button
                     appearance="subtle"
                     icon={refreshing ? <Spinner size="tiny" /> : <ArrowClockwise16Regular />}
-                    aria-label={`Refresh ${sensorLabel}`}
-                    title="Refresh this Sensor now"
+                    aria-label={t('Refresh {0}', sensorLabel)}
+                    title={t('Refresh this Sensor now')}
                     disabled={refreshDisabled || refreshing}
                     onClick={() => {
                       onRefresh();
@@ -219,7 +227,7 @@ function SensorLiveCard({
                     }}
                   />
                   <DialogTrigger disableButtonEnhancement action="close">
-                    <Button appearance="subtle" aria-label="Close" icon={<Dismiss24Regular />} />
+                    <Button appearance="subtle" aria-label={t('Close')} icon={<Dismiss24Regular />} />
                   </DialogTrigger>
                 </div>
               }
@@ -230,15 +238,17 @@ function SensorLiveCard({
               <div className={styles.valueRow}>
                 <span className={styles.bigValue}>{latest?.actual ?? '—'}</span>
                 <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-                  {latest ? `${formatDateTime(latest.measured)} (${formatRelative(latest.measured)})` : 'no data'}
+                  {latest ? `${formatDateTime(latest.measured)} (${formatRelative(latest.measured)})` : t('no data')}
                 </Text>
               </div>
-              <TelemetryChart series={enlargedSeries} height="calc(85vh - 230px)" mode="single" detailedLimits timeAxis="fullDateTime" emphasizeHover plainTooltip />
+              {/* The imported description opens beside the chart with the blue "<" edge tab; no description = no tab. */}
+              <ChartWithDescription found={description} open={showInfo} onToggle={() => setShowInfo(!showInfo)} height={ENLARGED_CHART_HEIGHT}>
+                <TelemetryChart series={enlargedSeries} height={ENLARGED_CHART_HEIGHT} mode="single" detailedLimits timeAxis="fullDateTime" emphasizeHover plainTooltip />
+              </ChartWithDescription>
             </DialogContent>
             <DialogActions>
               <Button appearance="primary" onClick={() => setEnlarged(false)}>
-                Close
-              </Button>
+                {t('Close')}</Button>
             </DialogActions>
           </DialogBody>
         </DialogSurface>
@@ -248,12 +258,12 @@ function SensorLiveCard({
 }
 
 function RateLimitBanner({ cooldownUntil }: { cooldownUntil: Date }) {
+  const t = useT();
   return (
     <MessageBar intent="warning" role="status">
       <MessageBarBody>
-        <MessageBarTitle>Too many requests</MessageBarTitle>
-        Live Monitoring is pausing its refresh cycle - the API asked every client on this network to slow down.
-        Existing readings stay visible. Retrying automatically around {formatDateTime(cooldownUntil)}.
+        <MessageBarTitle>{t('Too many requests')}</MessageBarTitle>
+        {t('Live Monitoring is pausing its refresh cycle - the API asked every client on this network to slow down. Existing readings stay visible. Retrying automatically around')}{' '}{formatDateTime(cooldownUntil)}.
       </MessageBarBody>
     </MessageBar>
   );
@@ -272,6 +282,7 @@ function useDebounced<T>(value: T, delayMs: number): T {
 }
 
 export function LiveMonitoringPage() {
+  const t = useT();
   const styles = useStyles();
   const navigate = useNavigate();
   const pageVisible = usePageVisible();
@@ -323,7 +334,7 @@ export function LiveMonitoringPage() {
     setPage(0);
   }, [filter, pageSize, selectedId]);
 
-  if (devicesQuery.isLoading) return <LoadingState label="Loading devices…" />;
+  if (devicesQuery.isLoading) return <LoadingState label={t('Loading devices…')} />;
   if (devicesQuery.isError) return <ErrorState error={devicesQuery.error} onRetry={() => devicesQuery.refetch()} />;
 
   const refreshDisabled = schedule.cooldownUntil !== null || schedule.manualSensorIds.length > 0;
@@ -335,22 +346,23 @@ export function LiveMonitoringPage() {
   return (
     <>
       <PageHeader
-        title="Live Monitoring"
-        description="Current operational state - latest readings, freshness, and active warnings. For historical exploration and comparison, use Smart Analytics."
+        title={t('Live Monitoring')}
+        description={t('Current operational state - latest readings, freshness, and active warnings. For historical exploration and comparison, use Smart Analytics.')}
         actions={
           selectedId !== undefined && (
-            <Button
-              icon={<DataTrending24Regular />}
-              onClick={() => navigate(`/analytics?deviceId=${selectedId}`)}
-            >
-              Open in Smart Analytics
-            </Button>
+            <>
+              <Button
+                icon={<DataTrending24Regular />}
+                onClick={() => navigate(`/analytics?deviceId=${selectedId}`)}
+              >
+                {t('Open in Smart Analytics')}</Button>
+            </>
           )
         }
       />
 
       <div className={styles.toolbar}>
-        <Select aria-label="Device" value={selectedId !== undefined ? String(selectedId) : ''} onChange={(_, d) => setDeviceId(Number(d.value))}>
+        <Select aria-label={t('Device')} value={selectedId !== undefined ? String(selectedId) : ''} onChange={(_, d) => setDeviceId(Number(d.value))}>
           {devices.map((d) => (
             <option key={d.id} value={d.id}>
               {d.deviceName || d.externalDeviceId}
@@ -360,44 +372,42 @@ export function LiveMonitoringPage() {
         <Input
           className={styles.search}
           type="search"
-          aria-label="Filter Sensors"
-          placeholder="Filter Sensors by name…"
+          aria-label={t('Filter Sensors')}
+          placeholder={t('Filter Sensors by name…')}
           contentBefore={<Search24Regular />}
           value={filterText}
           onChange={(_, d) => setFilterText(d.value)}
         />
-        <Select aria-label="Sensors per page" value={String(pageSize)} onChange={(_, d) => setPageSize(Number(d.value))}>
+        <Select aria-label={t('Sensors per page')} value={String(pageSize)} onChange={(_, d) => setPageSize(Number(d.value))}>
           {PAGE_SIZES.map((n) => (
             <option key={n} value={n}>
-              {n} per page
-            </option>
+              {n} {t('per page')}</option>
           ))}
         </Select>
-        <Switch checked={live} onChange={(_, d) => setLive(d.checked)} label={live ? `Refresh every ${seconds} seconds` : 'Paused'} />
+        <Switch checked={live} onChange={(_, d) => setLive(d.checked)} label={live ? t('Refresh every {0} seconds', seconds) : t('Paused')} />
         {!pageVisible && live && (
           <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-            Paused - tab not visible
-          </Text>
+            {t('Paused - tab not visible')}</Text>
         )}
       </div>
 
       {sensorsQuery.data && shownSensors.length > 0 && (
         <div className={styles.statusBar}>
           <div className={styles.pager}>
-            <Button icon={<ChevronLeft24Regular />} aria-label="Previous page" disabled={safePage === 0} onClick={() => setPage(safePage - 1)} />
+            <Button icon={<ChevronLeft24Regular />} aria-label={t('Previous page')} disabled={safePage === 0} onClick={() => setPage(safePage - 1)} />
             <Text role="status">
-              {filtered.length === 0 ? 'No Sensor matches the filter' : `Showing ${firstShown}–${lastShown} of ${filtered.length} Sensors`}
-              {filter !== '' && ` (filtered from ${shownSensors.length})`}
-              {hiddenCount > 0 && ` - ${hiddenCount} hidden Sensor(s) not listed (Visible switch on the Device page)`}
+              {filtered.length === 0 ? t('No Sensor matches the filter') : t('Showing {0}–{1} of {2} Sensors', firstShown, lastShown, filtered.length)}
+              {filter !== '' && t(' (filtered from {0})', shownSensors.length)}
+              {hiddenCount > 0 && t(' - {0} hidden Sensor(s) not listed (Visible switch on the Device page)', hiddenCount)}
             </Text>
-            <Button icon={<ChevronRight24Regular />} aria-label="Next page" disabled={safePage >= pageCount - 1} onClick={() => setPage(safePage + 1)} />
+            <Button icon={<ChevronRight24Regular />} aria-label={t('Next page')} disabled={safePage >= pageCount - 1} onClick={() => setPage(safePage + 1)} />
           </div>
           <Button
             icon={refreshing ? <Spinner size="tiny" /> : <ArrowClockwise24Regular />}
             onClick={() => schedule.refreshSensors(liveSensors.map((r) => r.id))}
             disabled={refreshDisabled || liveSensors.length === 0}
           >
-            {refreshing ? 'Refreshing…' : 'Refresh shown'}
+            {refreshing ? t('Refreshing…') : t('Refresh shown')}
           </Button>
         </div>
       )}
@@ -407,21 +417,19 @@ export function LiveMonitoringPage() {
         sensorsQuery.data &&
         shownSensors.length > 0 && (
           <Text size={200} className={styles.explanation}>
-            Only the Sensors shown here are refreshed automatically - all of them together, in one request every {seconds} s
-            {schedule.lastTickAt && ` (last request ${formatRelative(schedule.lastTickAt)})`}. The circular arrow on a card refreshes just that Sensor now;
-            "Refresh shown" refreshes all of them now.
-          </Text>
+            {t('Only the Sensors shown here are refreshed automatically - all of them together, in one request every')}{' '}{seconds} s
+            {schedule.lastTickAt && t(' (last request {0})', formatRelative(schedule.lastTickAt))}{t('. The circular arrow on a card refreshes just that Sensor now; "Refresh shown" refreshes all of them now.')}</Text>
         )
       )}
 
       {deviceQuery.isError && <ErrorState error={deviceQuery.error} />}
-      {sensorsQuery.isLoading && <LoadingState label="Loading sensors…" />}
+      {sensorsQuery.isLoading && <LoadingState label={t('Loading sensors…')} />}
       {sensorsQuery.isError && <ErrorState error={sensorsQuery.error} onRetry={() => sensorsQuery.refetch()} />}
-      {sensorsQuery.data && sensorsQuery.data.length === 0 && <EmptyState title="No sensors on this Device" />}
+      {sensorsQuery.data && sensorsQuery.data.length === 0 && <EmptyState title={t('No sensors on this Device')} />}
       {sensorsQuery.data && sensorsQuery.data.length > 0 && shownSensors.length === 0 && (
         <EmptyState
-          title="All Sensors of this Device are hidden"
-          description="An Admin can show them again with the Visible switch of each Sensor on the Device page."
+          title={t('All Sensors of this Device are hidden')}
+          description={t('An Admin can show them again with the Visible switch of each Sensor on the Device page.')}
         />
       )}
 

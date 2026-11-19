@@ -6,6 +6,7 @@ import { useAppToast } from '@/components/ToastProvider';
 import { ACTIVE_RECALCULATION_PHASES, useCancelRecalculation, useRecalculationStatus, type RecalculationStatusDto } from '@/api/hooks/recalculation';
 import { queryKeys } from '@/api/queryKeys';
 import { formatDateTimeWithZone } from '@/lib/dateTime';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   box: { display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalS, marginBottom: tokens.spacingVerticalM },
@@ -41,6 +42,7 @@ const FINISHED_TITLE = { Recalculate: 'Recalculation finished', DeleteOnly: 'Cal
  * when no recalculation exists (the job lives in the API's memory and a restart forgets it).
  */
 export function RecalculationProgress({ deviceId, isAdmin }: { deviceId: number; isAdmin: boolean }) {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const queryClient = useQueryClient();
@@ -59,8 +61,8 @@ export function RecalculationProgress({ deviceId, isAdmin }: { deviceId: number;
       queryClient.invalidateQueries({ queryKey: ['telemetry'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.calculatedUpTo(deviceId) });
       if (data.status === 'Completed') toast.success(`${FINISHED_TITLE[jobKind(data)]}.`);
-      else if (data.status === 'Cancelled') toast.info('Recalculation stopped.');
-      else toast.error('Recalculation ended with errors; see the Device page.');
+      else if (data.status === 'Cancelled') toast.info(t('Recalculation stopped.'));
+      else toast.error(t('Recalculation ended with errors; see the Device page.'));
     }
     wasActive.current = active;
   }, [active, data, deviceId, queryClient, toast]);
@@ -78,21 +80,20 @@ export function RecalculationProgress({ deviceId, isAdmin }: { deviceId: number;
               {RUNNING_TITLE[jobKind(data)]}: {percent.toFixed(1)} %
             </MessageBarTitle>
             {jobKind(data) === 'DeleteOnly'
-              ? `${(data.sensorsFinished ?? 0).toLocaleString()} of ${(data.sensorsTotal ?? 0).toLocaleString()} Sensor(s) deleted`
-              : `${(data.doneReadings ?? 0).toLocaleString()} of ${(data.totalReadings ?? 0).toLocaleString()} values`}
+              ? t('{0} of {1} Sensor(s) deleted', (data.sensorsFinished ?? 0).toLocaleString(), (data.sensorsTotal ?? 0).toLocaleString())
+              : t('{0} of {1} values', (data.doneReadings ?? 0).toLocaleString(), (data.totalReadings ?? 0).toLocaleString())}
             {data.currentSensorName ? ` — ${data.currentSensorName}: ${phase}` : ''}
             {data.currentPhase === 'Vacuum' ? ` — ${phase}` : ''}
-            {` (${data.sensorsFinished ?? 0} of ${data.sensorsTotal ?? 0} Sensor(s) finished)`}
+            {t(' ({0} of {1} Sensor(s) finished)', data.sensorsFinished ?? 0, data.sensorsTotal ?? 0)}
           </MessageBarBody>
           {isAdmin && (
             <MessageBarActions>
               <Button size="small" onClick={() => cancel.mutate()} disabled={cancel.isPending}>
-                Stop
-              </Button>
+                {t('Stop')}</Button>
             </MessageBarActions>
           )}
         </MessageBar>
-        <ProgressBar value={percent / 100} aria-label="Recalculation progress" />
+        <ProgressBar value={percent / 100} aria-label={t('Recalculation progress')} />
         {cancel.isError && <ErrorState error={cancel.error} />}
       </div>
     );
@@ -109,27 +110,26 @@ export function RecalculationProgress({ deviceId, isAdmin }: { deviceId: number;
   const deleteOnly = (data.sensors ?? []).filter((s) => s.kind === 'DeleteOnly' && s.phase === 'Done').length;
   const kind = jobKind(data);
   const intent = data.status === 'Completed' ? 'success' : 'warning';
-  let title = 'Recalculation ended with errors';
+  let title = t('Recalculation ended with errors');
   if (data.status === 'Completed') title = FINISHED_TITLE[kind];
-  else if (data.status === 'Cancelled') title = 'Recalculation stopped';
+  else if (data.status === 'Cancelled') title = t('Recalculation stopped');
   return (
     <div className={styles.box}>
       <MessageBar intent={intent}>
         <MessageBarBody>
           <MessageBarTitle>{title}</MessageBarTitle>
           {kind === 'DeleteOnly'
-            ? `${deletedIssues} unreviewed Issue(s) deleted, ${keptIssues} reviewed Issue(s) kept; nothing was calculated (calculation is switched off).`
-            : `${(data.doneReadings ?? 0).toLocaleString()} of ${(data.totalReadings ?? 0).toLocaleString()} values evaluated; ${deletedIssues} unreviewed Issue(s) replaced, ${keptIssues} reviewed Issue(s) kept.`}
-          {kind === 'Recalculate' && deleteOnly > 0 && ` ${deleteOnly} Sensor(s) with calculation off were only deleted from.`}
-          {levelsReset > 0 && ` ${levelsReset} aggregation level(s) are being aggregated again in the background.`}
-          {skipped.length > 0 && <Text block>Left out: {skipped.map((s) => `${s.name} (${s.note})`).join('; ')}</Text>}
-          {failed.length > 0 && <Text block>Not finished: {failed.map((s) => `${s.name} (${s.note})`).join('; ')}</Text>}
+            ? t('{0} unreviewed Issue(s) deleted, {1} reviewed Issue(s) kept; nothing was calculated (calculation is switched off).', deletedIssues, keptIssues)
+            : t('{0} of {1} values evaluated; {2} unreviewed Issue(s) replaced, {3} reviewed Issue(s) kept.', (data.doneReadings ?? 0).toLocaleString(), (data.totalReadings ?? 0).toLocaleString(), deletedIssues, keptIssues)}
+          {kind === 'Recalculate' && deleteOnly > 0 && t(' {0} Sensor(s) with calculation off were only deleted from.', deleteOnly)}
+          {levelsReset > 0 && t(' {0} aggregation level(s) are being aggregated again in the background.', levelsReset)}
+          {skipped.length > 0 && <Text block>{t('Left out:')}{' '}{skipped.map((s) => `${s.name} (${s.note})`).join('; ')}</Text>}
+          {failed.length > 0 && <Text block>{t('Not finished:')}{' '}{failed.map((s) => `${s.name} (${s.note})`).join('; ')}</Text>}
           {data.error && <Text block>{data.error}</Text>}
         </MessageBarBody>
         <MessageBarActions>
           <Button size="small" onClick={() => setDismissedJobId(data.jobId ?? null)}>
-            Dismiss
-          </Button>
+            {t('Dismiss')}</Button>
         </MessageBarActions>
       </MessageBar>
     </div>
@@ -143,10 +143,11 @@ export function RecalculationProgress({ deviceId, isAdmin }: { deviceId: number;
  * middle is invisible; counting readings is too expensive on the real database). Nothing is shown until the first answer.
  */
 export function CalculatedUpToNote({ calculatedUpTo, loaded }: { calculatedUpTo: string | null | undefined; loaded: boolean }) {
+  const t = useT();
   if (!loaded) return null;
   return (
     <Text size={200} block style={{ color: tokens.colorNeutralForeground3 }}>
-      {calculatedUpTo ? `Analysed up to: ${formatDateTimeWithZone(calculatedUpTo)}` : 'Not analysed'}
+      {calculatedUpTo ? t('Analysed up to: {0}', formatDateTimeWithZone(calculatedUpTo)) : t('Not analysed')}
     </Text>
   );
 }
@@ -160,6 +161,7 @@ const RECALC_RESULT_VISIBLE_MS = 10 * 60 * 1000;
  * active and for a few minutes after it ended; a Sensor that is not part of the run shows nothing.
  */
 export function SensorRecalculationNote({ status, sensorId }: { status: RecalculationStatusDto | undefined; sensorId: number | undefined }) {
+  const t = useT();
   if (!status?.exists || sensorId === undefined) return null;
   const finishedAt = status.finishedAt ? new Date(status.finishedAt).getTime() : 0;
   if (!status.active && Date.now() - finishedAt > RECALC_RESULT_VISIBLE_MS) return null;
@@ -168,7 +170,7 @@ export function SensorRecalculationNote({ status, sensorId }: { status: Recalcul
   if (entry.phase === 'Skipped' || entry.phase === 'Failed') {
     return (
       <Text size={200} block style={{ color: tokens.colorPaletteRedForeground1 }}>
-        {entry.phase === 'Skipped' ? 'Not recalculated' : 'Recalculation not finished'}
+        {entry.phase === 'Skipped' ? t('Not recalculated') : t('Recalculation not finished')}
         {entry.note ? `: ${entry.note}` : ''}
       </Text>
     );
@@ -178,17 +180,17 @@ export function SensorRecalculationNote({ status, sensorId }: { status: Recalcul
   const percent = entry.phase === 'Done' ? 100 : total > 0 ? Math.floor((100 * done) / total) : 0;
   const working = ACTIVE_RECALCULATION_PHASES.includes(entry.phase ?? '');
   const catchUp = entry.kind === 'CatchUp';
-  let text = 'Waiting for its turn: 0 %';
-  if (entry.phase === 'Done' && entry.kind === 'DeleteOnly') text = 'Calculated values deleted (calculation off)';
-  else if (entry.phase === 'Done') text = catchUp ? 'Caught up: 100 %' : 'Recalculated: 100 %';
-  else if (working && entry.kind === 'DeleteOnly') text = 'Deleting the calculated values';
+  let text = t('Waiting for its turn: 0 %');
+  if (entry.phase === 'Done' && entry.kind === 'DeleteOnly') text = t('Calculated values deleted (calculation off)');
+  else if (entry.phase === 'Done') text = catchUp ? t('Caught up: 100 %') : t('Recalculated: 100 %');
+  else if (working && entry.kind === 'DeleteOnly') text = t('Deleting the calculated values');
   else if (working) text = `${catchUp ? 'Catching up' : 'Recalculating'}: ${percent} % (${done.toLocaleString()} / ${total.toLocaleString()})`;
   return (
     <div style={{ marginTop: tokens.spacingVerticalXXS, maxWidth: '260px' }}>
       <Text size={200} block style={{ color: tokens.colorBrandForeground1 }}>
         {text}
       </Text>
-      <ProgressBar value={percent / 100} thickness="medium" aria-label={`Recalculation progress of ${entry.name ?? 'the Sensor'}`} />
+      <ProgressBar value={percent / 100} thickness="medium" aria-label={t('Recalculation progress of {0}', entry.name ?? 'the Sensor')} />
     </div>
   );
 }

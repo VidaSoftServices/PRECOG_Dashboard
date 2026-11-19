@@ -4,6 +4,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ErrorState } from '@/components/states/ErrorState';
 import { useAppToast } from '@/components/ToastProvider';
 import { useDeleteIssuePermanently } from '@/api/hooks/issues';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   body: { display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalM },
@@ -37,6 +38,7 @@ export function DeleteIssueDialog({
   onClose: () => void;
   onDeleted: () => void;
 }) {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const remove = useDeleteIssuePermanently(deviceId);
@@ -52,7 +54,7 @@ export function DeleteIssueDialog({
   const confirm = async () => {
     const result = await remove.mutateAsync(issueId);
     const retrained = result.retrainingScheduledForDeviceIds?.length ?? 0;
-    toast.success(`Issue #${issueKey ?? issueId} deleted${retrained > 0 ? `; retraining requested for ${retrained} Device(s)` : ''}.`);
+    toast.success(t('Issue #{0} deleted{1}.', issueKey ?? issueId, retrained > 0 ? `; retraining requested for ${retrained} Device(s)` : ''));
     setAcknowledged(false);
     onDeleted();
   };
@@ -60,7 +62,7 @@ export function DeleteIssueDialog({
   return (
     <ConfirmDialog
       open={open}
-      title={`Delete Issue #${issueKey ?? issueId} permanently?`}
+      title={t('Delete Issue #{0} permanently?', issueKey ?? issueId)}
       intent="destructive"
       confirmLabel="Delete Issue"
       confirmDisabled={reviewed && !acknowledged}
@@ -70,29 +72,23 @@ export function DeleteIssueDialog({
     >
       <div className={styles.body}>
         <Text>
-          This permanently deletes the Issue with its category suggestion, Ollama summary and knowledge-share selections. It cannot be undone. The
-          measured values, the calculated values and the model history are not touched. To keep the Issue and only take back the verdict, use “Reopen for
-          review” instead.
-        </Text>
+          {t('This permanently deletes the Issue with its category suggestion, Ollama summary and knowledge-share selections. It cannot be undone. The measured values, the calculated values and the model history are not touched. To keep the Issue and only take back the verdict, use “Reopen for review” instead.')}</Text>
         {isCanonical && memberCount > 0 && (
           <MessageBar intent="info">
             <MessageBarBody>
-              This is the canonical Issue of a group: its {memberCount} member Issue(s) are not deleted, they become standalone Issues again.
-            </MessageBarBody>
+              {t('This is the canonical Issue of a group: its')}{' '}{memberCount} {t('member Issue(s) are not deleted, they become standalone Issues again.')}</MessageBarBody>
           </MessageBar>
         )}
         {reviewed && (
           <>
             <MessageBar intent="warning">
               <MessageBarBody>
-                A person has reviewed this Issue, so it is a training example. Deleting it removes that example: retraining is requested for this Device
-                and for every Device that receives it through an approved knowledge share.
-              </MessageBarBody>
+                {t('A person has reviewed this Issue, so it is a training example. Deleting it removes that example: retraining is requested for this Device and for every Device that receives it through an approved knowledge share.')}</MessageBarBody>
             </MessageBar>
             <Checkbox
               checked={acknowledged}
               onChange={(_, d) => setAcknowledged(d.checked === true)}
-              label="I understand that this reviewed Issue is removed from training and retraining is started."
+              label={t('I understand that this reviewed Issue is removed from training and retraining is started.')}
             />
           </>
         )}

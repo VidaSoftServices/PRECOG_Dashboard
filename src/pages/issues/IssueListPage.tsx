@@ -15,6 +15,7 @@ import { useIssues, useGroupIssues } from '@/api/hooks/issues';
 import { useDeviceSelection } from '@/lib/selectedDevice';
 import { formatDateTime } from '@/lib/dateTime';
 import { useAuth } from '@/auth/AuthContext';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   toolbar: {
@@ -42,6 +43,7 @@ const reviewFilters = [
 ];
 
 export function IssueListPage() {
+  const t = useT();
   const styles = useStyles();
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
@@ -79,20 +81,20 @@ export function IssueListPage() {
   const submitGroup = async () => {
     if (!canonicalChoice || selectedIds.length < 2) return;
     await groupIssues.mutateAsync({ issueIds: selectedIds, canonicalIssueId: canonicalChoice });
-    toast.success(`${selectedIds.length} Issues grouped`);
+    toast.success(t('{0} Issues grouped', selectedIds.length));
     setGroupDialogOpen(false);
     setGroupMode(false);
     setSelectedIds([]);
   };
 
-  if (devicesQuery.isLoading) return <LoadingState label="Loading devices…" />;
+  if (devicesQuery.isLoading) return <LoadingState label={t('Loading devices…')} />;
   if (devicesQuery.isError) return <ErrorState error={devicesQuery.error} onRetry={() => devicesQuery.refetch()} />;
 
   return (
     <>
       <PageHeader
-        title="Issues"
-        description="Canonical Issues for the selected Device, most recent first."
+        title={t('Issues')}
+        description={t('Canonical Issues for the selected Device, most recent first.')}
         actions={
           isAdmin && (
             <>
@@ -103,10 +105,10 @@ export function IssueListPage() {
                     disabled={selectedIds.length < 2}
                     onClick={openGroupDialog}
                   >
-                    Group {selectedIds.length > 0 ? `(${selectedIds.length})` : ''}
+                    {t('Group')}{' '}{selectedIds.length > 0 ? `(${selectedIds.length})` : ''}
                   </Button>
                   <Button icon={<Delete24Regular />} disabled={selectedIds.length < 1} onClick={() => setDeleteDialogOpen(true)}>
-                    Delete {selectedIds.length > 0 ? `(${selectedIds.length})` : ''}
+                    {t('Delete')}{' '}{selectedIds.length > 0 ? `(${selectedIds.length})` : ''}
                   </Button>
                   <Button
                     onClick={() => {
@@ -114,13 +116,11 @@ export function IssueListPage() {
                       setSelectedIds([]);
                     }}
                   >
-                    Cancel
-                  </Button>
+                    {t('Cancel')}</Button>
                 </>
               ) : (
                 <Button icon={<GroupList24Regular />} onClick={() => setGroupMode(true)}>
-                  Select to group
-                </Button>
+                  {t('Select to group')}</Button>
               )}
             </>
           )
@@ -128,26 +128,26 @@ export function IssueListPage() {
       />
 
       <div className={styles.toolbar}>
-        <Select aria-label="Device" value={effectiveDeviceId !== undefined ? String(effectiveDeviceId) : ''} onChange={(_, d) => setDeviceId(Number(d.value))}>
+        <Select aria-label={t('Device')} value={effectiveDeviceId !== undefined ? String(effectiveDeviceId) : ''} onChange={(_, d) => setDeviceId(Number(d.value))}>
           {devices.map((d) => (
             <option key={d.id} value={d.id}>
               {d.deviceName || d.externalDeviceId}
             </option>
           ))}
         </Select>
-        <Select aria-label="Review state filter" value={reviewFilter} onChange={(_, d) => setReviewFilter(d.value)}>
+        <Select aria-label={t('Review state filter')} value={reviewFilter} onChange={(_, d) => setReviewFilter(d.value)}>
           {reviewFilters.map((f) => (
             <option key={f.value} value={f.value}>
-              {f.label}
+              {t(f.label)}
             </option>
           ))}
         </Select>
-        <Switch checked={includeMembers} onChange={(_, d) => setIncludeMembers(d.checked)} label="Include grouped members (audit view)" />
+        <Switch checked={includeMembers} onChange={(_, d) => setIncludeMembers(d.checked)} label={t('Include grouped members (audit view)')} />
       </div>
 
-      {issuesQuery.isLoading && <LoadingState label="Loading issues…" />}
+      {issuesQuery.isLoading && <LoadingState label={t('Loading issues…')} />}
       {issuesQuery.isError && <ErrorState error={issuesQuery.error} onRetry={() => issuesQuery.refetch()} />}
-      {issuesQuery.isSuccess && filtered.length === 0 && <EmptyState title="No issues match" />}
+      {issuesQuery.isSuccess && filtered.length === 0 && <EmptyState title={t('No issues match')} />}
 
       {filtered.length > 0 && (
         <Card>
@@ -180,7 +180,7 @@ export function IssueListPage() {
                   </Text>
                   {!issue.isCanonical && (
                     <Badge appearance="outline" style={{ marginLeft: tokens.spacingHorizontalS }}>
-                      member of #{issue.canonicalIssueId}
+                      {t('member of #')}{issue.canonicalIssueId}
                     </Badge>
                   )}
                   {issue.issueCategoryName && (
@@ -191,7 +191,7 @@ export function IssueListPage() {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center' }}>
-                {issue.isCanonical && issue.memberCount ? <Badge appearance="tint">{issue.memberCount} members</Badge> : null}
+                {issue.isCanonical && issue.memberCount ? <Badge appearance="tint">{issue.memberCount} {t('members')}</Badge> : null}
                 <ReviewStatePill reviewState={issue.reviewState} />
               </div>
             </div>
@@ -212,8 +212,8 @@ export function IssueListPage() {
 
       <ConfirmDialog
         open={groupDialogOpen}
-        title={`Group ${selectedIds.length} Issues`}
-        confirmLabel={groupIssues.isPending ? 'Grouping…' : 'Group'}
+        title={t('Group {0} Issues', selectedIds.length)}
+        confirmLabel={groupIssues.isPending ? t('Grouping…') : t('Group')}
         busy={groupIssues.isPending}
         confirmDisabled={!canonicalChoice}
         onConfirm={submitGroup}
@@ -221,9 +221,7 @@ export function IssueListPage() {
       >
         <div className={styles.formGrid}>
           <Text size={200}>
-            Choose which selected Issue becomes the canonical representative. The rest become preserved members -
-            nothing is deleted.
-          </Text>
+            {t('Choose which selected Issue becomes the canonical representative. The rest become preserved members - nothing is deleted.')}</Text>
           <RadioGroup value={canonicalChoice !== undefined ? String(canonicalChoice) : ''} onChange={(_, d) => setCanonicalChoice(Number(d.value))}>
             {selectedIds.map((id) => {
               const issue = filtered.find((i) => i.id === id);

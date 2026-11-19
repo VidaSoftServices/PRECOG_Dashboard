@@ -9,12 +9,14 @@ import { useAppToast } from '@/components/ToastProvider';
 import { useOllamaJob, useCancelOllamaJob } from '@/api/hooks/ollama';
 import { useNumberSearchParam } from '@/lib/useNumberSearchParam';
 import { formatDateTimeWithZone } from '@/lib/dateTime';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   card: { padding: tokens.spacingVerticalM, display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalM },
 });
 
 export function OllamaJobsPage() {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const [jobId, setJobId] = useNumberSearchParam('jobId');
@@ -30,46 +32,43 @@ export function OllamaJobsPage() {
     if (!status || notifiedStatusRef.current === status) return;
     if (status === 'Succeeded') {
       notifiedStatusRef.current = status;
-      toast.success('Ollama job succeeded');
+      toast.success(t('Ollama job succeeded'));
     } else if (status === 'Failed') {
       notifiedStatusRef.current = status;
-      toast.error('Ollama job failed');
+      toast.error(t('Ollama job failed'));
     }
   }, [jobQuery.data?.status, toast]);
 
   return (
     <>
-      <PageHeader title="Ollama Jobs" description="Ollama job summary requests are submitted from an Issue's detail page and tracked here by id." />
+      <PageHeader title={t('Ollama Jobs')} description={t('Ollama job summary requests are submitted from an Issue\'s detail page and tracked here by id.')} />
 
       <MessageBar intent="info" style={{ marginBottom: tokens.spacingVerticalM }}>
         <MessageBarBody>
-          The API has no endpoint to list Ollama jobs - only submit, get-by-id, and cancel. This is a documented
-          backend gap; look up a specific job by id (or follow a link from an Issue) rather than expecting a full
-          history here.
-        </MessageBarBody>
+          {t('The API has no endpoint to list Ollama jobs - only submit, get-by-id, and cancel. This is a documented backend gap; look up a specific job by id (or follow a link from an Issue) rather than expecting a full history here.')}</MessageBarBody>
       </MessageBar>
 
       <Card className={styles.card} style={{ maxWidth: '420px', marginBottom: tokens.spacingVerticalL }}>
-        <Field label="Job ID">
+        <Field label={t('Job ID')}>
           <Input type="number" value={jobId !== undefined ? String(jobId) : ''} onChange={(_, d) => setJobId(d.value ? Number(d.value) : undefined)} />
         </Field>
       </Card>
 
-      {jobId !== undefined && jobQuery.isLoading && <LoadingState label="Loading job…" />}
+      {jobId !== undefined && jobQuery.isLoading && <LoadingState label={t('Loading job…')} />}
       {jobId !== undefined && jobQuery.isError && <ErrorState error={jobQuery.error} onRetry={() => jobQuery.refetch()} />}
 
       {jobQuery.data && (
         <Card className={styles.card}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Body1Strong>Job #{jobQuery.data.id}</Body1Strong>
+            <Body1Strong>{t('Job #')}{jobQuery.data.id}</Body1Strong>
             <JobStatusPill status={jobQuery.data.status} />
           </div>
           <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-            Created {formatDateTimeWithZone(jobQuery.data.createdAt)} · Requested by {jobQuery.data.actorType}
+            {t('Created')}{' '}{formatDateTimeWithZone(jobQuery.data.createdAt)} {t('· Requested by')}{' '}{jobQuery.data.actorType}
           </Text>
           {jobQuery.data.correlationId && (
             <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-              Correlation ID (safe to share with support): <code>{jobQuery.data.correlationId}</code>
+              {t('Correlation ID (safe to share with support):')}{' '}<code>{jobQuery.data.correlationId}</code>
             </Text>
           )}
           {jobQuery.data.resultText && <Text style={{ whiteSpace: 'pre-wrap' }}>{jobQuery.data.resultText}</Text>}
@@ -78,10 +77,10 @@ export function OllamaJobsPage() {
             <Button
               icon={<DismissCircle24Regular />}
               appearance="secondary"
-              onClick={() => cancelJob.mutate(undefined, { onSuccess: () => toast.info('Ollama job cancelled') })}
+              onClick={() => cancelJob.mutate(undefined, { onSuccess: () => toast.info(t('Ollama job cancelled')) })}
               disabled={cancelJob.isPending}
             >
-              {cancelJob.isPending ? 'Cancelling…' : 'Cancel'}
+              {cancelJob.isPending ? t('Cancelling…') : t('Cancel')}
             </Button>
           )}
         </Card>

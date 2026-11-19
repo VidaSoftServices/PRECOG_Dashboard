@@ -1,6 +1,7 @@
 import { QueryClient, QueryCache, MutationCache } from '@tanstack/react-query';
 import { ApiError } from './client';
 import { getToastApi } from '@/components/toastBridge';
+import { translate } from '@/lib/language';
 
 /**
  * Retry policy tuned to this specific API's documented rate limits (5-50
@@ -56,7 +57,7 @@ export function notifyGlobalFailure(error: unknown): void {
   if (error.status === 0) {
     toast.error('Check your connection and try again.', 'Connection lost');
   } else if (error.status === 429) {
-    const wait = error.retryAfterSeconds ? `Try again in ${error.retryAfterSeconds}s.` : 'Try again shortly.';
+    const wait = error.retryAfterSeconds ? translate('Try again in {0}s.', undefined, [error.retryAfterSeconds]) : 'Try again shortly.';
     toast.error(wait, 'Too many requests');
   }
 }

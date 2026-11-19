@@ -14,6 +14,7 @@ import {
 } from '@fluentui/react-components';
 import { useAuth } from '@/auth/AuthContext';
 import precogLogo from '@/images/Precog-Dashboard.svg';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   page: {
@@ -44,6 +45,7 @@ const useStyles = makeStyles({
 });
 
 export function LoginPage() {
+  const t = useT();
   const styles = useStyles();
   const { isAuthenticated, login, loginPending, loginError } = useAuth();
   const [userName, setUserName] = useState('');
@@ -65,15 +67,13 @@ export function LoginPage() {
   return (
     <div className={styles.page}>
       <Card className={styles.card}>
-        <img src={precogLogo} alt="PRECOG" className={styles.logo} />
+        <img src={precogLogo} alt={t('PRECOG')} className={styles.logo} />
         <Title1 as="h1" align="center">
-          Sign in
-        </Title1>
+          {t('Sign in')}</Title1>
         <Text align="center" style={{ color: tokens.colorNeutralForeground3 }}>
-          Predictive Industrial Sentinel AI
-        </Text>
+          {t('Predictive Industrial Sentinel AI')}</Text>
         <form className={styles.form} onSubmit={handleSubmit}>
-          <Field label="Username" required>
+          <Field label={t('Username')} required>
             <Input
               value={userName}
               onChange={(_, data) => setUserName(data.value)}
@@ -81,7 +81,7 @@ export function LoginPage() {
               autoComplete="username"
             />
           </Field>
-          <Field label="Password" required>
+          <Field label={t('Password')} required>
             <Input
               type="password"
               value={password}
@@ -96,7 +96,7 @@ export function LoginPage() {
             </MessageBar>
           )}
           <Button type="submit" appearance="primary" disabled={loginPending || !userName || !password}>
-            {loginPending ? 'Signing in…' : 'Sign in'}
+            {loginPending ? t('Signing in…') : t('Sign in')}
           </Button>
         </form>
       </Card>

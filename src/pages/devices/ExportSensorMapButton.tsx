@@ -5,6 +5,7 @@ import { useSensorMetadata } from '@/api/hooks/sensorMetadata';
 import { downloadTextFile } from '@/lib/downloadFile';
 import { buildSensorMap, sensorMapFileName, type SensorMapSensor } from '@/lib/sensorMap';
 import { toImportCatalog } from '@/lib/sensorImport';
+import { useT } from '@/lib/language';
 
 /**
  * "Export sensor for hardware" (the sensor_map.h of the firmware): downloads, as a .txt, exactly what the Vibration_Duo firmware's `include/sensor_map.h` needs - the
@@ -19,6 +20,7 @@ export function ExportSensorMapButton({
   device: { id?: number | null; deviceName?: string | null; externalDeviceId?: string | null };
   sensors: { id?: number | null; externalSensorId?: string | null }[];
 }) {
+  const t = useT();
   const catalogQuery = useSensorMetadata();
   const catalog = useMemo(() => toImportCatalog(catalogQuery.data), [catalogQuery.data]);
   const usable: SensorMapSensor[] = useMemo(
@@ -41,8 +43,7 @@ export function ExportSensorMapButton({
   return (
     <Tooltip content="Download the numeric SensorIds of this Device's existing Sensors as the text of the firmware's sensor_map.h" relationship="description">
       <Button icon={<DocumentArrowDown24Regular />} onClick={exportMap} disabled={disabled}>
-        Export sensor for hardware
-      </Button>
+        {t('Export sensor for hardware')}</Button>
     </Tooltip>
   );
 }

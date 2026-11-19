@@ -5,6 +5,7 @@ import { ErrorState } from '@/components/states/ErrorState';
 import { useAppToast } from '@/components/ToastProvider';
 import { useSetDeviceMaintenance } from '@/api/hooks/maintenance';
 import type { SensorDto } from '@/api/hooks/sensors';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   body: { display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalM },
@@ -31,6 +32,7 @@ export function MaintenanceAllDialog({
   open: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const setMaintenance = useSetDeviceMaintenance(deviceId);
@@ -59,7 +61,7 @@ export function MaintenanceAllDialog({
   const confirm = async () => {
     if (!choice) return;
     await setMaintenance.mutateAsync(starting);
-    toast.success(starting ? `Maintenance started on ${changing} Sensor(s).` : `Maintenance ended on ${changing} Sensor(s).`);
+    toast.success(starting ? t('Maintenance started on {0} Sensor(s).', changing) : t('Maintenance ended on {0} Sensor(s).', changing));
     setChosen(null);
     setAcknowledged(false);
     onClose();
@@ -68,9 +70,9 @@ export function MaintenanceAllDialog({
   return (
     <ConfirmDialog
       open={open}
-      title="Maintenance mode: all Sensors"
+      title={t('Maintenance mode: all Sensors')}
       intent={starting ? 'destructive' : 'normal'}
-      confirmLabel={choice === null ? 'Apply' : starting ? `Start maintenance on ${changing} Sensor(s)` : `End maintenance on ${changing} Sensor(s)`}
+      confirmLabel={choice === null ? t('Apply') : starting ? t('Start maintenance on {0} Sensor(s)', changing) : t('End maintenance on {0} Sensor(s)', changing)}
       confirmDisabled={choice === null || (starting && !acknowledged)}
       busy={setMaintenance.isPending}
       onConfirm={() => void confirm().catch(() => undefined)}
@@ -78,35 +80,32 @@ export function MaintenanceAllDialog({
     >
       <div className={styles.body}>
         <Text>
-          {inMaintenance} of {total} Sensor(s) of this Device are in maintenance mode now.
-        </Text>
+          {inMaintenance} {t('of')}{' '}{total} {t('Sensor(s) of this Device are in maintenance mode now.')}</Text>
         <RadioGroup
-          aria-label="Maintenance action for all Sensors"
+          aria-label={t('Maintenance action for all Sensors')}
           value={choice ?? ''}
           onChange={(_, d) => {
             setChosen(d.value as Choice);
             setAcknowledged(false);
           }}
         >
-          <Radio value="start" disabled={!canStart} label={`Start maintenance on all Sensors (${total - inMaintenance} not in maintenance yet)`} />
-          <Radio value="end" disabled={!canEnd} label={`End maintenance on all Sensors (${inMaintenance} in maintenance now)`} />
+          <Radio value="start" disabled={!canStart} label={t('Start maintenance on all Sensors ({0} not in maintenance yet)', total - inMaintenance)} />
+          <Radio value="end" disabled={!canEnd} label={t('End maintenance on all Sensors ({0} in maintenance now)', inMaintenance)} />
         </RadioGroup>
         {starting && (
           <>
             <MessageBar intent="warning">
               <MessageBarBody>
-                While a Sensor is in maintenance, every value the Device sends for it is accepted but ignored: it is not stored and not analysed, so
-                no Issue can be raised from it. Data sent during maintenance cannot be recovered afterwards.
-              </MessageBarBody>
+                {t('While a Sensor is in maintenance, every value the Device sends for it is accepted but ignored: it is not stored and not analysed, so no Issue can be raised from it. Data sent during maintenance cannot be recovered afterwards.')}</MessageBarBody>
             </MessageBar>
             <Checkbox
               checked={acknowledged}
               onChange={(_, d) => setAcknowledged(d.checked === true)}
-              label="I understand that telemetry of all these Sensors is lost while they are in maintenance."
+              label={t('I understand that telemetry of all these Sensors is lost while they are in maintenance.')}
             />
           </>
         )}
-        {choice === 'end' && <Text>The Device’s values for these Sensors will be stored and analysed again from now on.</Text>}
+        {choice === 'end' && <Text>{t('The Device’s values for these Sensors will be stored and analysed again from now on.')}</Text>}
         {setMaintenance.isError && <ErrorState error={setMaintenance.error} />}
       </div>
     </ConfirmDialog>

@@ -3,6 +3,7 @@ import { Combobox, Option, Field, Text, tokens } from '@fluentui/react-component
 import { ConfirmDialog } from './ConfirmDialog';
 import { useIssues, type IssueDto } from '@/api/hooks/issues';
 import { formatDateTime } from '@/lib/dateTime';
+import { useT } from '@/lib/language';
 
 interface MoveToCanonicalDialogProps {
   open: boolean;
@@ -57,6 +58,7 @@ export function MoveToCanonicalDialog({
   onConfirm,
   onCancel,
 }: MoveToCanonicalDialogProps) {
+  const t = useT();
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<number | undefined>();
 
@@ -81,7 +83,7 @@ export function MoveToCanonicalDialog({
   return (
     <ConfirmDialog
       open={open}
-      title="Move to another canonical Issue"
+      title={t('Move to another canonical Issue')}
       confirmLabel="Move"
       busy={busy}
       confirmDisabled={!selectedId}
@@ -89,13 +91,11 @@ export function MoveToCanonicalDialog({
       onCancel={handleClose}
     >
       <Text size={200} style={{ display: 'block', marginBottom: tokens.spacingVerticalM, color: tokens.colorNeutralForeground3 }}>
-        Choose the canonical Issue this member should belong to instead. Only canonical Issues on the same Device are
-        valid targets.
-      </Text>
-      <Field label="Target canonical Issue" validationState={error ? 'error' : 'none'} validationMessage={error instanceof Error ? error.message : undefined}>
+        {t('Choose the canonical Issue this member should belong to instead. Only canonical Issues on the same Device are valid targets.')}</Text>
+      <Field label={t('Target canonical Issue')} validationState={error ? 'error' : 'none'} validationMessage={error instanceof Error ? error.message : undefined}>
         <Combobox
           value={selected ? issueLabel(selected) : query}
-          placeholder={candidatesQuery.isLoading ? 'Loading…' : 'Search by Issue number or date…'}
+          placeholder={candidatesQuery.isLoading ? t('Loading…') : t('Search by Issue number or date…')}
           disabled={candidatesQuery.isLoading}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -106,7 +106,7 @@ export function MoveToCanonicalDialog({
             setQuery('');
           }}
         >
-          {candidates.length === 0 && <Option key="none" value="" disabled text="No other canonical Issues found">No other canonical Issues on this Device</Option>}
+          {candidates.length === 0 && <Option key="none" value="" disabled text="No other canonical Issues found">{t('No other canonical Issues on this Device')}</Option>}
           {candidates.map((c) => (
             <Option key={c.id} value={String(c.id)} text={issueLabel(c)}>
               {issueLabel(c)}

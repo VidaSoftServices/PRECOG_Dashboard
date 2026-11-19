@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef } from 'react';
+import { tr, translate, useLanguage } from '@/lib/language';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -19,6 +20,7 @@ import { seriesPalette, seriesDashPatterns, anomalyColors } from './palette';
 import { formatDateTime, formatShortDateTime, formatTime } from '@/lib/dateTime';
 import { seriesAverage } from '@/lib/seriesAverage';
 import { plainLegendName, plainTooltipName } from './seriesNames';
+import { useT } from '@/lib/language';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
@@ -134,7 +136,7 @@ function detailedDatasets(
 ): ChartData<'line'>['datasets'] {
   const name = (suffix: string) => `${s.label} ${suffix}`;
   const plain = (suffix: string, data: (number | null)[], color: string, width: number, dash: number[], extra: object = {}) => ({
-    label: name(suffix),
+    label: name(translate(suffix)),
     data,
     borderColor: color,
     borderDash: dash,
@@ -211,17 +213,17 @@ function anomalyPointColor(point: TelemetryPoint, base: string): string {
 }
 
 function summarize(series: TelemetrySeriesInput[], averageLine: boolean): string {
-  if (series.length === 0 || series.every((s) => s.points.length === 0)) return 'No data in range.';
+  if (series.length === 0 || series.every((s) => s.points.length === 0)) return translate('No data in range.');
   const parts = series.map((s) => {
     const points = s.points.filter((p) => p.actual != null);
-    if (points.length === 0) return `${s.label}: no data`;
+    if (points.length === 0) return tr('{0}: no data', s.label);
     const last = points[points.length - 1]!;
     const criticalCount = points.filter((p) => (p.anomaly ?? Math.max(p.anomalyAbove ?? 0, p.anomalyBelow ?? 0)) === 2).length;
     const warningCount = points.filter((p) => (p.anomaly ?? Math.max(p.anomalyAbove ?? 0, p.anomalyBelow ?? 0)) === 1).length;
-    const anomalyPart = criticalCount || warningCount ? `, ${criticalCount} critical / ${warningCount} warning point(s)` : '';
+    const anomalyPart = criticalCount || warningCount ? tr(', {0} critical / {1} warning point(s)', criticalCount, warningCount) : '';
     const average = averageLine ? seriesAverage(points) : null;
-    const averagePart = average ? `, average ${Number(average.value.toPrecision(4))}${s.unitLabel ? ` ${s.unitLabel}` : ''} over ${average.count} points` : '';
-    return `${s.label}: latest ${last.actual}${s.unitLabel ? ` ${s.unitLabel}` : ''} at ${formatDateTime(last.measured)}${anomalyPart}${averagePart}`;
+    const averagePart = average ? tr(', average {0} over {1} points', `${Number(average.value.toPrecision(4))}${s.unitLabel ? ` ${s.unitLabel}` : ''}`, average.count) : '';
+    return tr('{0}: latest {1} at {2}', s.label, `${last.actual}${s.unitLabel ? ` ${s.unitLabel}` : ''}`, formatDateTime(last.measured)) + anomalyPart + averagePart;
   });
   return parts.join(' · ');
 }
@@ -241,8 +243,10 @@ export function TelemetryChart({
   detailedLimits = false,
   onEnlarge,
 }: TelemetryChartProps) {
+  const t = useT();
   const styles = useStyles();
   const summaryId = useId();
+  const { language } = useLanguage();
   // The latest callback without rebuilding the chart options (and so the chart) every time the caller re-renders.
   const enlargeRef = useRef(onEnlarge);
   useEffect(() => {
@@ -309,7 +313,7 @@ export function TelemetryChart({
         const average = seriesAverage(s.points);
         if (average) {
           datasets.push({
-            label: `${s.label} average`,
+            label: `${s.label} ${translate('average')}`,
             data: labels.map(() => average.value),
             borderColor: color,
             borderDash: [10, 4],
@@ -325,7 +329,7 @@ export function TelemetryChart({
           ? aligned.map((p) => p?.targetAbove ?? null)
           : aligned.map((p) => p?.target ?? null);
         datasets.push({
-          label: `${s.label} Target`,
+          label: `${s.label} ${translate('Target')}`,
           data: target,
           borderColor: anomalyColors.warning,
           borderDash: [4, 4],
@@ -411,7 +415,7 @@ export function TelemetryChart({
     };
 
     return { data: chartData, options: chartOptions };
-  }, [series, mode, showControlLimits, averageLine, plainTooltip, detailedLimits, title, timeAxis, compact, emphasizeHover, enlargeable]);
+  }, [series, mode, showControlLimits, averageLine, plainTooltip, detailedLimits, title, timeAxis, compact, emphasizeHover, enlargeable, language]);
 
   const isEmpty = series.every((s) => s.points.length === 0);
 
@@ -419,7 +423,7 @@ export function TelemetryChart({
     <div className={styles.root}>
       <div className={styles.canvasWrap} style={{ height }}>
         {isEmpty ? (
-          <Text className={styles.summary}>{emptyLabel ?? 'No telemetry in this range.'}</Text>
+          <Text className={styles.summary}>{emptyLabel ?? t('No telemetry in this range.')}</Text>
         ) : (
           <Line data={data} options={options} aria-labelledby={summaryId} />
         )}

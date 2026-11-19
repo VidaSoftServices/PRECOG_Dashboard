@@ -1,6 +1,7 @@
 import { MessageBar, MessageBarBody, Text, tokens } from '@fluentui/react-components';
 import { TypeNameConfirmDialog } from '@/components/TypeNameConfirmDialog';
 import { useDeleteDevice, useDeleteDeviceData, type DeviceDeletionResult, type DeviceDataDeletionResult } from '@/api/hooks/devices';
+import { useT } from '@/lib/language';
 
 /** What the server removes with a Device - shown before the user is asked to confirm. */
 const REMOVED = [
@@ -56,6 +57,7 @@ export function DeleteDeviceDialog({
   onClose: () => void;
   onDeleted: (result: DeviceDeletionResult) => void;
 }) {
+  const t = useT();
   const remove = useDeleteDevice(deviceId);
   const expected = deleteConfirmationName(device);
 
@@ -67,30 +69,25 @@ export function DeleteDeviceDialog({
       warning={
         <>
           <MessageBar intent="error">
-            <MessageBarBody>This cannot be undone. The deleted data cannot be recovered.</MessageBarBody>
+            <MessageBarBody>{t('This cannot be undone. The deleted data cannot be recovered.')}</MessageBarBody>
           </MessageBar>
           <Text block style={{ marginTop: tokens.spacingVerticalM }}>
-            Deleting <b>{expected}</b> permanently removes:
-          </Text>
+            {t('Deleting')}{' '}<b>{expected}</b> {t('permanently removes:')}</Text>
           <ul style={list}>
             {REMOVED.map((item) => (
-              <li key={item}>{item}</li>
+              <li key={item}>{t(item)}</li>
             ))}
           </ul>
           <ul style={list}>
-            <li>Take a database backup first - nothing can restore a deleted device afterwards.</li>
-            <li>A device with a lot of telemetry can take several minutes to delete. Keep this page open until it finishes.</li>
-            <li>Other devices that were receiving this device&apos;s shared knowledge are scheduled for retraining.</li>
+            <li>{t('Take a database backup first - nothing can restore a deleted device afterwards.')}</li>
+            <li>{t('A device with a lot of telemetry can take several minutes to delete. Keep this page open until it finishes.')}</li>
+            <li>{t('Other devices that were receiving this device\'s shared knowledge are scheduled for retraining.')}</li>
             <li>
-              The device&apos;s id may be given to a device created later. Its credentials are deleted, so the old firmware can no longer
-              sign in - reconfigure any physical device that still uses it.
-            </li>
-            <li>The deletion is logged (who, which device, how much was removed).</li>
+              {t('The device\'s id may be given to a device created later. Its credentials are deleted, so the old firmware can no longer sign in - reconfigure any physical device that still uses it.')}</li>
+            <li>{t('The deletion is logged (who, which device, how much was removed).')}</li>
           </ul>
           <Text block size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-            Only want it out of the way? Disable the device instead - that keeps all of its data. Only want to clear the measured values? Use
-            &quot;Delete all data&quot; instead - that keeps the device and its settings.
-          </Text>
+            {t('Only want it out of the way? Disable the device instead - that keeps all of its data. Only want to clear the measured values? Use "Delete all data" instead - that keeps the device and its settings.')}</Text>
         </>
       }
       confirmPrompt="To delete this device for good, type its name exactly as shown:"
@@ -124,6 +121,7 @@ export function DeleteDeviceDataDialog({
   onClose: () => void;
   onDeleted: (result: DeviceDataDeletionResult) => void;
 }) {
+  const t = useT();
   const remove = useDeleteDeviceData(deviceId);
   const expected = deleteConfirmationName(device);
 
@@ -135,32 +133,31 @@ export function DeleteDeviceDataDialog({
       warning={
         <>
           <MessageBar intent="error">
-            <MessageBarBody>This cannot be undone. The deleted measurements cannot be recovered.</MessageBarBody>
+            <MessageBarBody>{t('This cannot be undone. The deleted measurements cannot be recovered.')}</MessageBarBody>
           </MessageBar>
           <Text block style={{ marginTop: tokens.spacingVerticalM }}>
-            This permanently removes, for <b>{expected}</b>:
+            {t('This permanently removes, for')}{' '}<b>{expected}</b>:
           </Text>
           <ul style={list}>
             {DATA_REMOVED.map((item) => (
-              <li key={item}>{item}</li>
+              <li key={item}>{t(item)}</li>
             ))}
           </ul>
-          <Text block>It keeps:</Text>
+          <Text block>{t('It keeps:')}</Text>
           <ul style={list}>
             {DATA_KEPT.map((item) => (
-              <li key={item}>{item}</li>
+              <li key={item}>{t(item)}</li>
             ))}
           </ul>
           <ul style={list}>
-            <li>Take a database backup first - nothing can restore deleted measurements afterwards.</li>
-            <li>A device with a lot of telemetry can take several minutes. Keep this page open until it finishes.</li>
-            <li>The device keeps receiving new data as usual; only what was stored so far is deleted. With no model, new data is not analysed against one until it is trained again.</li>
-            <li>Other devices that were receiving this device&apos;s shared knowledge are scheduled for retraining.</li>
-            <li>The action is logged (who, which device, how many rows).</li>
+            <li>{t('Take a database backup first - nothing can restore deleted measurements afterwards.')}</li>
+            <li>{t('A device with a lot of telemetry can take several minutes. Keep this page open until it finishes.')}</li>
+            <li>{t('The device keeps receiving new data as usual; only what was stored so far is deleted. With no model, new data is not analysed against one until it is trained again.')}</li>
+            <li>{t('Other devices that were receiving this device\'s shared knowledge are scheduled for retraining.')}</li>
+            <li>{t('The action is logged (who, which device, how many rows).')}</li>
           </ul>
           <Text block size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-            Meant for clearing a device after testing. To remove the device itself and everything of it, delete the device instead.
-          </Text>
+            {t('Meant for clearing a device after testing. To remove the device itself and everything of it, delete the device instead.')}</Text>
         </>
       }
       confirmPrompt="To delete all data of this device, type its name exactly as shown:"

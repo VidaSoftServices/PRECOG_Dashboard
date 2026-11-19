@@ -2,6 +2,7 @@ import { Body1Strong, Card, MessageBar, MessageBarBody, Text, makeStyles, tokens
 import type { SensorDto } from '@/api/hooks/sensors';
 import { useSensorMetadata } from '@/api/hooks/sensorMetadata';
 import { findKnownMetric, toImportCatalog } from '@/lib/sensorImport';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   card: { padding: tokens.spacingVerticalM, display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalS, marginBottom: tokens.spacingVerticalL },
@@ -19,6 +20,7 @@ const useStyles = makeStyles({
  * invents a unit.
  */
 export function MetricDefinitionCard({ sensor }: { sensor: SensorDto }) {
+  const t = useT();
   const styles = useStyles();
   const catalogQuery = useSensorMetadata();
   const catalog = toImportCatalog(catalogQuery.data);
@@ -27,37 +29,35 @@ export function MetricDefinitionCard({ sensor }: { sensor: SensorDto }) {
   const complete = !!sensor.unitCode;
 
   return (
-    <Card className={styles.card} aria-label="Metric definition">
-      <Body1Strong>Metric definition</Body1Strong>
+    <Card className={styles.card} aria-label={t('Metric definition')}>
+      <Body1Strong>{t('Metric definition')}</Body1Strong>
 
       {!complete && known && (
         <MessageBar intent="error">
           <MessageBarBody>
-            This Sensor is the known metric &quot;{known.machineName}&quot; but its unit is missing. An administrator must complete it
-            (expected unit code {known.unitCode}); nothing is guessed here.
-          </MessageBarBody>
+            {t('This Sensor is the known metric "')}{known.machineName}{t('" but its unit is missing. An administrator must complete it (expected unit code')}{' '}{known.unitCode}{t('); nothing is guessed here.')}</MessageBarBody>
         </MessageBar>
       )}
       {!complete && !known && (
         <MessageBar intent="info">
-          <MessageBarBody>This Sensor has no unit.</MessageBarBody>
+          <MessageBarBody>{t('This Sensor has no unit.')}</MessageBarBody>
         </MessageBar>
       )}
 
       <div className={styles.grid}>
-        <Text className={styles.label}>Display name</Text>
+        <Text className={styles.label}>{t('Display name')}</Text>
         <Text>{sensor.name || '—'}</Text>
 
-        <Text className={styles.label}>Sensor name</Text>
+        <Text className={styles.label}>{t('Sensor name')}</Text>
         <Text className={styles.technical}>{sensor.externalSensorId}</Text>
 
-        <Text className={styles.label}>Unit</Text>
+        <Text className={styles.label}>{t('Unit')}</Text>
         <Text>
           {sensor.unitLabel ?? sensor.unitCode ?? '—'}
           {sensor.unitCode && (
             <>
               {' '}
-              <span className={styles.technical}>(unit code: {sensor.unitCode})</span>
+              <span className={styles.technical}>{t('(unit code:')}{' '}{sensor.unitCode})</span>
             </>
           )}
         </Text>

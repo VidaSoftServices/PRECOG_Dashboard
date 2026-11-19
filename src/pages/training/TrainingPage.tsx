@@ -12,6 +12,7 @@ import { useDeviceSelection } from '@/lib/selectedDevice';
 import { formatDateTime, formatRelative } from '@/lib/dateTime';
 import { useAuth } from '@/auth/AuthContext';
 import { useAppToast } from '@/components/ToastProvider';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   toolbar: { display: 'flex', gap: tokens.spacingHorizontalM, marginBottom: tokens.spacingVerticalL, alignItems: 'center', flexWrap: 'wrap' },
@@ -29,6 +30,7 @@ const useStyles = makeStyles({
  * here or on the backend.
  */
 export function TrainingPage() {
+  const t = useT();
   const styles = useStyles();
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
@@ -40,14 +42,14 @@ export function TrainingPage() {
   const requestsQuery = useTrainingRequests(effectiveDeviceId);
   const createRequest = useCreateTrainingRequest(effectiveDeviceId ?? -1);
 
-  if (devicesQuery.isLoading) return <LoadingState label="Loading devices…" />;
+  if (devicesQuery.isLoading) return <LoadingState label={t('Loading devices…')} />;
   if (devicesQuery.isError) return <ErrorState error={devicesQuery.error} onRetry={() => devicesQuery.refetch()} />;
 
   return (
     <>
       <PageHeader
-        title="Training & Models"
-        description="Model training requests and lifecycle for the selected Device."
+        title={t('Training & Models')}
+        description={t('Model training requests and lifecycle for the selected Device.')}
         actions={
           effectiveDeviceId !== undefined && (
             <>
@@ -62,23 +64,22 @@ export function TrainingPage() {
                       // existing Pending request or created a new one isn't
                       // knowable from the response - only from the refetched
                       // list below, which the mutation already invalidates.
-                      onSuccess: () => toast.success('Retraining requested'),
+                      onSuccess: () => toast.success(t('Retraining requested')),
                     })
                   }
                 >
-                  {createRequest.isPending ? 'Requesting…' : 'Request retraining'}
+                  {createRequest.isPending ? t('Requesting…') : t('Request retraining')}
                 </Button>
               )}
               <Button icon={<Search24Regular />} onClick={() => navigate(`/devices/${effectiveDeviceId}/model-query`)}>
-                Model query
-              </Button>
+                {t('Model query')}</Button>
             </>
           )
         }
       />
 
       <div className={styles.toolbar}>
-        <Select aria-label="Device" value={effectiveDeviceId !== undefined ? String(effectiveDeviceId) : ''} onChange={(_, d) => setDeviceId(Number(d.value))}>
+        <Select aria-label={t('Device')} value={effectiveDeviceId !== undefined ? String(effectiveDeviceId) : ''} onChange={(_, d) => setDeviceId(Number(d.value))}>
           {devices.map((d) => (
             <option key={d.id} value={d.id}>
               {d.deviceName || d.externalDeviceId}
@@ -89,26 +90,24 @@ export function TrainingPage() {
 
       <MessageBar intent="info" style={{ marginBottom: tokens.spacingVerticalM }}>
         <MessageBarBody>
-          There is no ModelVersion history endpoint in the current API - only the active model reference on each
-          TrainingRequest is available. Previous-version browsing is a documented backend gap, not shown here.
-        </MessageBarBody>
+          {t('There is no ModelVersion history endpoint in the current API - only the active model reference on each TrainingRequest is available. Previous-version browsing is a documented backend gap, not shown here.')}</MessageBarBody>
       </MessageBar>
 
       {createRequest.isError && <ErrorState error={createRequest.error} />}
 
-      {requestsQuery.isLoading && <LoadingState label="Loading training requests…" />}
+      {requestsQuery.isLoading && <LoadingState label={t('Loading training requests…')} />}
       {requestsQuery.isError && <ErrorState error={requestsQuery.error} onRetry={() => requestsQuery.refetch()} />}
-      {requestsQuery.data && requestsQuery.data.length === 0 && <EmptyState title="No training requests yet" />}
+      {requestsQuery.data && requestsQuery.data.length === 0 && <EmptyState title={t('No training requests yet')} />}
 
       {requestsQuery.data && requestsQuery.data.length > 0 && (
         <Card>
           {requestsQuery.data.map((request) => (
             <div key={request.id} className={styles.row}>
               <div>
-                <Text weight="semibold">Generation {request.requestedGeneration}</Text>
+                <Text weight="semibold">{t('Generation')}{' '}{request.requestedGeneration}</Text>
                 <br />
                 <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-                  Requested {formatRelative(request.requestedAt)} · {(request.triggerReasons ?? []).join(', ') || 'manual'}
+                  {t('Requested')}{' '}{formatRelative(request.requestedAt)} · {(request.triggerReasons ?? []).join(', ') || 'manual'}
                 </Text>
                 {request.failureReason && (
                   <Text size={200} style={{ color: tokens.colorPaletteRedForeground1, display: 'block' }}>

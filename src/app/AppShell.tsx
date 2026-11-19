@@ -37,6 +37,8 @@ import {
 import { navEntries } from './navConfig';
 import { useAuth } from '@/auth/AuthContext';
 import { useAppTheme } from '@/theme/ThemeContext';
+import { LANGUAGES, useLanguage, useT } from '@/lib/language';
+import { Translate24Regular } from '@fluentui/react-icons';
 import { useBreakpoint } from '@/lib/useMediaQuery';
 import { NoCompanyState } from '@/components/states/NoCompanyState';
 import precogLogo from '@/images/Precog-Dashboard.svg';
@@ -135,7 +137,31 @@ function useCrumbs(): { label: string; path: string }[] {
   return crumbs;
 }
 
+function LanguageMenu() {
+  const { language, setLanguage } = useLanguage();
+  const t = useT();
+  return (
+    <Menu checkedValues={{ language: [language] }} onCheckedValueChange={(_, d) => { const next = d.checkedItems[0]; if (next === 'en' || next === 'hu') setLanguage(next); }}>
+      <MenuTrigger disableButtonEnhancement>
+        <ToolbarButton icon={<Translate24Regular />} aria-label={t('Language')} title={t('Language')}>
+          {language.toUpperCase()}
+        </ToolbarButton>
+      </MenuTrigger>
+      <MenuPopover>
+        <MenuList>
+          {LANGUAGES.map((l) => (
+            <MenuItemRadio key={l} name="language" value={l}>
+              {l === 'en' ? 'English' : 'Magyar'}
+            </MenuItemRadio>
+          ))}
+        </MenuList>
+      </MenuPopover>
+    </Menu>
+  );
+}
+
 function ThemeMenu() {
+  const t = useT();
   const { preference, setPreference } = useAppTheme();
   const icon =
     preference === 'dark' ? <WeatherMoon24Regular /> : preference === 'light' ? <WeatherSunny24Regular /> : <DesktopFlow24Regular />;
@@ -148,7 +174,7 @@ function ThemeMenu() {
   return (
     <Menu checkedValues={{ theme: [preference] }} onCheckedValueChange={onCheckedChange}>
       <MenuTrigger disableButtonEnhancement>
-        <ToolbarButton icon={icon} aria-label="Theme" title="Theme" />
+        <ToolbarButton icon={icon} aria-label={t('Theme')} title={t('Theme')} />
       </MenuTrigger>
       <MenuPopover>
         <MenuList>
@@ -169,6 +195,7 @@ function ThemeMenu() {
 
 export function AppShell() {
   const styles = useStyles();
+  const t = useT();
   const breakpoint = useBreakpoint();
   const isCompact = breakpoint !== 'desktop';
   const [drawerOpen, setDrawerOpen] = useState(!isCompact ? true : false);
@@ -223,7 +250,7 @@ export function AppShell() {
                 if (isCompact) setDrawerOpen(false);
               }}
             >
-              {entry.label}
+              {t(entry.label)}
             </NavItem>
           ))}
         </NavDrawerBody>
@@ -232,7 +259,7 @@ export function AppShell() {
       <div className={styles.main}>
         <div className={styles.topBar}>
           <div className={styles.topBarLeft}>
-            {isCompact && <Hamburger onClick={() => setDrawerOpen((v) => !v)} aria-label="Toggle navigation" />}
+            {isCompact && <Hamburger onClick={() => setDrawerOpen((v) => !v)} aria-label={t('Toggle navigation')} />}
             {crumbs.length > 0 && (
               <Breadcrumb size="large" list={{ className: styles.crumbList }}>
                 {crumbs.map((crumb, index) => (
@@ -249,7 +276,7 @@ export function AppShell() {
                         current={index === crumbs.length - 1}
                         onClick={() => navigate(crumb.path)}
                       >
-                        {crumb.label}
+                        {t(crumb.label)}
                       </BreadcrumbButton>
                     </BreadcrumbItem>
                   </Fragment>
@@ -257,14 +284,15 @@ export function AppShell() {
               </Breadcrumb>
             )}
           </div>
-          <Toolbar aria-label="Page actions" style={{ display: 'flex', alignItems: 'center', gap: tokens.spacingHorizontalS }}>
+          <Toolbar aria-label={t('Page actions')} style={{ display: 'flex', alignItems: 'center', gap: tokens.spacingHorizontalS }}>
+            <LanguageMenu />
             <ThemeMenu />
             <ToolbarDivider />
             <Menu>
               <MenuTrigger disableButtonEnhancement>
                 <ToolbarButton
                   icon={<Avatar name={userDetails?.displayName ?? undefined} size={24} />}
-                  aria-label="Account"
+                  aria-label={t('Account')}
                 >
                   {!isCompact && (userDetails?.displayName ?? '…')}
                 </ToolbarButton>
@@ -272,7 +300,7 @@ export function AppShell() {
               <MenuPopover>
                 <MenuList>
                   <MenuItem icon={<ArrowExit20Regular />} onClick={logout}>
-                    Sign out
+                    {t('Sign out')}
                   </MenuItem>
                 </MenuList>
               </MenuPopover>

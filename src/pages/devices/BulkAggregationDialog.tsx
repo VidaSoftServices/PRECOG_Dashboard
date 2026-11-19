@@ -52,6 +52,7 @@ import {
   timeZoneOptions,
   type Option,
 } from '@/lib/aggregationOptions';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   body: { display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalM },
@@ -72,10 +73,11 @@ const useStyles = makeStyles({
 type Mode = 'create' | 'deactivate' | 'import';
 
 function Choice({ label, hint, value, onChange, options }: { label: string; hint?: string; value: string; onChange: (v: string) => void; options: readonly Option[] }) {
+  const t = useT();
   return (
     <Field label={label} required hint={hint}>
       <Select value={value} onChange={(_, d) => onChange(d.value)}>
-        <option value="">Choose…</option>
+        <option value="">{t('Choose…')}</option>
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
@@ -103,6 +105,7 @@ const MAX_LISTED_PROBLEMS = 50;
  * Company Admin only.
  */
 export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { deviceId: number; sensors: readonly SensorDto[]; open: boolean; onClose: () => void }) {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const queryClient = useQueryClient();
@@ -159,7 +162,7 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
       const policies = await fetchDeviceAggregationPolicies(queryClient, deviceId);
       downloadTextFile(aggregationExportFileName(deviceId), buildAggregationExportCsv(policies ?? [], sensors));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'The export failed.', 'Export failed');
+      toast.error(e instanceof Error ? e.message : t('The export failed.'), t('Export failed'));
     } finally {
       setExporting(false);
     }
@@ -207,7 +210,7 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
         total.items = [...(total.items ?? []), ...(outcome.items ?? []).map((i) => ({ ...i, message: [label, i.message].filter(Boolean).join(' — ') }))];
       }
       setResult(total);
-      toast.success(`Imported: ${total.created} created, ${total.reactivated} switched on again, ${total.updated} updated, ${total.alreadyExisted} already there.`);
+      toast.success(t('Imported: {0} created, {1} switched on again, {2} updated, {3} already there.', total.created, total.reactivated, total.updated, total.alreadyExisted));
     } catch (error) {
       setImportFailure(error instanceof Error ? error.message : 'The import stopped because of an error.');
       if ((total.items?.length ?? 0) > 0) setResult(total);
@@ -235,8 +238,8 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
     setResult(outcome);
     toast.success(
       mode === 'create'
-        ? `Aggregation level: ${outcome.created ?? 0} created, ${outcome.reactivated ?? 0} switched on again, ${outcome.updated ?? 0} updated, ${outcome.alreadyExisted ?? 0} already there.`
-        : `Aggregation level deactivated for ${outcome.deactivated ?? 0} Sensor(s).`,
+        ? t('Aggregation level: {0} created, {1} switched on again, {2} updated, {3} already there.', outcome.created ?? 0, outcome.reactivated ?? 0, outcome.updated ?? 0, outcome.alreadyExisted ?? 0)
+        : t('Aggregation level deactivated for {0} Sensor(s).', outcome.deactivated ?? 0),
     );
   };
 
@@ -244,33 +247,33 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
   const shownProblems = parsed?.problems.slice(0, MAX_LISTED_PROBLEMS) ?? [];
   const buttonLabel =
     mode === 'import'
-      ? `Import ${parsed?.groups.length ?? 0} level(s) for ${parsed?.sensorCount ?? 0} Sensor(s)`
+      ? t('Import {0} level(s) for {1} Sensor(s)', parsed?.groups.length ?? 0, parsed?.sensorCount ?? 0)
       : mode === 'create'
-        ? `Add for ${count} Sensor(s)`
-        : `Deactivate for ${count} Sensor(s)`;
+        ? t('Add for {0} Sensor(s)', count)
+        : t('Deactivate for {0} Sensor(s)', count);
 
   return (
     <Dialog open={open} onOpenChange={(_, d) => !d.open && close()}>
       <DialogSurface style={{ maxWidth: '760px', width: '95vw' }}>
         <DialogBody>
-          <DialogTitle>Bulk aggregation</DialogTitle>
+          <DialogTitle>{t('Bulk aggregation')}</DialogTitle>
           <DialogContent>
             {result ? (
               <div className={styles.body}>
                 <MessageBar intent={importFailure ? 'warning' : 'success'}>
                   <MessageBarBody>
                     {mode === 'deactivate'
-                      ? `${result.deactivated ?? 0} deactivated, ${result.skipped ?? 0} left as they were.`
-                      : `${result.created ?? 0} created, ${result.reactivated ?? 0} switched on again, ${result.updated ?? 0} updated, ${result.alreadyExisted ?? 0} already existed, ${result.skipped ?? 0} not found.`}{' '}
+                      ? t('{0} deactivated, {1} left as they were.', result.deactivated ?? 0, result.skipped ?? 0)
+                      : t('{0} created, {1} switched on again, {2} updated, {3} already existed, {4} not found.', result.created ?? 0, result.reactivated ?? 0, result.updated ?? 0, result.alreadyExisted ?? 0, result.skipped ?? 0)}{' '}
                     {importFailure
-                      ? `The import stopped at an error: ${importFailure} What is listed below was done; the rest was not tried.`
-                      : 'The API calculates the values in the background, oldest data first.'}
+                      ? t('The import stopped at an error: {0} What is listed below was done; the rest was not tried.', importFailure)
+                      : t('The API calculates the values in the background, oldest data first.')}
                   </MessageBarBody>
                 </MessageBar>
                 <ul className={styles.results}>
                   {(result.items ?? []).map((item, index) => (
                     <li key={`${item.sensorId}-${item.outcome}-${index}`}>
-                      <Text weight="semibold">{item.name ?? `Sensor ${item.sensorId}`}</Text>: {item.outcome}
+                      <Text weight="semibold">{item.name ?? t('Sensor {0}', item.sensorId)}</Text>: {item.outcome}
                       {item.message ? ` — ${item.message}` : ''}
                     </li>
                   ))}
@@ -278,32 +281,28 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
               </div>
             ) : (
               <div className={styles.body}>
-                <RadioGroup layout="horizontal" aria-label="What to do" value={mode} onChange={(_, d) => setMode(d.value as Mode)}>
-                  <Radio value="create" label="Add the level" />
-                  <Radio value="deactivate" label="Deactivate the level" />
-                  <Radio value="import" label="Import from CSV" />
+                <RadioGroup layout="horizontal" aria-label={t('What to do')} value={mode} onChange={(_, d) => setMode(d.value as Mode)}>
+                  <Radio value="create" label={t('Add the level')} />
+                  <Radio value="deactivate" label={t('Deactivate the level')} />
+                  <Radio value="import" label={t('Import from CSV')} />
                 </RadioGroup>
 
                 {mode === 'import' ? (
                   <>
                     <Text size={200}>
-                      One row per Sensor and level: <code>{AGGREGATION_SHEET_HEADERS.join(', ')}</code>. <code>sensorName</code> is the Sensor’s external id;{' '}
-                      <code>timeScale</code>, <code>aggregationFunction</code>, <code>scale</code> and <code>lookback</code> are required, <code>minIssueScore</code> and{' '}
-                      <code>timeZone</code> are optional (defaults 1 and UTC). The columns <code>level</code> and <code>why</code> are ignored. A level a Sensor already has gets the
-                      sheet’s settings (listed as Updated); a new time zone recalculates its history.
-                    </Text>
+                      {t('One row per Sensor and level:')}{' '}<code>{AGGREGATION_SHEET_HEADERS.join(', ')}</code>. <code>{t('sensorName')}</code> {t('is the Sensor’s external id;')}{' '}
+                      <code>{t('timeScale')}</code>, <code>{t('aggregationFunction')}</code>, <code>{t('scale')}</code> {t('and')}{' '}<code>{t('lookback')}</code> {t('are required,')}{' '}<code>{t('minIssueScore')}</code> {t('and')}{' '}
+                      <code>{t('timeZone')}</code> {t('are optional (defaults 1 and UTC). The columns')}{' '}<code>{t('level')}</code> {t('and')}{' '}<code>{t('why')}</code> {t('are ignored. A level a Sensor already has gets the sheet’s settings (listed as Updated); a new time zone recalculates its history.')}</Text>
                     <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center', flexWrap: 'wrap' }}>
                       <Button icon={<ArrowDownload24Regular />} onClick={downloadTemplate}>
-                        Download sample (CSV)
-                      </Button>
+                        {t('Download sample (CSV)')}</Button>
                       <Button icon={exporting ? <Spinner size="tiny" /> : <ArrowDownload24Regular />} onClick={() => void exportLevels()} disabled={exporting}>
-                        Download current levels (CSV)
-                      </Button>
+                        {t('Download current levels (CSV)')}</Button>
                       <input
                         ref={fileInput}
                         type="file"
                         accept=".csv,text/csv,text/plain"
-                        aria-label="Choose a CSV file"
+                        aria-label={t('Choose a CSV file')}
                         hidden
                         onChange={(e) => {
                           void readFile(e.target.files?.[0]);
@@ -311,11 +310,10 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
                         }}
                       />
                       <Button appearance="primary" icon={<DocumentArrowUp24Regular />} onClick={() => fileInput.current?.click()}>
-                        Upload CSV…
-                      </Button>
+                        {t('Upload CSV…')}</Button>
                       {sheetName && <Text size={200}>{sheetName}</Text>}
                     </div>
-                    <Field label="…or paste the cells" hint="Copied from Excel (tab separated) or CSV text; the first row is the header.">
+                    <Field label={t('…or paste the cells')} hint={t('Copied from Excel (tab separated) or CSV text; the first row is the header.')}>
                       <Textarea
                         rows={5}
                         value={sheetText}
@@ -328,12 +326,10 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
                     {parsed && parsed.problems.length === 0 && (
                       <MessageBar intent="success">
                         <MessageBarBody>
-                          {parsed.rowCount} row(s) for {parsed.sensorCount} Sensor(s) make {parsed.groups.length} request(s):
-                          <ul className={styles.problems}>
+                          {parsed.rowCount} {t('row(s) for')}{' '}{parsed.sensorCount} {t('Sensor(s) make')}{' '}{parsed.groups.length} {t('request(s):')}<ul className={styles.problems}>
                             {parsed.groups.map((g) => (
                               <li key={describeGroup(g)}>
-                                {describeGroup(g)}: {g.sensorIds.length} Sensor(s)
-                              </li>
+                                {describeGroup(g)}: {g.sensorIds.length} {t('Sensor(s)')}</li>
                             ))}
                           </ul>
                         </MessageBarBody>
@@ -342,41 +338,41 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
                     {parsed && parsed.problems.length > 0 && (
                       <MessageBar intent="error">
                         <MessageBarBody>
-                          Nothing is sent while the sheet has problems ({parsed.problems.length}):
+                          {t('Nothing is sent while the sheet has problems (')}{parsed.problems.length}):
                           <ul className={styles.problems}>
                             {shownProblems.map((p, i) => (
                               <li key={`${p.line}-${p.field}-${i}`}>
-                                {p.line > 0 ? `Line ${p.line}, ${p.field}: ` : ''}
+                                {p.line > 0 ? t('Line {0}, {1}: ', p.line, p.field) : ''}
                                 {p.message}
                               </li>
                             ))}
-                            {parsed.problems.length > shownProblems.length && <li>…and {parsed.problems.length - shownProblems.length} more.</li>}
+                            {parsed.problems.length > shownProblems.length && <li>{t('…and')}{' '}{parsed.problems.length - shownProblems.length} {t('more.')}</li>}
                           </ul>
                         </MessageBarBody>
                       </MessageBar>
                     )}
                     {parsed && parsed.ignoredColumns.length > 0 && (
                       <MessageBar intent="warning">
-                        <MessageBarBody>Ignored column(s): {parsed.ignoredColumns.join(', ')}.</MessageBarBody>
+                        <MessageBarBody>{t('Ignored column(s):')}{' '}{parsed.ignoredColumns.join(', ')}.</MessageBarBody>
                       </MessageBar>
                     )}
                   </>
                 ) : (
                   <>
                     <div className={styles.row}>
-                      <Choice label="Time scale" hint="The length of one aggregated slice" value={timeScale} onChange={setTimeScale} options={TIME_SCALE_OPTIONS} />
-                      <Choice label="Aggregation function" hint="How the values of one slice are combined" value={aggregationFunction} onChange={setAggregationFunction} options={AGGREGATION_FUNCTION_OPTIONS} />
+                      <Choice label={t('Time scale')} hint={t('The length of one aggregated slice')} value={timeScale} onChange={setTimeScale} options={TIME_SCALE_OPTIONS} />
+                      <Choice label={t('Aggregation function')} hint={t('How the values of one slice are combined')} value={aggregationFunction} onChange={setAggregationFunction} options={AGGREGATION_FUNCTION_OPTIONS} />
                     </div>
                     {mode === 'create' && (
                       <div className={styles.row}>
-                        <Field label="Lookback" required hint="Must be greater than zero">
+                        <Field label={t('Lookback')} required hint={t('Must be greater than zero')}>
                           <Input type="number" min="1" value={lookback} onChange={(_, d) => setLookback(d.value)} />
                         </Field>
-                        <Choice label="Scale" hint="The unit of Lookback" value={scale} onChange={setScale} options={SCALE_OPTIONS} />
-                        <Field label="Min issue score" hint="Defaults to 1">
+                        <Choice label={t('Scale')} hint={t('The unit of Lookback')} value={scale} onChange={setScale} options={SCALE_OPTIONS} />
+                        <Field label={t('Min issue score')} hint={t('Defaults to 1')}>
                           <Input type="number" value={minIssueScore} onChange={(_, d) => setMinIssueScore(d.value)} />
                         </Field>
-                        <Field label="Time zone" hint="Slices start and end at this zone's calendar boundaries">
+                        <Field label={t('Time zone')} hint={t('Slices start and end at this zone\'s calendar boundaries')}>
                           <Select value={timeZone} onChange={(_, d) => setTimeZone(d.value)}>
                             {timeZones.map((z) => (
                               <option key={z.value} value={z.value}>
@@ -388,27 +384,25 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
                       </div>
                     )}
 
-                    <Body1Strong>Sensors</Body1Strong>
-                    <RadioGroup aria-label="Which Sensors" value={which} onChange={(_, d) => setWhich(d.value as 'all' | 'chosen')}>
-                      <Radio value="all" label={`All ${sensors.length} Sensor(s) of this Device`} />
-                      <Radio value="chosen" label={`Only the Sensors I choose (${chosen.size} chosen)`} />
+                    <Body1Strong>{t('Sensors')}</Body1Strong>
+                    <RadioGroup aria-label={t('Which Sensors')} value={which} onChange={(_, d) => setWhich(d.value as 'all' | 'chosen')}>
+                      <Radio value="all" label={t('All {0} Sensor(s) of this Device', sensors.length)} />
+                      <Radio value="chosen" label={t('Only the Sensors I choose ({0} chosen)', chosen.size)} />
                     </RadioGroup>
                     {which === 'chosen' && (
                       <>
                         <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center', flexWrap: 'wrap' }}>
-                          <Input aria-label="Filter Sensors" placeholder="Filter by name…" value={filter} onChange={(_, d) => setFilter(d.value)} />
+                          <Input aria-label={t('Filter Sensors')} placeholder={t('Filter by name…')} value={filter} onChange={(_, d) => setFilter(d.value)} />
                           <Button size="small" onClick={() => setChosen(new Set([...chosen, ...shown.map((s) => s.id!)]))}>
-                            Choose the {shown.length} shown
-                          </Button>
+                            {t('Choose the')}{' '}{shown.length} {t('shown')}</Button>
                           <Button size="small" onClick={() => setChosen(new Set())} disabled={chosen.size === 0}>
-                            Clear
-                          </Button>
+                            {t('Clear')}</Button>
                         </div>
                         <div className={styles.list}>
                           {shown.map((s) => (
                             <Checkbox key={s.id} checked={chosen.has(s.id!)} onChange={(_, d) => toggle(s.id!, d.checked === true)} label={s.name || s.externalSensorId} />
                           ))}
-                          {shown.length === 0 && <Text size={200}>No Sensor matches the filter.</Text>}
+                          {shown.length === 0 && <Text size={200}>{t('No Sensor matches the filter.')}</Text>}
                         </div>
                       </>
                     )}
@@ -416,14 +410,13 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
                     <MessageBar intent="info">
                       <MessageBarBody>
                         {mode === 'create'
-                          ? 'Aggregates the measured values. The API creates the level (or switches a disabled one on again) for every chosen Sensor in one step and then calculates its history in the background. A level that already exists gets these settings (lookback, scale, min issue score, time zone). Target and tolerance are never aggregated.'
-                          : 'Switches the level off (the stored slices are kept). A Sensor without that level is left as it is. The raw level cannot be deactivated.'}
+                          ? t('Aggregates the measured values. The API creates the level (or switches a disabled one on again) for every chosen Sensor in one step and then calculates its history in the background. A level that already exists gets these settings (lookback, scale, min issue score, time zone). Target and tolerance are never aggregated.')
+                          : t('Switches the level off (the stored slices are kept). A Sensor without that level is left as it is. The raw level cannot be deactivated.')}
                       </MessageBarBody>
                     </MessageBar>
                     {ready && (
                       <Text>
-                        {mode === 'create' ? 'Add' : 'Deactivate'} <b>{level}</b> for <b>{count}</b> Sensor(s).
-                      </Text>
+                        {mode === 'create' ? t('Add') : t('Deactivate')} <b>{level}</b> {t('for')}{' '}<b>{count}</b> {t('Sensor(s).')}</Text>
                     )}
                   </>
                 )}
@@ -434,11 +427,11 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
           </DialogContent>
           <DialogActions>
             <Button appearance="secondary" onClick={close} disabled={mutation.isPending}>
-              {result ? 'Close' : 'Cancel'}
+              {result ? t('Close') : t('Cancel')}
             </Button>
             {!result && (
               <Button appearance="primary" disabled={!ready || mutation.isPending} onClick={() => void submit().catch(() => undefined)}>
-                {mutation.isPending ? 'Working…' : buttonLabel}
+                {mutation.isPending ? t('Working…') : buttonLabel}
               </Button>
             )}
           </DialogActions>

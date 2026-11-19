@@ -45,6 +45,8 @@ import { formatDateTime } from '@/lib/dateTime';
 import { useAuth } from '@/auth/AuthContext';
 import { activateProps } from '@/lib/useActivateProps';
 import type { IssueReviewState } from '@/api/domainTypes';
+import { useLanguage, useT } from '@/lib/language';
+import { localizedIssueMessage, type IssueMessages } from '@/lib/issueMessage';
 
 const useStyles = makeStyles({
   layout: {
@@ -87,6 +89,7 @@ function GroupMemberRow({
   canonicalId: number;
   member: GroupMemberDto;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   const moveMember = useMoveGroupMember(deviceId, member.id ?? -1);
   const reassign = useReassignCanonical(deviceId, canonicalId);
@@ -108,16 +111,14 @@ function GroupMemberRow({
           onClick={() =>
             reassign.mutate(
               { newCanonicalIssueId: member.id! },
-              { onSuccess: () => toast.success('Canonical Issue reassigned') },
+              { onSuccess: () => toast.success(t('Canonical Issue reassigned')) },
             )
           }
           disabled={reassign.isPending}
         >
-          Make canonical
-        </Button>
+          {t('Make canonical')}</Button>
         <Button size="small" appearance="subtle" onClick={() => setMoveDialogOpen(true)} disabled={moveMember.isPending}>
-          Move to another group
-        </Button>
+          {t('Move to another group')}</Button>
       </div>
       {(moveMember.isError || reassign.isError) && <ErrorState error={moveMember.error ?? reassign.error} />}
       <MoveToCanonicalDialog
@@ -133,7 +134,7 @@ function GroupMemberRow({
             {
               onSuccess: () => {
                 setMoveDialogOpen(false);
-                toast.success('Issue moved to the new group');
+                toast.success(t('Issue moved to the new group'));
               },
             },
           )
@@ -145,6 +146,7 @@ function GroupMemberRow({
 }
 
 function OllamaSummary({ issueId }: { issueId: number }) {
+  const t = useT();
   const toast = useAppToast();
   const submit = useSubmitOllamaSummaryJob();
   const jobQuery = useOllamaJob(submit.data?.id);
@@ -159,13 +161,13 @@ function OllamaSummary({ issueId }: { issueId: number }) {
     if (!status || notifiedStatusRef.current === status) return;
     if (status === 'Succeeded') {
       notifiedStatusRef.current = status;
-      toast.success('Ollama summary ready');
+      toast.success(t('Ollama summary ready'));
     } else if (status === 'Failed') {
       notifiedStatusRef.current = status;
-      toast.error('Ollama summary failed');
+      toast.error(t('Ollama summary failed'));
     } else if (status === 'Cancelled') {
       notifiedStatusRef.current = status;
-      toast.info('Ollama job cancelled');
+      toast.info(t('Ollama job cancelled'));
     }
   }, [jobQuery.data?.status, toast]);
 
@@ -173,10 +175,10 @@ function OllamaSummary({ issueId }: { issueId: number }) {
     <div>
       <Button
         icon={<ChatSparkle24Regular />}
-        onClick={() => submit.mutate(issueId, { onSuccess: () => toast.info('Ollama summary requested') })}
+        onClick={() => submit.mutate(issueId, { onSuccess: () => toast.info(t('Ollama summary requested')) })}
         disabled={submit.isPending}
       >
-        {submit.isPending ? 'Requesting…' : 'Ask Ollama for a summary'}
+        {submit.isPending ? t('Requesting…') : t('Ask Ollama for a summary')}
       </Button>
       {submit.isError && <ErrorState error={submit.error} />}
       {jobQuery.data && (
@@ -203,6 +205,8 @@ const MAX_FEEDBACK_LENGTH = 440;
  * never changes the review state, never touches training eligibility and schedules no retraining.
  */
 export function IssueFeedbackEditor({ deviceId, issueId, message, reviewed }: { deviceId: number; issueId: number; message: string; reviewed: boolean }) {
+  const t = useT();
+  const { language } = useLanguage();
   const toast = useAppToast();
   const update = useUpdateIssue(deviceId, issueId);
   const [text, setText] = useState(message);
@@ -211,14 +215,14 @@ export function IssueFeedbackEditor({ deviceId, issueId, message, reviewed }: { 
 
   return (
     <Field
-      label="Feedback"
+      label={t('Feedback')}
       hint={
         reviewed
-          ? 'Shown with the Issue (and on the Device). Kept as you wrote it.'
-          : 'Shown with the Issue (and on the Device). While the Issue is not reviewed, a new automatic analysis may replace this text; once a verdict is recorded it stays.'
+          ? t('Shown with the Issue (and on the Device). Kept as you wrote it.')
+          : t('Shown with the Issue (and on the Device). While the Issue is not reviewed, a new automatic analysis may replace this text; once a verdict is recorded it stays.')
       }
       validationState={tooLong ? 'error' : 'none'}
-      validationMessage={tooLong ? `At most ${MAX_FEEDBACK_LENGTH} characters.` : `${text.length} / ${MAX_FEEDBACK_LENGTH}`}
+      validationMessage={tooLong ? t('At most {0} characters.', MAX_FEEDBACK_LENGTH) : `${text.length} / ${MAX_FEEDBACK_LENGTH}`}
     >
       <Textarea
         value={text}
@@ -231,20 +235,30 @@ export function IssueFeedbackEditor({ deviceId, issueId, message, reviewed }: { 
         <Button
           appearance="primary"
           disabled={!changed || tooLong || update.isPending}
-          onClick={() => update.mutate({ message: text }, { onSuccess: () => toast.success('Feedback saved') })}
+          onClick={() => update.mutate({ message: text }, { onSuccess: () => toast.success(t('Feedback saved')) })}
         >
-          {update.isPending ? 'Saving…' : 'Save feedback'}
+          {update.isPending ? t('Saving…') : t('Save feedback')}
         </Button>
         <Button appearance="secondary" disabled={!changed || update.isPending} onClick={() => setText(message)}>
-          Revert
-        </Button>
+          {t('Revert')}</Button>
       </div>
+      {changed && (
+        <MessageBar intent="warning" style={{ marginTop: tokens.spacingVerticalS }}>
+          <MessageBarBody>
+            {language === 'hu'
+              ? t('The last edit wins: after saving, the English text is made again from this Hungarian text about five minutes after the last change, and anything written in English before is replaced.')
+              : t('The last edit wins: after saving, the Hungarian text is made again from this English text about five minutes after the last change, and anything written in Hungarian before is replaced.')}
+          </MessageBarBody>
+        </MessageBar>
+      )}
       {update.isError && <ErrorState error={update.error} />}
     </Field>
   );
 }
 
 export function IssueDetailPage() {
+  const t = useT();
+  const { language } = useLanguage();
   const styles = useStyles();
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
@@ -267,6 +281,8 @@ export function IssueDetailPage() {
   const requestSuggestion = useRequestCategorySuggestion(id);
   const decideSuggestion = useDecideCategorySuggestion(id);
 
+  const issueMessages = (issueQuery.data ?? {}) as IssueMessages;
+  const shownMessage = localizedIssueMessage(issueMessages, language);
   const primarySensorId = issueQuery.data?.primarySensorId ?? issueQuery.data?.sensorIds?.[0];
   const primarySensor = sensorsQuery.data?.find((s) => s.id === primarySensorId);
   const family = familyFor((deviceQuery.data?.applicationMode as 'continuous' | 'periodic') ?? 'continuous', primarySensor?.direction);
@@ -278,7 +294,7 @@ export function IssueDetailPage() {
     periodTo: issueQuery.data?.periodTo ?? 0,
   });
 
-  if (issueQuery.isLoading) return <LoadingState label="Loading issue…" />;
+  if (issueQuery.isLoading) return <LoadingState label={t('Loading issue…')} />;
   if (issueQuery.isError) return <ErrorState error={issueQuery.error} onRetry={() => issueQuery.refetch()} />;
   const issue = issueQuery.data;
   if (!issue) return null;
@@ -286,7 +302,7 @@ export function IssueDetailPage() {
   return (
     <>
       <PageHeader
-        title={`Issue #${issue.issueKey}`}
+        title={t('Issue #{0}', issue.issueKey)}
         titleDisplay="compact"
         description={`${formatDateTime(issue.measuredAtFrom)} → ${formatDateTime(issue.measuredAtTo)}`}
         actions={
@@ -295,15 +311,14 @@ export function IssueDetailPage() {
               {issue.reviewState !== 'PendingReview' && (
                 <Button
                   icon={<ArrowUndo24Regular />}
-                  onClick={() => reopenIssue.mutate(id, { onSuccess: () => toast.success('Issue reopened for review') })}
+                  onClick={() => reopenIssue.mutate(id, { onSuccess: () => toast.success(t('Issue reopened for review')) })}
                   disabled={reopenIssue.isPending}
                 >
-                  {reopenIssue.isPending ? 'Reopening…' : 'Reopen for review'}
+                  {reopenIssue.isPending ? t('Reopening…') : t('Reopen for review')}
                 </Button>
               )}
               <Button icon={<Delete24Regular />} onClick={() => setDeleteOpen(true)}>
-                Delete Issue
-              </Button>
+                {t('Delete Issue')}</Button>
             </>
           )
         }
@@ -328,18 +343,23 @@ export function IssueDetailPage() {
           <Card className={styles.card}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <ReviewStatePill reviewState={issue.reviewState} />
-              {!issue.isCanonical && <Badge appearance="outline">member of canonical #{issue.canonicalIssueId}</Badge>}
+              {!issue.isCanonical && <Badge appearance="outline">{t('member of canonical #')}{issue.canonicalIssueId}</Badge>}
             </div>
             {isAdmin ? (
               <IssueFeedbackEditor
-                key={issue.id}
+                key={`${issue.id}-${language}`}
                 deviceId={issue.deviceId!}
                 issueId={id}
-                message={issue.message ?? ''}
+                message={shownMessage ?? ''}
                 reviewed={issue.reviewState !== 'PendingReview'}
               />
             ) : (
-              issue.message && <Text>{issue.message}</Text>
+              shownMessage && <Text>{shownMessage}</Text>
+            )}
+            {isAdmin && issue.message && (
+              <Field label={language === 'hu' ? t('English text (translated automatically)') : t('Hungarian text (translated automatically)')}>
+                <Text>{(language === 'hu' ? issueMessages.messageEn : issueMessages.messageHu) || t('Not translated yet - it appears about five minutes after the last change.')}</Text>
+              </Field>
             )}
 
             {isAdmin && issue.reviewState === 'PendingReview' && (
@@ -361,18 +381,18 @@ export function IssueDetailPage() {
                             if (result.trainingRequestId) {
                               toast.success(
                                 result.coalesced
-                                  ? 'Review saved - coalesced into the pending retraining request'
-                                  : 'Review saved - retraining scheduled',
+                                  ? t('Review saved - coalesced into the pending retraining request')
+                                  : t('Review saved - retraining scheduled'),
                               );
                             } else {
-                              toast.success('Review saved');
+                              toast.success(t('Review saved'));
                             }
                           },
                         },
                       )
                     }
                   >
-                    {opt.label}
+                    {t(opt.label)}
                   </Button>
                 ))}
               </div>
@@ -381,7 +401,7 @@ export function IssueDetailPage() {
           </Card>
 
           <Card className={styles.card}>
-            <Body1Strong>Telemetry</Body1Strong>
+            <Body1Strong>{t('Telemetry')}</Body1Strong>
             {periodChart.isLoading && <LoadingState label="" />}
             {periodChart.isError && <ErrorState error={periodChart.error} />}
             {periodChart.data && (
@@ -396,10 +416,9 @@ export function IssueDetailPage() {
 
           {groupQuery.data && groupQuery.data.members && groupQuery.data.members.length > 0 && (
             <Card className={styles.card}>
-              <Body1Strong>Grouped members ({groupQuery.data.members.length})</Body1Strong>
+              <Body1Strong>{t('Grouped members (')}{groupQuery.data.members.length})</Body1Strong>
               <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-                Nothing here is ever deleted - moving or reassigning only changes which Issue is the group's canonical representative.
-              </Text>
+                {t('Nothing here is ever deleted - moving or reassigning only changes which Issue is the group\'s canonical representative.')}</Text>
               {groupQuery.data.members.map((member) =>
                 isAdmin ? (
                   <GroupMemberRow
@@ -425,17 +444,16 @@ export function IssueDetailPage() {
           {isAdmin && !issue.isCanonical && (
             <Button
               appearance="secondary"
-              onClick={() => ungroup.mutate(id, { onSuccess: () => toast.success('Issue ungrouped - now canonical for itself') })}
+              onClick={() => ungroup.mutate(id, { onSuccess: () => toast.success(t('Issue ungrouped - now canonical for itself')) })}
               disabled={ungroup.isPending}
             >
-              Ungroup from canonical Issue
-            </Button>
+              {t('Ungroup from canonical Issue')}</Button>
           )}
         </div>
 
         <div>
           <Card className={styles.card}>
-            <Body1Strong>Category</Body1Strong>
+            <Body1Strong>{t('Category')}</Body1Strong>
             {categoriesQuery.isLoading && <LoadingState label="" />}
             {isAdmin && issue.isCanonical ? (
               <Select
@@ -443,11 +461,11 @@ export function IssueDetailPage() {
                 onChange={(_, d) =>
                   assignCategory.mutate(
                     { issueCategoryId: d.value ? Number(d.value) : null },
-                    { onSuccess: () => toast.success(d.value ? 'Category assigned' : 'Category cleared') },
+                    { onSuccess: () => toast.success(d.value ? t('Category assigned') : t('Category cleared')) },
                   )
                 }
               >
-                <option value="">Uncategorized</option>
+                <option value="">{t('Uncategorized')}</option>
                 {categoriesQuery.data?.filter((c) => c.enabled).map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -455,24 +473,24 @@ export function IssueDetailPage() {
                 ))}
               </Select>
             ) : (
-              <Text>{issue.issueCategoryName ?? 'Uncategorized'}</Text>
+              <Text>{issue.issueCategoryName ?? t('Uncategorized')}</Text>
             )}
             {!issue.isCanonical && (
               <MessageBar intent="info">
-                <MessageBarBody>Category can only be set on the canonical Issue.</MessageBarBody>
+                <MessageBarBody>{t('Category can only be set on the canonical Issue.')}</MessageBarBody>
               </MessageBar>
             )}
           </Card>
 
           {isAdmin && issue.isCanonical && (
             <Card className={styles.card}>
-              <Body1Strong>Category suggestion</Body1Strong>
+              <Body1Strong>{t('Category suggestion')}</Body1Strong>
               {suggestionQuery.data === null && (
                 <Button
-                  onClick={() => requestSuggestion.mutate(undefined, { onSuccess: () => toast.info('Category suggestion requested') })}
+                  onClick={() => requestSuggestion.mutate(undefined, { onSuccess: () => toast.info(t('Category suggestion requested')) })}
                   disabled={requestSuggestion.isPending}
                 >
-                  {requestSuggestion.isPending ? 'Requesting…' : 'Ask Ollama to suggest a category'}
+                  {requestSuggestion.isPending ? t('Requesting…') : t('Ask Ollama to suggest a category')}
                 </Button>
               )}
               {suggestionQuery.data && (
@@ -486,21 +504,19 @@ export function IssueDetailPage() {
                         onClick={() =>
                           decideSuggestion.mutate(
                             { accept: true, createFromSuggestion: true },
-                            { onSuccess: () => toast.success('Category suggestion accepted') },
+                            { onSuccess: () => toast.success(t('Category suggestion accepted')) },
                           )
                         }
                         disabled={decideSuggestion.isPending}
                       >
-                        Accept
-                      </Button>
+                        {t('Accept')}</Button>
                       <Button
                         size="small"
                         appearance="secondary"
-                        onClick={() => decideSuggestion.mutate({ accept: false }, { onSuccess: () => toast.info('Category suggestion rejected') })}
+                        onClick={() => decideSuggestion.mutate({ accept: false }, { onSuccess: () => toast.info(t('Category suggestion rejected')) })}
                         disabled={decideSuggestion.isPending}
                       >
-                        Reject
-                      </Button>
+                        {t('Reject')}</Button>
                     </div>
                   )}
                 </>
@@ -509,7 +525,7 @@ export function IssueDetailPage() {
           )}
 
           <Card className={styles.card}>
-            <Body1Strong>Ollama summary</Body1Strong>
+            <Body1Strong>{t('Ollama summary')}</Body1Strong>
             <OllamaSummary issueId={id} />
           </Card>
         </div>

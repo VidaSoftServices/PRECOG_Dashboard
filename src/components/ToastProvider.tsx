@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, type ReactNode } from 'react';
 import { Toaster, useToastController, Toast, ToastTitle, ToastBody } from '@fluentui/react-components';
 import { registerToastApi } from './toastBridge';
+import { translate } from '@/lib/language';
 
 /**
  * One centralized Fluent Toast layer for the whole app. Call sites use
@@ -32,8 +33,8 @@ export function AppToastProvider({ children }: { children: ReactNode }) {
     (intent: 'success' | 'error' | 'info', message: string, title?: string) => {
       dispatchToast(
         <Toast>
-          {title && <ToastTitle>{title}</ToastTitle>}
-          <ToastBody>{message}</ToastBody>
+          {title && <ToastTitle>{translate(title)}</ToastTitle>}
+          <ToastBody>{translate(message)}</ToastBody>
         </Toast>,
         { intent, timeout: intent === 'error' ? 8000 : 4000 },
       );

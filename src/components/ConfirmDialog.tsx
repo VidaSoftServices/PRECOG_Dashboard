@@ -8,6 +8,7 @@ import {
   DialogActions,
   Button,
 } from '@fluentui/react-components';
+import { useT } from '@/lib/language';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -47,6 +48,7 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const t = useT();
   // Fluent's Dialog restores focus to whatever triggered it automatically on
   // close; nothing extra is needed here beyond not stealing focus ourselves.
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
@@ -59,7 +61,7 @@ export function ConfirmDialog({
           <DialogContent>{children}</DialogContent>
           <DialogActions>
             <Button appearance="secondary" onClick={onCancel} disabled={busy}>
-              {cancelLabel}
+              {t(cancelLabel)}
             </Button>
             <Button
               ref={confirmButtonRef}
@@ -68,7 +70,7 @@ export function ConfirmDialog({
               onClick={onConfirm}
               disabled={busy || confirmDisabled}
             >
-              {busy ? 'Working…' : confirmLabel}
+              {busy ? t('Working…') : t(confirmLabel)}
             </Button>
           </DialogActions>
         </DialogBody>

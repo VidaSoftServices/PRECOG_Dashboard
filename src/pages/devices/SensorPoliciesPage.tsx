@@ -52,6 +52,7 @@ import { useSetpoints, useEffectiveSetpoint, useCreateSetpoint } from '@/api/hoo
 import { useAuth } from '@/auth/AuthContext';
 import { formatDateTimeWithZone, toApiIso } from '@/lib/dateTime';
 import type { SensorAggregationPolicyDto } from '@/api/hooks/aggregationPolicies';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   card: {
@@ -74,23 +75,24 @@ const useStyles = makeStyles({
  * open). Nothing is calculated here - every number is the API's.
  */
 function AggregationStatus({ deviceId, sensorId, policy }: { deviceId: number; sensorId: number; policy: SensorAggregationPolicyDto }) {
+  const t = useT();
   const values = usePolicyValues(deviceId, sensorId, policy.id!, policy.enabled !== false);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalXS }}>
       <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
         {policy.enabled === false
-          ? 'Deactivated: nothing is calculated.'
+          ? t('Deactivated: nothing is calculated.')
           : policy.backfilledUntil
-            ? `Calculated up to ${formatDateTimeWithZone(policy.backfilledUntil)} (the open slice is updated continuously).`
-            : 'Not calculated yet: the API starts with the oldest data and works forward.'}
+            ? t('Calculated up to {0} (the open slice is updated continuously).', formatDateTimeWithZone(policy.backfilledUntil))
+            : t('Not calculated yet: the API starts with the oldest data and works forward.')}
       </Text>
       {values.data && values.data.length > 0 && (
-        <table aria-label="Latest aggregated values" style={{ borderCollapse: 'collapse', fontSize: tokens.fontSizeBase200 }}>
+        <table aria-label={t('Latest aggregated values')} style={{ borderCollapse: 'collapse', fontSize: tokens.fontSizeBase200 }}>
           <thead>
             <tr>
-              <th style={{ textAlign: 'left', paddingRight: tokens.spacingHorizontalM }}>Slice start</th>
-              <th style={{ textAlign: 'right', paddingRight: tokens.spacingHorizontalM }}>Value</th>
-              <th style={{ textAlign: 'right' }}>Readings</th>
+              <th style={{ textAlign: 'left', paddingRight: tokens.spacingHorizontalM }}>{t('Slice start')}</th>
+              <th style={{ textAlign: 'right', paddingRight: tokens.spacingHorizontalM }}>{t('Value')}</th>
+              <th style={{ textAlign: 'right' }}>{t('Readings')}</th>
             </tr>
           </thead>
           <tbody>
@@ -109,6 +111,7 @@ function AggregationStatus({ deviceId, sensorId, policy }: { deviceId: number; s
 }
 
 function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId: number; policy: SensorAggregationPolicyDto }) {
+  const t = useT();
   const styles = useStyles();
   const { isAdmin } = useAuth();
   const toast = useAppToast();
@@ -124,7 +127,7 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
   const applyUpdate = () => {
     update.mutate(
       { lookback: Number(lookback), scale, minIssueScore: Number(minIssueScore) },
-      { onSuccess: () => toast.success('Aggregation policy saved') },
+      { onSuccess: () => toast.success(t('Aggregation policy saved')) },
     );
   };
 
@@ -143,18 +146,18 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
         <Body1Strong>
           {policy.sourceDataKey} · {policy.timeScale} · {policy.aggregationFunction}
-          {isRaw && ' (raw)'}
+          {isRaw && t(' (raw)')}
         </Body1Strong>
         <EnabledPill enabled={policy.enabled} />
       </div>
       <div className={styles.row}>
-        <Field label="Lookback">
+        <Field label={t('Lookback')}>
           <Input value={lookback} onChange={(_, d) => setLookback(d.value)} disabled={!isAdmin} type="number" />
         </Field>
-        <Field label="Scale">
+        <Field label={t('Scale')}>
           <Input value={scale} onChange={(_, d) => setScale(d.value)} disabled={!isAdmin} />
         </Field>
-        <Field label="Min issue score">
+        <Field label={t('Min issue score')}>
           <Input value={minIssueScore} onChange={(_, d) => setMinIssueScore(d.value)} disabled={!isAdmin} type="number" />
         </Field>
       </div>
@@ -162,11 +165,11 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
       {isAdmin && (
         <div style={{ display: 'flex', gap: tokens.spacingHorizontalM }}>
           <Button appearance="primary" onClick={save} disabled={update.isPending}>
-            {update.isPending ? 'Saving…' : 'Save'}
+            {update.isPending ? t('Saving…') : t('Save')}
           </Button>
           {!isRaw && (
             <Button appearance="secondary" onClick={() => setDeactivateConfirmOpen(true)} disabled={!policy.enabled || deactivate.isPending}>
-              {deactivate.isPending ? 'Deactivating…' : 'Deactivate'}
+              {deactivate.isPending ? t('Deactivating…') : t('Deactivate')}
             </Button>
           )}
         </div>
@@ -175,12 +178,12 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
       {deactivate.isError && <ErrorState error={deactivate.error} />}
       {isRaw && (
         <MessageBar intent="info">
-          <MessageBarBody>Editing Lookback, Scale, or Enabled on the raw policy schedules retraining for this Sensor.</MessageBarBody>
+          <MessageBarBody>{t('Editing Lookback, Scale, or Enabled on the raw policy schedules retraining for this Sensor.')}</MessageBarBody>
         </MessageBar>
       )}
       <ConfirmDialog
         open={retrainConfirmOpen}
-        title="This will trigger retraining"
+        title={t('This will trigger retraining')}
         intent="destructive"
         confirmLabel="Save and retrain"
         busy={update.isPending}
@@ -191,20 +194,18 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
         onCancel={() => setRetrainConfirmOpen(false)}
       >
         <Text>
-          Changing Lookback or Scale on the raw aggregation policy schedules a full retraining for this Sensor. This
-          can&apos;t be undone once submitted. Continue?
-        </Text>
+          {t('Changing Lookback or Scale on the raw aggregation policy schedules a full retraining for this Sensor. This can\'t be undone once submitted. Continue?')}</Text>
       </ConfirmDialog>
       <ConfirmDialog
         open={deactivateConfirmOpen}
-        title="Deactivate this aggregation level?"
+        title={t('Deactivate this aggregation level?')}
         intent="destructive"
         confirmLabel="Deactivate"
         busy={deactivate.isPending}
         onConfirm={() => {
           deactivate.mutate(policy.id!, {
             onSuccess: () => {
-              toast.success('Aggregation level deactivated');
+              toast.success(t('Aggregation level deactivated'));
               setDeactivateConfirmOpen(false);
             },
           });
@@ -212,16 +213,14 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
         onCancel={() => setDeactivateConfirmOpen(false)}
       >
         <Text>
-          This soft-disables the {policy.sourceDataKey} · {policy.timeScale} · {policy.aggregationFunction} level -
-          it stops new aggregation but its history is preserved. There is no undo through this dashboard once
-          deactivated.
-        </Text>
+          {t('This soft-disables the')}{' '}{policy.sourceDataKey} · {policy.timeScale} · {policy.aggregationFunction} {t('level - it stops new aggregation but its history is preserved. There is no undo through this dashboard once deactivated.')}</Text>
       </ConfirmDialog>
     </Card>
   );
 }
 
 function SetpointsCard({ deviceId, sensorId, bidirectional }: { deviceId: number; sensorId: number; bidirectional: boolean }) {
+  const t = useT();
   const styles = useStyles();
   const { isAdmin } = useAuth();
   const toast = useAppToast();
@@ -256,7 +255,7 @@ function SetpointsCard({ deviceId, sensorId, bidirectional }: { deviceId: number
             tolerance: tolerance ? Number(tolerance) : undefined,
           },
     );
-    toast.success('Setpoint created');
+    toast.success(t('Setpoint created'));
     setShowForm(false);
     setTarget('');
     setTolerance('');
@@ -269,25 +268,21 @@ function SetpointsCard({ deviceId, sensorId, bidirectional }: { deviceId: number
   return (
     <Card className={styles.card}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Body1Strong>Setpoints</Body1Strong>
+        <Body1Strong>{t('Setpoints')}</Body1Strong>
         {isAdmin && (
           <Button size="small" icon={<AddCircle24Regular />} onClick={() => setShowForm((v) => !v)}>
-            New setpoint
-          </Button>
+            {t('New setpoint')}</Button>
         )}
       </div>
       <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-        Time-versioned target/tolerance configuration: a change is a new interval (the previous one ends where it begins). For
-        historical fault analysis, use the setpoint effective at measurement time, not the latest one. An interval can be deleted
-        with the button below.
-      </Text>
+        {t('Time-versioned target/tolerance configuration: a change is a new interval (the previous one ends where it begins). For historical fault analysis, use the setpoint effective at measurement time, not the latest one. An interval can be deleted with the button below.')}</Text>
 
       {effectiveQuery.data && (
         <MessageBar intent="info">
           <MessageBarBody>
-            Effective now:{' '}
+            {t('Effective now:')}{' '}
             {bidirectional
-              ? `above ${effectiveQuery.data.targetAbove ?? '—'} ± ${effectiveQuery.data.toleranceAbove ?? '—'}, below ${effectiveQuery.data.targetBelow ?? '—'} ± ${effectiveQuery.data.toleranceBelow ?? '—'}`
+              ? t('above {0} ± {1}, below {2} ± {3}', effectiveQuery.data.targetAbove ?? '—', effectiveQuery.data.toleranceAbove ?? '—', effectiveQuery.data.targetBelow ?? '—', effectiveQuery.data.toleranceBelow ?? '—')
               : `${effectiveQuery.data.target ?? '—'} ± ${effectiveQuery.data.tolerance ?? '—'}`}
           </MessageBarBody>
         </MessageBar>
@@ -296,49 +291,49 @@ function SetpointsCard({ deviceId, sensorId, bidirectional }: { deviceId: number
       {showForm && isAdmin && (
         <div className={styles.card} style={{ background: tokens.colorNeutralBackground2 }}>
           <div className={styles.row}>
-            <DateTimeField label="Valid from" value={validFrom} onChange={setValidFrom} />
+            <DateTimeField label={t('Valid from')} value={validFrom} onChange={setValidFrom} />
           </div>
           {bidirectional ? (
             <div className={styles.row}>
-              <Field label="Target above">
+              <Field label={t('Target above')}>
                 <Input type="number" value={targetAbove} onChange={(_, d) => setTargetAbove(d.value)} />
               </Field>
-              <Field label="Tolerance above">
+              <Field label={t('Tolerance above')}>
                 <Input type="number" value={toleranceAbove} onChange={(_, d) => setToleranceAbove(d.value)} />
               </Field>
-              <Field label="Target below">
+              <Field label={t('Target below')}>
                 <Input type="number" value={targetBelow} onChange={(_, d) => setTargetBelow(d.value)} />
               </Field>
-              <Field label="Tolerance below">
+              <Field label={t('Tolerance below')}>
                 <Input type="number" value={toleranceBelow} onChange={(_, d) => setToleranceBelow(d.value)} />
               </Field>
             </div>
           ) : (
             <div className={styles.row}>
-              <Field label="Target">
+              <Field label={t('Target')}>
                 <Input type="number" value={target} onChange={(_, d) => setTarget(d.value)} />
               </Field>
-              <Field label="Tolerance">
+              <Field label={t('Tolerance')}>
                 <Input type="number" value={tolerance} onChange={(_, d) => setTolerance(d.value)} />
               </Field>
             </div>
           )}
           {createSetpoint.isError && <ErrorState error={createSetpoint.error} />}
           <Button appearance="primary" onClick={submit} disabled={!validFrom || createSetpoint.isPending}>
-            {createSetpoint.isPending ? 'Creating…' : 'Create'}
+            {createSetpoint.isPending ? t('Creating…') : t('Create')}
           </Button>
         </div>
       )}
 
       {setpointsQuery.isLoading && <LoadingState label="" />}
-      {setpointsQuery.data && setpointsQuery.data.length === 0 && <EmptyState title="No setpoints configured" />}
+      {setpointsQuery.data && setpointsQuery.data.length === 0 && <EmptyState title={t('No setpoints configured')} />}
       {setpointsQuery.data && setpointsQuery.data.length > 0 && (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHeaderCell>Valid from</TableHeaderCell>
-              <TableHeaderCell>Valid to</TableHeaderCell>
-              <TableHeaderCell>{bidirectional ? 'Above / Below' : 'Target ± Tolerance'}</TableHeaderCell>
+              <TableHeaderCell>{t('Valid from')}</TableHeaderCell>
+              <TableHeaderCell>{t('Valid to')}</TableHeaderCell>
+              <TableHeaderCell>{bidirectional ? 'Above / Below' : t('Target ± Tolerance')}</TableHeaderCell>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -360,8 +355,7 @@ function SetpointsCard({ deviceId, sensorId, bidirectional }: { deviceId: number
       {isAdmin && setpointsQuery.data && setpointsQuery.data.length > 0 && (
         <div>
           <Button icon={<Delete24Regular />} onClick={() => setDeleteOpen(true)}>
-            Delete setpoints…
-          </Button>
+            {t('Delete setpoints…')}</Button>
           {deleteOpen && (
             <DeleteSetpointsDialog
               deviceId={deviceId}
@@ -408,6 +402,7 @@ function ChoiceField({
 }
 
 export function NewPolicyForm({ deviceId, sensorId }: { deviceId: number; sensorId: number }) {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const create = useCreateAggregationPolicy(deviceId, sensorId);
@@ -444,7 +439,7 @@ export function NewPolicyForm({ deviceId, sensorId }: { deviceId: number; sensor
       timeZone,
     };
     await create.mutateAsync(body);
-    toast.success('Aggregation level created');
+    toast.success(t('Aggregation level created'));
     reset();
     setShowForm(false);
   };
@@ -452,30 +447,28 @@ export function NewPolicyForm({ deviceId, sensorId }: { deviceId: number; sensor
   if (!showForm) {
     return (
       <Button icon={<AddCircle24Regular />} onClick={() => setShowForm(true)} style={{ marginBottom: tokens.spacingVerticalM }}>
-        Add aggregation level
-      </Button>
+        {t('Add aggregation level')}</Button>
     );
   }
 
   return (
     <Card className={styles.card}>
-      <Body1Strong>New aggregation level</Body1Strong>
+      <Body1Strong>{t('New aggregation level')}</Body1Strong>
       <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-        Aggregates the measured values. The Sensor's target and tolerance are not aggregated: for each time slice the setpoint that was in effect for the larger part of the slice applies.
-      </Text>
+        {t('Aggregates the measured values. The Sensor\'s target and tolerance are not aggregated: for each time slice the setpoint that was in effect for the larger part of the slice applies.')}</Text>
       <div className={styles.row}>
-        <ChoiceField label="Time scale" hint="The length of one aggregated slice" value={timeScale} onChange={setTimeScale} options={TIME_SCALE_OPTIONS} />
-        <ChoiceField label="Aggregation function" hint="How the values of one slice are combined" value={aggregationFunction} onChange={setAggregationFunction} options={AGGREGATION_FUNCTION_OPTIONS} />
+        <ChoiceField label={t('Time scale')} hint={t('The length of one aggregated slice')} value={timeScale} onChange={setTimeScale} options={TIME_SCALE_OPTIONS} />
+        <ChoiceField label={t('Aggregation function')} hint={t('How the values of one slice are combined')} value={aggregationFunction} onChange={setAggregationFunction} options={AGGREGATION_FUNCTION_OPTIONS} />
       </div>
       <div className={styles.row}>
-        <Field label="Lookback" required hint="Must be greater than zero">
+        <Field label={t('Lookback')} required hint={t('Must be greater than zero')}>
           <Input type="number" min="1" value={lookback} onChange={(_, d) => setLookback(d.value)} />
         </Field>
-        <ChoiceField label="Scale" hint="The unit of Lookback" value={scale} onChange={setScale} options={SCALE_OPTIONS} />
-        <Field label="Min issue score" hint="Defaults to 1">
+        <ChoiceField label={t('Scale')} hint={t('The unit of Lookback')} value={scale} onChange={setScale} options={SCALE_OPTIONS} />
+        <Field label={t('Min issue score')} hint={t('Defaults to 1')}>
           <Input type="number" value={minIssueScore} onChange={(_, d) => setMinIssueScore(d.value)} />
         </Field>
-        <Field label="Time zone" hint="Slices start and end at this zone's calendar boundaries">
+        <Field label={t('Time zone')} hint={t('Slices start and end at this zone\'s calendar boundaries')}>
           <Select value={timeZone} onChange={(_, d) => setTimeZone(d.value)}>
             {timeZones.map((z) => (
               <option key={z.value} value={z.value}>
@@ -488,7 +481,7 @@ export function NewPolicyForm({ deviceId, sensorId }: { deviceId: number; sensor
       {create.isError && <ErrorState error={create.error} />}
       <div style={{ display: 'flex', gap: tokens.spacingHorizontalM }}>
         <Button appearance="primary" onClick={submit} disabled={!canSubmit || create.isPending}>
-          {create.isPending ? 'Creating…' : 'Create'}
+          {create.isPending ? t('Creating…') : t('Create')}
         </Button>
         <Button
           appearance="secondary"
@@ -497,14 +490,14 @@ export function NewPolicyForm({ deviceId, sensorId }: { deviceId: number; sensor
             setShowForm(false);
           }}
         >
-          Cancel
-        </Button>
+          {t('Cancel')}</Button>
       </div>
     </Card>
   );
 }
 
 export function SensorPoliciesPage() {
+  const t = useT();
   const { deviceId, sensorId } = useParams<{ deviceId: string; sensorId: string }>();
   const dId = Number(deviceId);
   const sId = Number(sensorId);
@@ -513,23 +506,23 @@ export function SensorPoliciesPage() {
   const sensorQuery = useSensor(dId, sId);
   const policiesQuery = useAggregationPolicies(dId, sId);
 
-  if (sensorQuery.isLoading || policiesQuery.isLoading) return <LoadingState label="Loading policies…" />;
+  if (sensorQuery.isLoading || policiesQuery.isLoading) return <LoadingState label={t('Loading policies…')} />;
   if (sensorQuery.isError) return <ErrorState error={sensorQuery.error} />;
   if (policiesQuery.isError) return <ErrorState error={policiesQuery.error} onRetry={() => policiesQuery.refetch()} />;
 
   return (
     <>
       <PageHeader
-        title={`${sensorQuery.data?.name || sensorQuery.data?.externalSensorId} · Sensor configuration`}
+        title={t('{0} · Sensor configuration', sensorQuery.data?.name || sensorQuery.data?.externalSensorId)}
         titleDisplay="compact"
         description={`${sensorQuery.data?.direction ?? ''} ${sensorQuery.data?.sensorType ? '· ' + sensorQuery.data.sensorType : ''}`}
       />
 
       {sensorQuery.data && <MetricDefinitionCard sensor={sensorQuery.data} />}
 
-      <Body1Strong style={{ display: 'block', marginBottom: tokens.spacingVerticalS }}>Aggregation policies</Body1Strong>
+      <Body1Strong style={{ display: 'block', marginBottom: tokens.spacingVerticalS }}>{t('Aggregation policies')}</Body1Strong>
       {isAdmin && <NewPolicyForm deviceId={dId} sensorId={sId} />}
-      {policiesQuery.data && policiesQuery.data.length === 0 && <EmptyState title="No aggregation policies" />}
+      {policiesQuery.data && policiesQuery.data.length === 0 && <EmptyState title={t('No aggregation policies')} />}
       {policiesQuery.data?.map((policy) => (
         <PolicyCard key={policy.id} deviceId={dId} sensorId={sId} policy={policy} />
       ))}

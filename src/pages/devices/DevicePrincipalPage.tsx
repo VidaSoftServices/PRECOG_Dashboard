@@ -43,6 +43,7 @@ import {
 } from '@/api/hooks/devicePrincipal';
 import { formatDateTimeWithZone, formatRelative } from '@/lib/dateTime';
 import { MAX_EXACT_ID, formatInt64Id } from '@/lib/ids';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   secretBox: {
@@ -71,6 +72,7 @@ const useStyles = makeStyles({
  * flag, and nothing is written anywhere except the clipboard the user asked for.
  */
 function CopyField({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  const t = useT();
   const styles = useStyles();
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
 
@@ -88,8 +90,8 @@ function CopyField({ label, value, hint }: { label: string; value: string; hint?
     <Field label={label} hint={hint}>
       <div className={styles.secretBox}>
         <Input value={value} readOnly style={{ flex: 1, fontFamily: 'monospace' }} />
-        <Button icon={<Copy24Regular />} onClick={copy} aria-label={`Copy ${label}`}>
-          {state === 'copied' ? 'Copied' : state === 'failed' ? 'Copy failed' : 'Copy'}
+        <Button icon={<Copy24Regular />} onClick={copy} aria-label={t('Copy {0}', label)}>
+          {state === 'copied' ? t('Copied') : state === 'failed' ? t('Copy failed') : t('Copy')}
         </Button>
       </div>
     </Field>
@@ -102,10 +104,11 @@ function CopyField({ label, value, hint }: { label: string; value: string; hint?
  * component) is never shown: showing rounded digits would be showing a wrong id, so the user is told instead.
  */
 function IdField({ label, value, hint }: { label: string; value: number | null | undefined; hint?: string }) {
+  const t = useT();
   const id = formatInt64Id(value);
   if (!id.exact) {
     return (
-      <Field label={label} validationState="error" validationMessage={`This id is larger than ${MAX_EXACT_ID}, which the dashboard cannot show exactly. Read it from the API response instead.`}>
+      <Field label={label} validationState="error" validationMessage={t('This id is larger than {0}, which the dashboard cannot show exactly. Read it from the API response instead.', MAX_EXACT_ID)}>
         <Input value="" readOnly />
       </Field>
     );
@@ -129,31 +132,29 @@ function SecretRevealDialog({
   deviceId: number;
   onClose: () => void;
 }) {
+  const t = useT();
   const styles = useStyles();
 
   return (
     <Dialog open={secret !== null} onOpenChange={(_, data) => !data.open && onClose()}>
       <DialogSurface>
         <DialogBody>
-          <DialogTitle>Device credential issued</DialogTitle>
+          <DialogTitle>{t('Device credential issued')}</DialogTitle>
           <DialogContent>
             <MessageBar intent="warning" style={{ marginBottom: tokens.spacingVerticalM }}>
               <MessageBarBody>
-                <MessageBarTitle>This is shown exactly once</MessageBarTitle>
-                Copy this Secret to the Device now. It cannot be retrieved again after you close this dialog - only
-                metadata (creation time, last used) will remain visible.
-              </MessageBarBody>
+                <MessageBarTitle>{t('This is shown exactly once')}</MessageBarTitle>
+                {t('Copy this Secret to the Device now. It cannot be retrieved again after you close this dialog - only metadata (creation time, last used) will remain visible.')}</MessageBarBody>
             </MessageBar>
             <div className={styles.fields}>
-              <CopyField label="Secret" value={secret?.secret ?? ''} />
-              <IdField label="Principal ID" value={secret?.principalId} hint="Not a secret - it stays the same when the credential is rotated." />
-              <IdField label="Device ID" value={deviceId} />
+              <CopyField label={t('Secret')} value={secret?.secret ?? ''} />
+              <IdField label={t('Principal ID')} value={secret?.principalId} hint={t('Not a secret - it stays the same when the credential is rotated.')} />
+              <IdField label={t('Device ID')} value={deviceId} />
             </div>
           </DialogContent>
           <DialogActions>
             <Button appearance="primary" onClick={onClose}>
-              Done
-            </Button>
+              {t('Done')}</Button>
           </DialogActions>
         </DialogBody>
       </DialogSurface>
@@ -162,6 +163,7 @@ function SecretRevealDialog({
 }
 
 export function DevicePrincipalPage() {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const { deviceId } = useParams<{ deviceId: string }>();
@@ -176,32 +178,30 @@ export function DevicePrincipalPage() {
   const [revealedSecret, setRevealedSecret] = useState<ProvisionDevicePrincipalResponse | null>(null);
   const [revokeTargetId, setRevokeTargetId] = useState<number | null>(null);
 
-  if (principalQuery.isLoading) return <LoadingState label="Loading machine identity…" />;
+  if (principalQuery.isLoading) return <LoadingState label={t('Loading machine identity…')} />;
   if (principalQuery.isError) return <ErrorState error={principalQuery.error} onRetry={() => principalQuery.refetch()} />;
 
   const principal = principalQuery.data;
 
   return (
     <>
-      <PageHeader title="DevicePrincipal administration" description="Machine identity and credentials for this Device. Admin only." />
+      <PageHeader title={t('DevicePrincipal administration')} description={t('Machine identity and credentials for this Device. Admin only.')} />
 
       {!principal && (
         <Card className={styles.card}>
-          <Body1Strong>Not provisioned</Body1Strong>
+          <Body1Strong>{t('Not provisioned')}</Body1Strong>
           <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-            This Device has no machine-access identity yet. Provisioning issues a Secret the Device will use to
-            authenticate telemetry ingestion.
-          </Text>
+            {t('This Device has no machine-access identity yet. Provisioning issues a Secret the Device will use to authenticate telemetry ingestion.')}</Text>
           <Button
             appearance="primary"
             icon={<ShieldKeyhole24Regular />}
             disabled={provision.isPending}
             onClick={async () => {
               setRevealedSecret(await provision.mutateAsync());
-              toast.success('DevicePrincipal provisioned');
+              toast.success(t('DevicePrincipal provisioned'));
             }}
           >
-            {provision.isPending ? 'Provisioning…' : 'Provision access'}
+            {provision.isPending ? t('Provisioning…') : t('Provision access')}
           </Button>
           {provision.isError && <ErrorState error={provision.error} />}
         </Card>
@@ -214,22 +214,22 @@ export function DevicePrincipalPage() {
               <div>
                 <EnabledPill enabled={principal.enabled} />
                 <Text size={200} style={{ marginLeft: tokens.spacingHorizontalS, color: tokens.colorNeutralForeground3 }}>
-                  Last seen {formatRelative(principal.lastSeenAt)}
+                  {t('Last seen')}{' '}{formatRelative(principal.lastSeenAt)}
                 </Text>
               </div>
               <Switch
                 checked={principal.enabled ?? false}
-                label={principal.enabled ? 'Access enabled' : 'Access disabled'}
+                label={principal.enabled ? t('Access enabled') : t('Access disabled')}
                 onChange={(_, d) =>
                   setEnabled.mutate(d.checked, {
-                    onSuccess: () => toast.success(d.checked ? 'DevicePrincipal enabled' : 'DevicePrincipal disabled'),
+                    onSuccess: () => toast.success(d.checked ? t('DevicePrincipal enabled') : t('DevicePrincipal disabled')),
                   })
                 }
               />
             </div>
             <div className={styles.fields} style={{ marginTop: 0 }}>
-              <IdField label="Principal ID" value={principal.principalId} />
-              <IdField label="Device ID" value={principal.deviceId ?? id} />
+              <IdField label={t('Principal ID')} value={principal.principalId} />
+              <IdField label={t('Device ID')} value={principal.deviceId ?? id} />
             </div>
             <div style={{ display: 'flex', gap: tokens.spacingHorizontalS }}>
               <Button
@@ -237,21 +237,21 @@ export function DevicePrincipalPage() {
                 disabled={rotate.isPending || !principal.enabled}
                 onClick={async () => {
                   setRevealedSecret(await rotate.mutateAsync());
-                  toast.success('Credential rotated');
+                  toast.success(t('Credential rotated'));
                 }}
               >
-                {rotate.isPending ? 'Rotating…' : 'Rotate credential'}
+                {rotate.isPending ? t('Rotating…') : t('Rotate credential')}
               </Button>
             </div>
           </Card>
 
-          <Body1Strong>Credentials</Body1Strong>
+          <Body1Strong>{t('Credentials')}</Body1Strong>
           <Table style={{ marginTop: tokens.spacingVerticalS }}>
             <TableHeader>
               <TableRow>
-                <TableHeaderCell>Created</TableHeaderCell>
-                <TableHeaderCell>Last used</TableHeaderCell>
-                <TableHeaderCell>Status</TableHeaderCell>
+                <TableHeaderCell>{t('Created')}</TableHeaderCell>
+                <TableHeaderCell>{t('Last used')}</TableHeaderCell>
+                <TableHeaderCell>{t('Status')}</TableHeaderCell>
                 <TableHeaderCell></TableHeaderCell>
               </TableRow>
             </TableHeader>
@@ -263,10 +263,10 @@ export function DevicePrincipalPage() {
                   <TableCell>
                     {credential.revokedAt ? (
                       <Text style={{ color: tokens.colorPaletteRedForeground1 }}>
-                        Revoked {formatRelative(credential.revokedAt)}
+                        {t('Revoked')}{' '}{formatRelative(credential.revokedAt)}
                       </Text>
                     ) : (
-                      <Text style={{ color: tokens.colorPaletteGreenForeground1 }}>Active</Text>
+                      <Text style={{ color: tokens.colorPaletteGreenForeground1 }}>{t('Active')}</Text>
                     )}
                   </TableCell>
                   <TableCell>
@@ -277,8 +277,7 @@ export function DevicePrincipalPage() {
                         onClick={() => setRevokeTargetId(credential.credentialId!)}
                         disabled={revoke.isPending}
                       >
-                        Revoke
-                      </Button>
+                        {t('Revoke')}</Button>
                     )}
                   </TableCell>
                 </TableRow>
@@ -292,14 +291,14 @@ export function DevicePrincipalPage() {
 
       <ConfirmDialog
         open={revokeTargetId !== null}
-        title="Revoke this credential?"
+        title={t('Revoke this credential?')}
         intent="destructive"
         confirmLabel="Revoke"
         busy={revoke.isPending}
         onConfirm={() =>
           revoke.mutate(revokeTargetId!, {
             onSuccess: () => {
-              toast.success('Credential revoked');
+              toast.success(t('Credential revoked'));
               setRevokeTargetId(null);
             },
           })
@@ -307,9 +306,7 @@ export function DevicePrincipalPage() {
         onCancel={() => setRevokeTargetId(null)}
       >
         <Text>
-          This takes effect immediately - the credential can no longer obtain a new token. If this is the Device's
-          only active credential, it will be unable to authenticate until a new one is provisioned or rotated.
-        </Text>
+          {t('This takes effect immediately - the credential can no longer obtain a new token. If this is the Device\'s only active credential, it will be unable to authenticate until a new one is provisioned or rotated.')}</Text>
       </ConfirmDialog>
     </>
   );

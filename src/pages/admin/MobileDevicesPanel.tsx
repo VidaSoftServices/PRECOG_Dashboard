@@ -31,6 +31,7 @@ import {
 } from '@/api/hooks/macAddresses';
 import { formatDateTimeWithZone, formatRelative } from '@/lib/dateTime';
 import { looksLikeMacAddress } from '@/lib/macAddress';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   card: { padding: tokens.spacingVerticalM },
@@ -97,6 +98,7 @@ function MacAddressDialog({
   entry?: MacAddressEntryDto;
   onClose: () => void;
 }) {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const assignable = useAssignableUsers();
@@ -116,13 +118,13 @@ function MacAddressDialog({
     const chosen = Number(userId);
     if (adding) {
       await create.mutateAsync({ macAddress: mac.trim(), userId: chosen, label: label.trim() || undefined });
-      toast.success('MAC address registered');
+      toast.success(t('MAC address registered'));
     } else {
       await update.mutateAsync({
         id: entry.id!,
         body: { status: 'Assigned', userId: chosen, label: label.trim() },
       });
-      toast.success(`MAC address assigned: ${entry.macAddress}`);
+      toast.success(t('MAC address assigned: {0}', entry.macAddress));
     }
     onClose();
   };
@@ -130,8 +132,8 @@ function MacAddressDialog({
   return (
     <ConfirmDialog
       open={open}
-      title={adding ? 'Add MAC address' : `Assign ${entry.macAddress}`}
-      confirmLabel={adding ? 'Add' : 'Assign'}
+      title={adding ? t('Add MAC address') : t('Assign {0}', entry.macAddress)}
+      confirmLabel={adding ? t('Add') : t('Assign')}
       busy={busy}
       confirmDisabled={!canSubmit}
       onConfirm={() => void submit().catch(() => undefined)}
@@ -140,18 +142,18 @@ function MacAddressDialog({
       <div className={styles.form}>
         {adding && (
           <Field
-            label="MAC address"
+            label={t('MAC address')}
             required
-            hint="For example AA:BB:CC:DD:EE:FF. Any common notation works."
+            hint={t('For example AA:BB:CC:DD:EE:FF. Any common notation works.')}
             validationState={macInvalid ? 'error' : 'none'}
-            validationMessage={macInvalid ? 'Enter 12 hexadecimal digits, e.g. AA:BB:CC:DD:EE:FF.' : undefined}
+            validationMessage={macInvalid ? t('Enter 12 hexadecimal digits, e.g. AA:BB:CC:DD:EE:FF.') : undefined}
           >
             <Input value={mac} onChange={(_, d) => setMac(d.value)} />
           </Field>
         )}
-        <Field label="User" required hint="Only enabled Company members with the Admin or Reader role can own a MAC address.">
-          <Select aria-label="User" value={userId} onChange={(_, d) => setUserId(d.value)}>
-            <option value="">Select a user…</option>
+        <Field label={t('User')} required hint={t('Only enabled Company members with the Admin or Reader role can own a MAC address.')}>
+          <Select aria-label={t('User')} value={userId} onChange={(_, d) => setUserId(d.value)}>
+            <option value="">{t('Select a user…')}</option>
             {assignable.users.map((u) => (
               <option key={u.userId} value={String(u.userId)}>
                 {u.label}
@@ -159,14 +161,13 @@ function MacAddressDialog({
             ))}
           </Select>
         </Field>
-        <Field label="Note" hint="Optional, e.g. whose phone this is.">
+        <Field label={t('Note')} hint={t('Optional, e.g. whose phone this is.')}>
           <Input value={label} maxLength={200} onChange={(_, d) => setLabel(d.value)} />
         </Field>
         {assignable.isLoading && <LoadingState label="" />}
         {!assignable.isLoading && assignable.users.length === 0 && (
           <Text size={200} className={styles.muted}>
-            No enabled Admin or Reader members found in this Company.
-          </Text>
+            {t('No enabled Admin or Reader members found in this Company.')}</Text>
         )}
         {error && <ErrorState error={error} />}
       </div>
@@ -187,6 +188,7 @@ function EntryRow({
   onRequeue: () => void;
   onRemove: () => void;
 }) {
+  const t = useT();
   const styles = useStyles();
   const status = entry.status as MacAddressStatus | undefined;
 
@@ -205,7 +207,7 @@ function EntryRow({
         <br />
         {status === 'Assigned' ? (
           <Text size={200} className={styles.muted}>
-            {entry.userDisplayName || entry.userEmail || `User ${entry.userId}`}
+            {entry.userDisplayName || entry.userEmail || t('User {0}', entry.userId)}
             {entry.userRole && (
               <>
                 {' '}
@@ -217,13 +219,13 @@ function EntryRow({
           </Text>
         ) : (
           <Text size={200} className={styles.muted}>
-            {status === 'Queued' ? 'Requested' : 'Blacklisted'} {formatRelative(status === 'Queued' ? entry.requestedAt : entry.statusChangedAt)}
+            {status === 'Queued' ? t('Requested') : t('Blacklisted')} {formatRelative(status === 'Queued' ? entry.requestedAt : entry.statusChangedAt)}
             {' · '}
             {formatDateTimeWithZone(status === 'Queued' ? entry.requestedAt : entry.statusChangedAt)}
             {status === 'Queued' && (
               <>
-                {' · via '}
-                {entry.requestedDeviceName || (entry.requestedDeviceId != null ? `Device ${entry.requestedDeviceId}` : 'an Admin')}
+                {t(' · via ')}
+                {entry.requestedDeviceName || (entry.requestedDeviceId != null ? t('Device {0}', entry.requestedDeviceId) : t('an Admin'))}
               </>
             )}
           </Text>
@@ -231,21 +233,18 @@ function EntryRow({
       </div>
       <div className={styles.actions}>
         <Button size="small" appearance="primary" onClick={onAssign}>
-          {status === 'Assigned' ? 'Reassign' : 'Assign to user'}
+          {status === 'Assigned' ? t('Reassign') : t('Assign to user')}
         </Button>
         {status !== 'Blacklisted' && (
           <Button size="small" onClick={onBlacklist}>
-            Blacklist
-          </Button>
+            {t('Blacklist')}</Button>
         )}
         {status === 'Blacklisted' && (
           <Button size="small" onClick={onRequeue}>
-            Move to queue
-          </Button>
+            {t('Move to queue')}</Button>
         )}
         <Button size="small" onClick={onRemove}>
-          Remove
-        </Button>
+          {t('Remove')}</Button>
       </div>
     </div>
   );
@@ -283,6 +282,7 @@ const VIEWS: { value: MacAddressStatus; label: string; empty: string; hint: stri
  * a Device decides what to offer the person who connected to it.
  */
 export function MobileDevicesPanel() {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const [view, setView] = useState<MacAddressStatus>('Queued');
@@ -301,25 +301,24 @@ export function MobileDevicesPanel() {
   return (
     <Card className={styles.card}>
       <div className={styles.toolbar}>
-        <Body1Strong>Mobile devices</Body1Strong>
+        <Body1Strong>{t('Mobile devices')}</Body1Strong>
         <Button icon={<AddCircle24Regular />} onClick={() => setAddOpen(true)}>
-          Add MAC address
-        </Button>
+          {t('Add MAC address')}</Button>
       </div>
       <TabList selectedValue={view} onTabSelect={(_, d) => setView(d.value as MacAddressStatus)} style={{ marginBottom: tokens.spacingVerticalM }}>
         {VIEWS.map((v) => (
           <Tab key={v.value} value={v.value}>
-            {v.label}
+            {t(v.label)}
           </Tab>
         ))}
       </TabList>
       <Text size={200} className={styles.intro}>
-        {current.hint}
+        {t(current.hint)}
       </Text>
 
-      {query.isLoading && <LoadingState label="Loading MAC addresses…" />}
+      {query.isLoading && <LoadingState label={t('Loading MAC addresses…')} />}
       {query.isError && <ErrorState error={query.error} onRetry={() => query.refetch()} />}
-      {query.data && entries.length === 0 && <EmptyState title={current.empty} />}
+      {query.data && entries.length === 0 && <EmptyState title={t(current.empty)} />}
       {entries.map((entry, index) => (
         <div key={entry.id}>
           {index > 0 && <Divider />}
@@ -330,7 +329,7 @@ export function MobileDevicesPanel() {
             onRequeue={() =>
               update.mutate(
                 { id: entry.id!, body: { status: 'Queued' } },
-                { onSuccess: () => toast.success(`Moved to the queue: ${entry.macAddress}`) },
+                { onSuccess: () => toast.success(t('Moved to the queue: {0}', entry.macAddress)) },
               )
             }
             onRemove={() => setRemoving(entry)}
@@ -344,7 +343,7 @@ export function MobileDevicesPanel() {
 
       <ConfirmDialog
         open={blacklisting !== null}
-        title="Blacklist this MAC address?"
+        title={t('Blacklist this MAC address?')}
         confirmLabel="Blacklist"
         intent="destructive"
         busy={update.isPending}
@@ -355,7 +354,7 @@ export function MobileDevicesPanel() {
             { id: target.id!, body: { status: 'Blacklisted' } },
             {
               onSuccess: () => {
-                toast.success(`Blacklisted: ${target.macAddress}`);
+                toast.success(t('Blacklisted: {0}', target.macAddress));
                 setBlacklisting(null);
               },
             },
@@ -364,14 +363,13 @@ export function MobileDevicesPanel() {
         onCancel={() => setBlacklisting(null)}
       >
         <Text>
-          {blacklisting?.macAddress} will no longer appear in the queue, and a Device that submits it again is ignored. {blacklisting?.status === 'Assigned' && 'It will also stop belonging to its current user. '}
-          You can restore it from the Blacklist tab.
-        </Text>
+          {blacklisting?.macAddress} {t('will no longer appear in the queue, and a Device that submits it again is ignored.')}{' '}{blacklisting?.status === 'Assigned' && t('It will also stop belonging to its current user. ')}
+          {t('You can restore it from the Blacklist tab.')}</Text>
       </ConfirmDialog>
 
       <ConfirmDialog
         open={removing !== null}
-        title="Remove this MAC address?"
+        title={t('Remove this MAC address?')}
         confirmLabel="Remove"
         intent="destructive"
         busy={remove.isPending}
@@ -380,7 +378,7 @@ export function MobileDevicesPanel() {
           if (!target) return;
           remove.mutate(target.id!, {
             onSuccess: () => {
-              toast.success(`Removed: ${target.macAddress}`);
+              toast.success(t('Removed: {0}', target.macAddress));
               setRemoving(null);
             },
           });
@@ -388,9 +386,7 @@ export function MobileDevicesPanel() {
         onCancel={() => setRemoving(null)}
       >
         <Text>
-          {removing?.macAddress} is deleted from the registry entirely
-          {removing?.status === 'Blacklisted' ? ', which takes it off the blacklist' : ''}. A Device can submit it to the queue again.
-        </Text>
+          {removing?.macAddress} {t('is deleted from the registry entirely')}{removing?.status === 'Blacklisted' ? t(', which takes it off the blacklist') : ''}{t('. A Device can submit it to the queue again.')}</Text>
         {remove.isError && <ErrorState error={remove.error} />}
       </ConfirmDialog>
     </Card>

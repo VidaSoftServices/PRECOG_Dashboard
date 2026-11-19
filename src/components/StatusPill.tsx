@@ -11,6 +11,7 @@ import {
   EyeOff16Regular,
 } from '@fluentui/react-icons';
 import type { Freshness } from '@/lib/dateTime';
+import { useT } from '@/lib/language';
 
 /**
  * Status is never conveyed by color alone (audit accessibility finding) -
@@ -25,10 +26,11 @@ const freshnessConfig: Record<Freshness, { intent: BadgeProps['color']; icon: Re
 };
 
 export function FreshnessPill({ freshness }: { freshness: Freshness }) {
+  const t = useT();
   const config = freshnessConfig[freshness];
   return (
     <Badge appearance="tint" color={config.intent} icon={config.icon}>
-      {config.label}
+      {t(config.label)}
     </Badge>
   );
 }
@@ -40,10 +42,11 @@ const reviewStateConfig: Record<string, { intent: BadgeProps['color']; label: st
 };
 
 export function ReviewStatePill({ reviewState }: { reviewState: string | null | undefined }) {
+  const t = useT();
   const config = reviewState ? reviewStateConfig[reviewState] : undefined;
   return (
     <Badge appearance="tint" color={config?.intent ?? 'subtle'}>
-      {config?.label ?? reviewState ?? 'Unknown'}
+      {config ? t(config.label) : (reviewState ?? t('Unknown'))}
     </Badge>
   );
 }
@@ -60,23 +63,23 @@ const jobStatusConfig: Record<string, { intent: BadgeProps['color']; icon: React
 };
 
 export function JobStatusPill({ status }: { status: string | null | undefined }) {
+  const t = useT();
   const config = status ? jobStatusConfig[status] : undefined;
   return (
     <Badge appearance="tint" color={config?.intent ?? 'subtle'} icon={config?.icon}>
-      {status ?? 'Unknown'}
+      {status ? t(status) : t('Unknown')}
     </Badge>
   );
 }
 
 export function EnabledPill({ enabled }: { enabled: boolean | null | undefined }) {
+  const t = useT();
   return enabled ? (
     <Badge appearance="tint" color="success" icon={<CheckmarkCircle16Regular />}>
-      Enabled
-    </Badge>
+      {t('Enabled')}</Badge>
   ) : (
     <Badge appearance="tint" color="subtle" icon={<Circle16Regular />}>
-      Disabled
-    </Badge>
+      {t('Disabled')}</Badge>
   );
 }
 
@@ -87,11 +90,11 @@ export function EnabledPill({ enabled }: { enabled: boolean | null | undefined }
  * for a Sensor that is not in maintenance.
  */
 export function MaintenancePill({ maintenanceMode }: { maintenanceMode: boolean | null | undefined }) {
+  const t = useT();
   if (!maintenanceMode) return null;
   return (
     <Badge appearance="filled" color="warning" icon={<Wrench16Regular />}>
-      Maintenance
-    </Badge>
+      {t('Maintenance')}</Badge>
   );
 }
 
@@ -102,11 +105,11 @@ export function MaintenancePill({ maintenanceMode }: { maintenanceMode: boolean 
  * is calculating (the default), so the common case stays quiet.
  */
 export function ProcessingOffPill({ processingEnabled }: { processingEnabled: boolean | null | undefined }) {
+  const t = useT();
   if (processingEnabled !== false) return null;
   return (
     <Badge appearance="tint" color="informative" icon={<PauseCircle16Regular />}>
-      Calculation off
-    </Badge>
+      {t('Calculation off')}</Badge>
   );
 }
 
@@ -116,10 +119,10 @@ export function ProcessingOffPill({ processingEnabled }: { processingEnabled: bo
  * never color alone. Renders nothing for a visible Sensor (the default), so the common case stays quiet.
  */
 export function HiddenPill({ visible }: { visible: boolean | null | undefined }) {
+  const t = useT();
   if (visible !== false) return null;
   return (
     <Badge appearance="tint" color="informative" icon={<EyeOff16Regular />}>
-      Hidden
-    </Badge>
+      {t('Hidden')}</Badge>
   );
 }

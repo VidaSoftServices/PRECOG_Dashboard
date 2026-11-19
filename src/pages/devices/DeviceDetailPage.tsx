@@ -16,7 +16,7 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import { Delete24Regular, ShieldKeyhole24Regular, Settings24Regular, ChartMultiple24Regular, AddCircle24Regular, Edit24Regular, Wrench24Regular, TableArrowUp24Regular, TargetEdit24Regular, ArrowSync24Regular, DataBarVertical24Regular } from '@fluentui/react-icons';
+import { Delete24Regular, ShieldKeyhole24Regular, Settings24Regular, ChartMultiple24Regular, AddCircle24Regular, Edit24Regular, Wrench24Regular, TableArrowUp24Regular, TargetEdit24Regular, DocumentText24Regular, ArrowSync24Regular, DataBarVertical24Regular } from '@fluentui/react-icons';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
@@ -28,6 +28,7 @@ import { SensorTypeInput } from '@/components/SensorTypeInput';
 import { ExportSensorMapButton } from './ExportSensorMapButton';
 import { ExportAllSensorsButton } from './ExportAllSensorsButton';
 import { ManageSetpointsDialog } from './ManageSetpointsDialog';
+import { ImportDescriptionsDialog } from './ImportDescriptionsDialog';
 import { DeleteDeviceDataDialog, DeleteDeviceDialog } from './DeleteDeviceDialog';
 import { useAppToast } from '@/components/ToastProvider';
 import { useDevice, useUpdateDevice, useDisableDevice } from '@/api/hooks/devices';
@@ -45,6 +46,7 @@ import { useTrainingRequests } from '@/api/hooks/training';
 import { freshnessOf, formatDateTimeWithZone, formatRelative } from '@/lib/dateTime';
 import { POLL_INTERVALS_MS } from '@/lib/pollIntervals';
 import { useAuth } from '@/auth/AuthContext';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   grid: {
@@ -90,11 +92,12 @@ const useStyles = makeStyles({
 type Direction = 'lowerisbetter' | 'higherisbetter' | 'bidirectional';
 
 function DirectionSelect({ value, onChange }: { value: Direction; onChange: (value: Direction) => void }) {
+  const t = useT();
   return (
     <Select value={value} onChange={(_, d) => onChange(d.value as Direction)}>
-      <option value="lowerisbetter">Lower is better</option>
-      <option value="higherisbetter">Higher is better</option>
-      <option value="bidirectional">Bidirectional</option>
+      <option value="lowerisbetter">{t('Lower is better')}</option>
+      <option value="higherisbetter">{t('Higher is better')}</option>
+      <option value="bidirectional">{t('Bidirectional')}</option>
     </Select>
   );
 }
@@ -119,6 +122,7 @@ function NewSensorDialog({
   open: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const createSensor = useCreateSensor(deviceId);
@@ -145,7 +149,7 @@ function NewSensorDialog({
   return (
     <ConfirmDialog
       open={open}
-      title="Add Sensor"
+      title={t('Add Sensor')}
       confirmLabel="Create"
       busy={createSensor.isPending}
       confirmDisabled={!canSubmit}
@@ -160,7 +164,7 @@ function NewSensorDialog({
           rawScale,
           rawLookback: Number(rawLookback),
         });
-        toast.success('Sensor created');
+        toast.success(t('Sensor created'));
         reset();
         onClose();
       }}
@@ -170,25 +174,25 @@ function NewSensorDialog({
       }}
     >
       <div className={styles.form}>
-        <Field label="External Sensor ID" required hint="A unique tag name for this Sensor within the Device - used by the uploader.">
+        <Field label={t('External Sensor ID')} required hint={t('A unique tag name for this Sensor within the Device - used by the uploader.')}>
           <Input value={externalSensorId} onChange={(_, d) => setExternalSensorId(d.value)} />
         </Field>
-        <Field label="Name">
+        <Field label={t('Name')}>
           <Input value={name} onChange={(_, d) => setName(d.value)} />
         </Field>
-        <Field label="Direction" required>
+        <Field label={t('Direction')} required>
           <DirectionSelect value={direction} onChange={setDirection} />
         </Field>
-        <Field label="Sensor type" hint="Pick one already in use, or type a new one - e.g. temperature, pressure, vibration">
+        <Field label={t('Sensor type')} hint={t('Pick one already in use, or type a new one - e.g. temperature, pressure, vibration')}>
           <SensorTypeInput value={sensorType} onChange={setSensorType} />
         </Field>
-        <Field label="Unit code" hint="e.g. degC, bar, mm/s">
+        <Field label={t('Unit code')} hint={t('e.g. degC, bar, mm/s')}>
           <Input value={unitCode} onChange={(_, d) => setUnitCode(d.value)} />
         </Field>
-        <Field label="Raw lookback" required hint="How far back the raw policy's analysis window extends. Must be greater than zero.">
+        <Field label={t('Raw lookback')} required hint={t('How far back the raw policy\'s analysis window extends. Must be greater than zero.')}>
           <Input type="number" min="1" value={rawLookback} onChange={(_, d) => setRawLookback(d.value)} />
         </Field>
-        <Field label="Raw scale" required hint='A time unit (e.g. "Days", "Hours") or "periods" for a periodic Device - same free-text convention as the Sensor Policies page.'>
+        <Field label={t('Raw scale')} required hint={t('A time unit (e.g. "Days", "Hours") or "periods" for a periodic Device - same free-text convention as the Sensor Policies page.')}>
           <Input value={rawScale} onChange={(_, d) => setRawScale(d.value)} />
         </Field>
         {createSensor.isError && <ErrorState error={createSensor.error} />}
@@ -208,6 +212,7 @@ function EditSensorDialog({
   open: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const updateSensor = useUpdateSensor(deviceId, sensor.id!);
@@ -219,7 +224,7 @@ function EditSensorDialog({
   return (
     <ConfirmDialog
       open={open}
-      title={`Edit ${sensor.name || sensor.externalSensorId}`}
+      title={t('Edit {0}', sensor.name || sensor.externalSensorId)}
       confirmLabel="Save"
       busy={updateSensor.isPending}
       onConfirm={async () => {
@@ -229,22 +234,22 @@ function EditSensorDialog({
           unitCode: unitCode || null,
           direction,
         });
-        toast.success('Sensor updated');
+        toast.success(t('Sensor updated'));
         onClose();
       }}
       onCancel={onClose}
     >
       <div className={styles.form}>
-        <Field label="Name">
+        <Field label={t('Name')}>
           <Input value={name} onChange={(_, d) => setName(d.value)} />
         </Field>
-        <Field label="Direction">
+        <Field label={t('Direction')}>
           <DirectionSelect value={direction} onChange={setDirection} />
         </Field>
-        <Field label="Sensor type">
+        <Field label={t('Sensor type')}>
           <SensorTypeInput value={sensorType} onChange={setSensorType} />
         </Field>
-        <Field label="Unit code">
+        <Field label={t('Unit code')}>
           <Input value={unitCode} onChange={(_, d) => setUnitCode(d.value)} />
         </Field>
         {updateSensor.isError && <ErrorState error={updateSensor.error} />}
@@ -290,6 +295,7 @@ function ProcessingDialog({
   open: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
   const toast = useAppToast();
   const updateSensor = useUpdateSensor(deviceId, sensor.id!);
   const turningOff = sensor.processingEnabled !== false;
@@ -298,21 +304,21 @@ function ProcessingDialog({
   return (
     <ConfirmDialog
       open={open}
-      title={turningOff ? `Stop calculating ${label}?` : `Resume calculating ${label}?`}
-      confirmLabel={turningOff ? 'Stop calculation' : 'Resume calculation'}
+      title={turningOff ? t('Stop calculating {0}?', label) : t('Resume calculating {0}?', label)}
+      confirmLabel={turningOff ? t('Stop calculation') : t('Resume calculation')}
       intent={turningOff ? 'destructive' : 'normal'}
       busy={updateSensor.isPending}
       onConfirm={async () => {
         await updateSensor.mutateAsync({ processingEnabled: !turningOff }); // also refreshes the recalculation progress (the catch-up)
-        toast.success(turningOff ? `Calculation stopped: ${label}` : `Calculation resumed: ${label}`);
+        toast.success(turningOff ? t('Calculation stopped: {0}', label) : t('Calculation resumed: {0}', label));
         onClose();
       }}
       onCancel={onClose}
     >
       <Text>
         {turningOff
-          ? 'New values for this Sensor will still be stored and still be used to train the model, but they will no longer trigger any calculation - no analysis and no Issues will be raised from this Sensor. Everything already calculated (analysis results, control limits) and every Issue that is already open is kept as it is; Recalc deletes them (and calculates nothing while calculation is off). Switching calculation on again calculates everything that was not calculated.'
-          : 'Everything not calculated yet - the values that arrived while calculation was off, and whatever a Recalc deleted - is calculated now in the background, one value at a time in time order, exactly as if calculation had been on all along: control limits, anomalies and Issues. Issues a person has reviewed are kept and not duplicated. The progress is shown on this page; new values are calculated as usual when it has caught up. (A bidirectional Sensor or one in maintenance mode is calculated from now on only.)'}
+          ? t('New values for this Sensor will still be stored and still be used to train the model, but they will no longer trigger any calculation - no analysis and no Issues will be raised from this Sensor. Everything already calculated (analysis results, control limits) and every Issue that is already open is kept as it is; Recalc deletes them (and calculates nothing while calculation is off). Switching calculation on again calculates everything that was not calculated.')
+          : t('Everything not calculated yet - the values that arrived while calculation was off, and whatever a Recalc deleted - is calculated now in the background, one value at a time in time order, exactly as if calculation had been on all along: control limits, anomalies and Issues. Issues a person has reviewed are kept and not duplicated. The progress is shown on this page; new values are calculated as usual when it has caught up. (A bidirectional Sensor or one in maintenance mode is calculated from now on only.)')}
       </Text>
       {updateSensor.isError && <ErrorState error={updateSensor.error} />}
     </ConfirmDialog>
@@ -330,6 +336,7 @@ function MaintenanceDialog({
   open: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
   const toast = useAppToast();
   const setMaintenance = useSetSensorMaintenance(deviceId, sensor.id!);
   const starting = !sensor.maintenanceMode;
@@ -338,21 +345,21 @@ function MaintenanceDialog({
   return (
     <ConfirmDialog
       open={open}
-      title={starting ? `Start maintenance on ${label}?` : `End maintenance on ${label}?`}
-      confirmLabel={starting ? 'Start maintenance' : 'End maintenance'}
+      title={starting ? t('Start maintenance on {0}?', label) : t('End maintenance on {0}?', label)}
+      confirmLabel={starting ? t('Start maintenance') : t('End maintenance')}
       intent={starting ? 'destructive' : 'normal'}
       busy={setMaintenance.isPending}
       onConfirm={async () => {
         await setMaintenance.mutateAsync(starting);
-        toast.success(starting ? `Maintenance started: ${label}` : `Maintenance ended: ${label}`);
+        toast.success(starting ? t('Maintenance started: {0}', label) : t('Maintenance ended: {0}', label));
         onClose();
       }}
       onCancel={onClose}
     >
       <Text>
         {starting
-          ? 'While this Sensor is in maintenance, every value the Device sends for it is accepted but ignored: it is not stored and not analysed, so no Issue can be raised from it. Data sent during maintenance cannot be recovered afterwards.'
-          : 'The Device’s values for this Sensor will be stored and analysed again from now on.'}
+          ? t('While this Sensor is in maintenance, every value the Device sends for it is accepted but ignored: it is not stored and not analysed, so no Issue can be raised from it. Data sent during maintenance cannot be recovered afterwards.')
+          : t('The Device’s values for this Sensor will be stored and analysed again from now on.')}
       </Text>
       {setMaintenance.isError && <ErrorState error={setMaintenance.error} />}
     </ConfirmDialog>
@@ -360,6 +367,7 @@ function MaintenanceDialog({
 }
 
 export function DeviceDetailPage() {
+  const t = useT();
   const styles = useStyles();
   const { deviceId } = useParams<{ deviceId: string }>();
   const id = Number(deviceId);
@@ -391,6 +399,7 @@ export function DeviceDetailPage() {
   const [addSensorOpen, setAddSensorOpen] = useState(false);
   const [importSensorsOpen, setImportSensorsOpen] = useState(false);
   const [manageSetpointsOpen, setManageSetpointsOpen] = useState(false);
+  const [importDescriptionsOpen, setImportDescriptionsOpen] = useState(false);
   const [editingSensorId, setEditingSensorId] = useState<number | null>(null);
   const [maintenanceSensorId, setMaintenanceSensorId] = useState<number | null>(null);
   const [maintenanceAllOpen, setMaintenanceAllOpen] = useState(false);
@@ -404,10 +413,10 @@ export function DeviceDetailPage() {
   const calculatedUpTo = useCalculatedUpTo(id);
   const calculatedUpToBySensor = new Map((calculatedUpTo.data?.sensors ?? []).map((s) => [s.sensorId, s.calculatedUpTo] as const));
 
-  if (deviceQuery.isLoading) return <LoadingState label="Loading device…" />;
+  if (deviceQuery.isLoading) return <LoadingState label={t('Loading device…')} />;
   if (deviceQuery.isError) return <ErrorState error={deviceQuery.error} onRetry={() => deviceQuery.refetch()} />;
   const device = deviceQuery.data;
-  if (!device) return <EmptyState title="Device not found" />;
+  if (!device) return <EmptyState title={t('Device not found')} />;
 
   const editingSensor = sensorsQuery.data?.find((s) => s.id === editingSensorId) ?? null;
   const maintenanceSensor = sensorsQuery.data?.find((s) => s.id === maintenanceSensorId) ?? null;
@@ -422,28 +431,27 @@ export function DeviceDetailPage() {
 
   const saveEdit = async () => {
     await updateDevice.mutateAsync({ deviceName: nameDraft });
-    toast.success('Device updated');
+    toast.success(t('Device updated'));
     setEditing(false);
   };
 
   return (
     <>
       <PageHeader
-        title={device.deviceName || device.externalDeviceId || `Device ${device.id}`}
+        title={device.deviceName || device.externalDeviceId || t('Device {0}', device.id)}
         titleDisplay="compact"
         description={`${device.applicationMode} · ${device.externalDeviceId}`}
         actions={
           isAdmin && (
             <>
               <Button icon={<Settings24Regular />} onClick={editing ? saveEdit : startEdit} disabled={updateDevice.isPending}>
-                {editing ? (updateDevice.isPending ? 'Saving…' : 'Save') : 'Edit'}
+                {editing ? (updateDevice.isPending ? t('Saving…') : t('Save')) : t('Edit')}
               </Button>
               <Button
                 icon={<ShieldKeyhole24Regular />}
                 onClick={() => navigate(`/devices/${id}/principal`)}
               >
-                DevicePrincipal
-              </Button>
+                {t('DevicePrincipal')}</Button>
             </>
           )
         }
@@ -452,35 +460,32 @@ export function DeviceDetailPage() {
       {editing && (
         <Card className={styles.card} style={{ marginBottom: tokens.spacingVerticalL, maxWidth: '420px' }}>
           <div className={styles.editForm}>
-            <Field label="Name">
+            <Field label={t('Name')}>
               <Input value={nameDraft} onChange={(_, d) => setNameDraft(d.value)} />
             </Field>
-            <Field label="Enabled">
+            <Field label={t('Enabled')}>
               <Switch
                 checked={device.enabled ?? false}
-                label={device.enabled ? 'Enabled' : 'Disabled'}
+                label={device.enabled ? t('Enabled') : t('Disabled')}
                 onChange={(_, d) =>
                   updateDevice.mutate(
                     { enabled: d.checked },
-                    { onSuccess: () => toast.success(d.checked ? 'Device enabled' : 'Device disabled') },
+                    { onSuccess: () => toast.success(d.checked ? t('Device enabled') : t('Device disabled')) },
                   )
                 }
               />
             </Field>
             {updateDevice.isError && <ErrorState error={updateDevice.error} />}
             <Button appearance="secondary" onClick={() => setEditing(false)}>
-              Close
-            </Button>
+              {t('Close')}</Button>
             <Divider />
             <div className={styles.editForm}>
-              <Body1Strong>Danger zone</Body1Strong>
-              <Text size={200}>Permanently delete all data of the device - measurements, Issues, models (the device, its Sensors and their settings stay) - or the whole device with everything of it. Neither can be undone.</Text>
+              <Body1Strong>{t('Danger zone')}</Body1Strong>
+              <Text size={200}>{t('Permanently delete all data of the device - measurements, Issues, models (the device, its Sensors and their settings stay) - or the whole device with everything of it. Neither can be undone.')}</Text>
               <Button icon={<Delete24Regular />} onClick={() => setDeleteDataOpen(true)}>
-                Delete all data…
-              </Button>
+                {t('Delete all data…')}</Button>
               <Button icon={<Delete24Regular />} onClick={() => setDeleteOpen(true)}>
-                Delete device…
-              </Button>
+                {t('Delete device…')}</Button>
             </div>
           </div>
         </Card>
@@ -488,9 +493,9 @@ export function DeviceDetailPage() {
 
       <div className={styles.grid}>
         <Card className={styles.card}>
-          <Body1Strong>Status</Body1Strong>
+          <Body1Strong>{t('Status')}</Body1Strong>
           <EnabledPill enabled={device.enabled} />
-          <Text size={200}>Last heartbeat: {formatRelative(device.heartBeat)}</Text>
+          <Text size={200}>{t('Last heartbeat:')}{' '}{formatRelative(device.heartBeat)}</Text>
           <FreshnessPill freshness={freshnessOf(device.heartBeat)} />
           <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
             {formatDateTimeWithZone(device.heartBeat)}
@@ -498,68 +503,66 @@ export function DeviceDetailPage() {
         </Card>
 
         <Card className={styles.card}>
-          <Body1Strong>Machine access</Body1Strong>
+          <Body1Strong>{t('Machine access')}</Body1Strong>
           {principalQuery.isLoading && <LoadingState label="" />}
           {principalQuery.data === null && (
             <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-              Not provisioned yet.
-            </Text>
+              {t('Not provisioned yet.')}</Text>
           )}
           {principalQuery.data && (
             <>
               <EnabledPill enabled={principalQuery.data.enabled} />
-              <Text size={200}>Last seen: {formatRelative(principalQuery.data.lastSeenAt)}</Text>
-              <Text size={200}>{principalQuery.data.credentials?.length ?? 0} credential(s)</Text>
+              <Text size={200}>{t('Last seen:')}{' '}{formatRelative(principalQuery.data.lastSeenAt)}</Text>
+              <Text size={200}>{principalQuery.data.credentials?.length ?? 0} {t('credential(s)')}</Text>
             </>
           )}
         </Card>
 
         <Card className={styles.card}>
-          <Body1Strong>Training</Body1Strong>
+          <Body1Strong>{t('Training')}</Body1Strong>
           {trainingQuery.isLoading && <LoadingState label="" />}
           {trainingQuery.data && trainingQuery.data.length === 0 && (
             <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-              No training requests yet.
-            </Text>
+              {t('No training requests yet.')}</Text>
           )}
           {trainingQuery.data && trainingQuery.data[0] && (
             <>
-              <Text size={200}>Latest: {trainingQuery.data[0].status}</Text>
+              <Text size={200}>{t('Latest:')}{' '}{trainingQuery.data[0].status}</Text>
               <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
                 {formatRelative(trainingQuery.data[0].requestedAt)}
               </Text>
             </>
           )}
           <Button size="small" appearance="secondary" onClick={() => navigate('/training?deviceId=' + id)}>
-            View training
-          </Button>
+            {t('View training')}</Button>
         </Card>
       </div>
 
       <Divider style={{ margin: `${tokens.spacingVerticalL} 0` }} />
 
       <PageHeader
-        title="Sensors"
+        title={t('Sensors')}
         level="h2"
         actions={
           <>
             {isAdmin && (
               <Button icon={<AddCircle24Regular />} onClick={() => setAddSensorOpen(true)}>
-                Add Sensor
-              </Button>
+                {t('Add Sensor')}</Button>
             )}
             {isAdmin && (
               <div className={styles.actionStack}>
                 <Button icon={<TableArrowUp24Regular />} onClick={() => setImportSensorsOpen(true)}>
-                  Import Sensors
-                </Button>
+                  {t('Import Sensors')}</Button>
                 <ExportAllSensorsButton deviceId={id} sensors={sensorsQuery.data ?? []} />
               </div>
             )}
             {isAdmin && (
               <Button icon={<TargetEdit24Regular />} onClick={() => setManageSetpointsOpen(true)}>
-                Manage Setpoints
-              </Button>
+                {t('Manage Setpoints')}</Button>
+            )}
+            {isAdmin && (
+              <Button icon={<DocumentText24Regular />} onClick={() => setImportDescriptionsOpen(true)}>
+                {t('Import descriptions')}</Button>
             )}
             {isAdmin && (
               <Button
@@ -567,13 +570,11 @@ export function DeviceDetailPage() {
                 onClick={() => setRecalcAllOpen(true)}
                 disabled={!(sensorsQuery.data ?? []).some(isRecalculable)}
               >
-                Recalc all
-              </Button>
+                {t('Recalc all')}</Button>
             )}
             {isAdmin && (
               <Button icon={<DataBarVertical24Regular />} onClick={() => setBulkAggregationOpen(true)} disabled={(sensorsQuery.data ?? []).length === 0}>
-                Bulk aggregation
-              </Button>
+                {t('Bulk aggregation')}</Button>
             )}
             {isAdmin && <ExportSensorMapButton device={device} sensors={sensorsQuery.data ?? []} />}
             {isAdmin && (
@@ -582,33 +583,29 @@ export function DeviceDetailPage() {
                 onClick={() => setMaintenanceAllOpen(true)}
                 disabled={(sensorsQuery.data ?? []).length === 0}
               >
-                Maintenance (all Sensors)
-              </Button>
+                {t('Maintenance (all Sensors)')}</Button>
             )}
             <Button icon={<ChartMultiple24Regular />} onClick={() => navigate(`/analytics?deviceId=${id}`)}>
-              Analyze
-            </Button>
+              {t('Analyze')}</Button>
           </>
         }
       />
 
       <RecalculationProgress deviceId={id} isAdmin={isAdmin} />
 
-      {sensorsQuery.isLoading && <LoadingState label="Loading sensors…" />}
+      {sensorsQuery.isLoading && <LoadingState label={t('Loading sensors…')} />}
       {sensorsQuery.isError && <ErrorState error={sensorsQuery.error} onRetry={() => sensorsQuery.refetch()} />}
       {sensorsQuery.data && sensorsQuery.data.length === 0 && (
         <EmptyState
-          title="No sensors configured"
-          description={isAdmin ? 'Add a Sensor to start collecting telemetry from this Device.' : 'This Device has no Sensors yet.'}
+          title={t('No sensors configured')}
+          description={isAdmin ? t('Add a Sensor to start collecting telemetry from this Device.') : t('This Device has no Sensors yet.')}
           action={
             isAdmin && (
               <>
                 <Button icon={<AddCircle24Regular />} onClick={() => setAddSensorOpen(true)}>
-                  Add Sensor
-                </Button>{' '}
+                  {t('Add Sensor')}</Button>{' '}
                 <Button icon={<TableArrowUp24Regular />} onClick={() => setImportSensorsOpen(true)}>
-                  Import Sensors
-                </Button>
+                  {t('Import Sensors')}</Button>
               </>
             )
           }
@@ -617,9 +614,9 @@ export function DeviceDetailPage() {
       {sensorsInMaintenance > 0 && (
         <MessageBar intent="warning" style={{ marginBottom: tokens.spacingVerticalM }}>
           <MessageBarBody>
-            {sensorsInMaintenance === 1 ? '1 Sensor is' : `${sensorsInMaintenance} Sensors are`} in maintenance mode: values the Device sends for{' '}
-            {sensorsInMaintenance === 1 ? 'it are' : 'them are'} ignored (not stored, not analysed).
-          </MessageBarBody>
+            {sensorsInMaintenance === 1
+              ? t('1 Sensor is in maintenance mode: the values the Device sends for it are ignored (not stored, not analysed).')
+              : t('{0} Sensors are in maintenance mode: the values the Device sends for them are ignored (not stored, not analysed).', sensorsInMaintenance)}</MessageBarBody>
         </MessageBar>
       )}
       {sensorsQuery.data && sensorsQuery.data.length > 0 && (
@@ -647,43 +644,40 @@ export function DeviceDetailPage() {
                     <Button
                       size="small"
                       icon={<ArrowSync24Regular />}
-                      aria-label={`Recalculate ${sensor.name || sensor.externalSensorId} from the start`}
+                      aria-label={t('Recalculate {0} from the start', sensor.name || sensor.externalSensorId)}
                       title={recalcButtonTitle(sensor)}
                       disabled={!isRecalculable(sensor)}
                       onClick={() => setRecalcSensorId(sensor.id!)}
                     >
-                      Recalc
-                    </Button>
+                      {t('Recalc')}</Button>
                   )}
                   {isAdmin && (
                     <Switch
-                      aria-label={`Calculation for ${sensor.name || sensor.externalSensorId}`}
-                      label="Calculate"
+                      aria-label={t('Calculation for {0}', sensor.name || sensor.externalSensorId)}
+                      label={t('Calculate')}
                       checked={sensor.processingEnabled !== false}
                       onChange={() => setProcessingSensorId(sensor.id!)}
                     />
                   )}
                   {isAdmin && (
                     <Switch
-                      aria-label={`Visibility of ${sensor.name || sensor.externalSensorId} in Live Monitoring and Smart Analytics`}
-                      label="Visible"
+                      aria-label={t('Visibility of {0} in Live Monitoring and Smart Analytics', sensor.name || sensor.externalSensorId)}
+                      label={t('Visible')}
                       checked={sensor.visible !== false}
                       onChange={() => setVisibilitySensorId(sensor.id!)}
                     />
                   )}
                   {isAdmin && (
                     <Button size="small" icon={<Wrench24Regular />} onClick={() => setMaintenanceSensorId(sensor.id!)}>
-                      {sensor.maintenanceMode ? 'End maintenance' : 'Maintenance'}
+                      {sensor.maintenanceMode ? t('End maintenance') : t('Maintenance')}
                     </Button>
                   )}
                   {isAdmin && (
                     <Button size="small" icon={<Edit24Regular />} onClick={() => setEditingSensorId(sensor.id!)}>
-                      Edit
-                    </Button>
+                      {t('Edit')}</Button>
                   )}
                   <Button size="small" onClick={() => navigate(`/devices/${id}/sensors/${sensor.id}/policies`)}>
-                    Policies
-                  </Button>
+                    {t('Policies')}</Button>
                 </div>
               </div>
             </div>
@@ -694,36 +688,33 @@ export function DeviceDetailPage() {
       {isAdmin && (
         <div style={{ marginTop: tokens.spacingVerticalXL }}>
           <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-            Disabling keeps all of the Device's data and can be undone. To remove a Device and all of its data for good, use Edit, then Delete device.
-          </Text>
+            {t('Disabling keeps all of the Device\'s data and can be undone. To remove a Device and all of its data for good, use Edit, then Delete device.')}</Text>
           <br />
           <Button
             appearance="secondary"
             disabled={!device.enabled || disableDevice.isPending}
             onClick={() => setDisableConfirmOpen(true)}
           >
-            {disableDevice.isPending ? 'Disabling…' : 'Disable Device'}
+            {disableDevice.isPending ? t('Disabling…') : t('Disable Device')}
           </Button>
         </div>
       )}
 
       <ConfirmDialog
         open={disableConfirmOpen}
-        title="Disable this Device?"
+        title={t('Disable this Device?')}
         intent="destructive"
         confirmLabel="Disable"
         busy={disableDevice.isPending}
         onConfirm={async () => {
           await disableDevice.disable();
-          toast.success('Device disabled');
+          toast.success(t('Device disabled'));
           setDisableConfirmOpen(false);
         }}
         onCancel={() => setDisableConfirmOpen(false)}
       >
         <Text>
-          The Device stops accepting telemetry and its scheduled retraining eligibility pauses. There is no
-          permanent delete - re-enable it later to resume normal operation.
-        </Text>
+          {t('The Device stops accepting telemetry and its scheduled retraining eligibility pauses. There is no permanent delete - re-enable it later to resume normal operation.')}</Text>
       </ConfirmDialog>
 
       {isAdmin && (
@@ -743,7 +734,7 @@ export function DeviceDetailPage() {
           onClose={() => setDeleteDataOpen(false)}
           onDeleted={(result) => {
             setDeleteDataOpen(false);
-            toast.success(`All data of "${result.deviceName || result.externalDeviceId}" permanently deleted (${result.telemetryRowsDeleted} telemetry rows, ${result.issuesDeleted ?? 0} Issue(s), ${result.modelVersionsDeleted ?? 0} model version(s); ${result.sensorsAffected} Sensor(s) now empty).`);
+            toast.success(t('All data of "{0}" permanently deleted ({1} telemetry rows, {2} Issue(s), {3} model version(s); {4} Sensor(s) now empty).', result.deviceName || result.externalDeviceId, result.telemetryRowsDeleted, result.issuesDeleted ?? 0, result.modelVersionsDeleted ?? 0, result.sensorsAffected));
           }}
         />
       )}
@@ -757,13 +748,16 @@ export function DeviceDetailPage() {
           onDeleted={(result) => {
             setDeleted(true);
             toast.success(
-              `Device "${result.deviceName || result.externalDeviceId}" permanently deleted (${result.sensorsDeleted} Sensor(s), ${result.telemetryRowsDeleted} telemetry rows, ${result.issuesDeleted} Issue(s)).`,
+              t('Device "{0}" permanently deleted ({1} Sensor(s), {2} telemetry rows, {3} Issue(s)).', result.deviceName || result.externalDeviceId, result.sensorsDeleted, result.telemetryRowsDeleted, result.issuesDeleted),
             );
             navigate('/devices');
           }}
         />
       )}
 
+      {isAdmin && importDescriptionsOpen && (
+        <ImportDescriptionsDialog deviceId={id} deviceName={deviceQuery.data?.deviceName || deviceQuery.data?.externalDeviceId || `Device ${id}`} open={importDescriptionsOpen} onClose={() => setImportDescriptionsOpen(false)} />
+      )}
       {isAdmin && manageSetpointsOpen && <ManageSetpointsDialog deviceId={id} open={manageSetpointsOpen} onClose={() => setManageSetpointsOpen(false)} />}
 
       {isAdmin && importSensorsOpen && (

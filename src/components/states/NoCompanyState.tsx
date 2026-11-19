@@ -1,5 +1,6 @@
 import { Building24Regular } from '@fluentui/react-icons';
 import { EmptyState } from './EmptyState';
+import { useT } from '@/lib/language';
 
 /**
  * A valid, authenticated human User can still have no resolvable authorized
@@ -14,11 +15,12 @@ import { EmptyState } from './EmptyState';
  * Company-scoped query that would trigger that loop.
  */
 export function NoCompanyState() {
+  const t = useT();
   return (
     <EmptyState
       icon={<Building24Regular />}
-      title="No Company assigned to your account yet"
-      description="Your sign-in is valid, but your account isn't linked to a Company in PRECOG yet. Contact your administrator to get access - there's nothing to configure here in the meantime."
+      title={t('No Company assigned to your account yet')}
+      description={t('Your sign-in is valid, but your account isn\'t linked to a Company in PRECOG yet. Contact your administrator to get access - there\'s nothing to configure here in the meantime.')}
     />
   );
 }

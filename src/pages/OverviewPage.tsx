@@ -11,6 +11,7 @@ import { useTrainingRequests } from '@/api/hooks/training';
 import { useDeviceSelection } from '@/lib/selectedDevice';
 import { freshnessOf, formatRelative } from '@/lib/dateTime';
 import { activateProps } from '@/lib/useActivateProps';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   grid: {
@@ -42,6 +43,7 @@ const useStyles = makeStyles({
  * See the final report's missing-backend-capability section.
  */
 export function OverviewPage() {
+  const t = useT();
   const styles = useStyles();
   const navigate = useNavigate();
   const devicesQuery = useDevices();
@@ -66,29 +68,28 @@ export function OverviewPage() {
 
   const staleDevices = devices.filter((d) => freshnessOf(d.heartBeat) === 'stale' || freshnessOf(d.heartBeat) === 'unknown');
 
-  if (devicesQuery.isLoading) return <LoadingState label="Loading overview…" />;
+  if (devicesQuery.isLoading) return <LoadingState label={t('Loading overview…')} />;
   if (devicesQuery.isError) return <ErrorState error={devicesQuery.error} onRetry={() => devicesQuery.refetch()} />;
 
   return (
     <>
-      <PageHeader title="Overview" description="Operational summary for your accessible Devices." />
+      <PageHeader title={t('Overview')} description={t('Operational summary for your accessible Devices.')} />
 
       <div className={styles.grid}>
         <Card className={styles.card} {...activateProps(() => navigate('/devices'))} style={{ cursor: 'pointer' }}>
-          <Text size={200}>Accessible Devices</Text>
+          <Text size={200}>{t('Accessible Devices')}</Text>
           <span className={styles.tileValue}>{devices.length}</span>
         </Card>
         <Card className={styles.card}>
-          <Text size={200}>Devices needing attention</Text>
+          <Text size={200}>{t('Devices needing attention')}</Text>
           <span className={styles.tileValue}>{staleDevices.length}</span>
           <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-            Stale or no heartbeat
-          </Text>
+            {t('Stale or no heartbeat')}</Text>
         </Card>
       </div>
 
       <div className={styles.toolbar}>
-        <Select aria-label="Device" value={effectiveDeviceId !== undefined ? String(effectiveDeviceId) : ''} onChange={(_, d) => setDeviceId(Number(d.value))}>
+        <Select aria-label={t('Device')} value={effectiveDeviceId !== undefined ? String(effectiveDeviceId) : ''} onChange={(_, d) => setDeviceId(Number(d.value))}>
           {devices.map((d) => (
             <option key={d.id} value={d.id}>
               {d.deviceName || d.externalDeviceId}
@@ -100,7 +101,7 @@ export function OverviewPage() {
       {effectiveDeviceId !== undefined && (
         <div className={styles.grid}>
           <Card className={styles.card}>
-            <Text size={200}>{deviceQuery.data?.deviceName ?? 'Device'} freshness</Text>
+            <Text size={200}>{deviceQuery.data?.deviceName ?? t('Device')} {t('freshness')}</Text>
             {deviceQuery.data && (
               <>
                 <FreshnessPill freshness={freshnessOf(deviceQuery.data.heartBeat)} />
@@ -110,19 +111,19 @@ export function OverviewPage() {
           </Card>
 
           <Card className={styles.card} {...activateProps(() => navigate(`/issues?deviceId=${effectiveDeviceId}`))} style={{ cursor: 'pointer' }}>
-            <Text size={200}>Pending review</Text>
+            <Text size={200}>{t('Pending review')}</Text>
             <span className={styles.tileValue}>{issuesQuery.isLoading ? '…' : reviewBreakdown.pending}</span>
           </Card>
           <Card className={styles.card}>
-            <Text size={200}>Reviewed fault</Text>
+            <Text size={200}>{t('Reviewed fault')}</Text>
             <span className={styles.tileValue}>{issuesQuery.isLoading ? '…' : reviewBreakdown.fault}</span>
           </Card>
           <Card className={styles.card}>
-            <Text size={200}>Reviewed false positive</Text>
+            <Text size={200}>{t('Reviewed false positive')}</Text>
             <span className={styles.tileValue}>{issuesQuery.isLoading ? '…' : reviewBreakdown.falsePositive}</span>
           </Card>
           <Card className={styles.card} {...activateProps(() => navigate(`/training?deviceId=${effectiveDeviceId}`))} style={{ cursor: 'pointer' }}>
-            <Text size={200}>Active training requests</Text>
+            <Text size={200}>{t('Active training requests')}</Text>
             <span className={styles.tileValue}>{trainingQuery.isLoading ? '…' : activeTraining.length}</span>
           </Card>
         </div>

@@ -36,6 +36,7 @@ import { freshnessOf, formatRelative } from '@/lib/dateTime';
 import { useAuth } from '@/auth/AuthContext';
 import { useBreakpoint } from '@/lib/useMediaQuery';
 import { activateProps } from '@/lib/useActivateProps';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   toolbar: {
@@ -65,6 +66,7 @@ const useStyles = makeStyles({
 });
 
 function NewDeviceDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const createDevice = useCreateDevice();
@@ -74,7 +76,7 @@ function NewDeviceDialog({ open, onClose }: { open: boolean; onClose: () => void
 
   const submit = async () => {
     await createDevice.mutateAsync({ externalDeviceId, deviceName: deviceName || undefined, applicationMode });
-    toast.success('Device created');
+    toast.success(t('Device created'));
     setExternalDeviceId('');
     setDeviceName('');
     onClose();
@@ -84,28 +86,27 @@ function NewDeviceDialog({ open, onClose }: { open: boolean; onClose: () => void
     <Dialog open={open} onOpenChange={(_, data) => !data.open && onClose()}>
       <DialogSurface>
         <DialogBody>
-          <DialogTitle>Add Device</DialogTitle>
+          <DialogTitle>{t('Add Device')}</DialogTitle>
           <DialogContent className={styles.formGrid}>
-            <Field label="External Device ID" required hint="A unique identifier for this Device in your fleet.">
+            <Field label={t('External Device ID')} required hint={t('A unique identifier for this Device in your fleet.')}>
               <Input value={externalDeviceId} onChange={(_, d) => setExternalDeviceId(d.value)} />
             </Field>
-            <Field label="Name">
+            <Field label={t('Name')}>
               <Input value={deviceName} onChange={(_, d) => setDeviceName(d.value)} />
             </Field>
-            <Field label="Mode" required hint="Fixed once created - every Sensor added later inherits it.">
+            <Field label={t('Mode')} required hint={t('Fixed once created - every Sensor added later inherits it.')}>
               <Select value={applicationMode} onChange={(_, d) => setApplicationMode(d.value as 'continuous' | 'periodic')}>
-                <option value="continuous">Continuous</option>
-                <option value="periodic">Periodic</option>
+                <option value="continuous">{t('Continuous')}</option>
+                <option value="periodic">{t('Periodic')}</option>
               </Select>
             </Field>
             {createDevice.isError && <ErrorState error={createDevice.error} />}
           </DialogContent>
           <DialogActions>
             <Button appearance="secondary" onClick={onClose}>
-              Cancel
-            </Button>
+              {t('Cancel')}</Button>
             <Button appearance="primary" disabled={!externalDeviceId || createDevice.isPending} onClick={submit}>
-              {createDevice.isPending ? 'Creating…' : 'Create'}
+              {createDevice.isPending ? t('Creating…') : t('Create')}
             </Button>
           </DialogActions>
         </DialogBody>
@@ -119,6 +120,7 @@ function NewDeviceDialog({ open, onClose }: { open: boolean; onClose: () => void
 const COLUMN_SIZING = { heartbeat: { defaultWidth: 225, idealWidth: 225, minWidth: 120 } };
 
 export function DeviceListPage() {
+  const t = useT();
   const styles = useStyles();
   const navigate = useNavigate();
   const breakpoint = useBreakpoint();
@@ -179,13 +181,12 @@ export function DeviceListPage() {
   return (
     <>
       <PageHeader
-        title="Devices"
-        description="Devices accessible to you within your Company."
+        title={t('Devices')}
+        description={t('Devices accessible to you within your Company.')}
         actions={
           isAdmin && (
             <Button appearance="primary" icon={<AddCircle24Regular />} onClick={() => setDialogOpen(true)}>
-              Add Device
-            </Button>
+              {t('Add Device')}</Button>
           )
         }
       />
@@ -193,18 +194,18 @@ export function DeviceListPage() {
       <div className={styles.toolbar}>
         <Input
           contentBefore={<Search24Regular />}
-          placeholder="Filter by name or ID…"
+          placeholder={t('Filter by name or ID…')}
           value={filter}
           onChange={(_, d) => setFilter(d.value)}
           style={{ minWidth: '260px' }}
         />
       </div>
 
-      {devicesQuery.isLoading && <LoadingState label="Loading devices…" />}
+      {devicesQuery.isLoading && <LoadingState label={t('Loading devices…')} />}
       {devicesQuery.isError && <ErrorState error={devicesQuery.error} onRetry={() => devicesQuery.refetch()} />}
 
       {devicesQuery.isSuccess && filtered.length === 0 && (
-        <EmptyState title="No devices found" description={filter ? 'Try a different filter.' : 'No Devices are accessible to you yet.'} />
+        <EmptyState title={t('No devices found')} description={filter ? t('Try a different filter.') : t('No Devices are accessible to you yet.')} />
       )}
 
       {devicesQuery.isSuccess && filtered.length > 0 && breakpoint === 'desktop' && (

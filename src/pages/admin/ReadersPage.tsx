@@ -19,6 +19,7 @@ import {
 } from '@/api/hooks/company';
 import { useDevices } from '@/api/hooks/devices';
 import { MobileDevicesPanel } from './MobileDevicesPanel';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   layout: { display: 'grid', gridTemplateColumns: '260px minmax(0,1fr)', gap: tokens.spacingHorizontalL },
@@ -47,6 +48,7 @@ const COMPANY_ROLES = ['Admin', 'Reader'] as const;
  * existing CompanyDto.nameEditable gate already uses for the Company name.
  */
 function MemberRow({ member, editable }: { member: CompanyMemberDto; editable: boolean }) {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const assign = useAssignCompanyRole();
@@ -55,16 +57,16 @@ function MemberRow({ member, editable }: { member: CompanyMemberDto; editable: b
   const busy = assign.isPending || revoke.isPending;
 
   const toggleRole = (roleName: (typeof COMPANY_ROLES)[number], checked: boolean) => {
-    const label = member.displayName || member.email || `User ${member.userId}`;
+    const label = member.displayName || member.email || t('User {0}', member.userId);
     if (checked) {
       assign.mutate(
         { userId: member.userId!, roleName },
-        { onSuccess: () => toast.success(`${roleName} role granted to ${label}`) },
+        { onSuccess: () => toast.success(t('{0} role granted to {1}', roleName, label)) },
       );
     } else {
       revoke.mutate(
         { userId: member.userId!, roleName },
-        { onSuccess: () => toast.success(`${roleName} role revoked from ${label}`) },
+        { onSuccess: () => toast.success(t('{0} role revoked from {1}', roleName, label)) },
       );
     }
   };
@@ -72,7 +74,7 @@ function MemberRow({ member, editable }: { member: CompanyMemberDto; editable: b
   return (
     <div className={styles.memberRow}>
       <div>
-        <Text weight="semibold">{member.displayName || `User ${member.userId}`}</Text>
+        <Text weight="semibold">{member.displayName || t('User {0}', member.userId)}</Text>
         <br />
         <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
           {member.email}
@@ -94,8 +96,7 @@ function MemberRow({ member, editable }: { member: CompanyMemberDto; editable: b
         <div style={{ display: 'flex', gap: tokens.spacingHorizontalXS }}>
           {roles.size === 0 ? (
             <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-              No role
-            </Text>
+              {t('No role')}</Text>
           ) : (
             [...roles].map((role) => (
               <Badge key={role} appearance="tint">
@@ -111,25 +112,25 @@ function MemberRow({ member, editable }: { member: CompanyMemberDto; editable: b
 }
 
 function CompanyMembersCard() {
+  const t = useT();
   const styles = useStyles();
   const companyQuery = useCompany();
   const membersQuery = useCompanyMembers();
   const editable = companyQuery.data?.profileSource === 'Local';
 
-  if (membersQuery.isLoading) return <LoadingState label="Loading Company members…" />;
+  if (membersQuery.isLoading) return <LoadingState label={t('Loading Company members…')} />;
   if (membersQuery.isError) return <ErrorState error={membersQuery.error} onRetry={() => membersQuery.refetch()} />;
 
   const members = membersQuery.data ?? [];
 
   return (
     <Card className={styles.card} style={{ marginBottom: tokens.spacingVerticalL }}>
-      <Body1Strong>Company members</Body1Strong>
+      <Body1Strong>{t('Company members')}</Body1Strong>
       {!editable && companyQuery.data && (
         <Text size={200} style={{ color: tokens.colorNeutralForeground3, display: 'block', marginTop: tokens.spacingVerticalXS }}>
-          Role is synchronized from WordPress for this Company and can&apos;t be changed here.
-        </Text>
+          {t('Role is synchronized from WordPress for this Company and can\'t be changed here.')}</Text>
       )}
-      {members.length === 0 && <EmptyState title="No Company members found" />}
+      {members.length === 0 && <EmptyState title={t('No Company members found')} />}
       {members.map((member, index) => (
         <div key={member.userId}>
           {index > 0 && <Divider />}
@@ -141,6 +142,7 @@ function CompanyMembersCard() {
 }
 
 function ReadersTab() {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const readersQuery = useReaders();
@@ -152,7 +154,7 @@ function ReadersTab() {
   const grant = useGrantReaderDevices(selectedUserId ?? -1);
   const revoke = useRevokeReaderDeviceGrant(selectedUserId ?? -1);
 
-  if (readersQuery.isLoading) return <LoadingState label="Loading readers…" />;
+  if (readersQuery.isLoading) return <LoadingState label={t('Loading readers…')} />;
   if (readersQuery.isError) return <ErrorState error={readersQuery.error} onRetry={() => readersQuery.refetch()} />;
 
   const readers = readersQuery.data ?? [];
@@ -164,7 +166,7 @@ function ReadersTab() {
       <CompanyMembersCard />
       <div className={styles.layout}>
         <Card className={styles.card}>
-          {readers.length === 0 && <EmptyState title="No Readers yet" />}
+          {readers.length === 0 && <EmptyState title={t('No Readers yet')} />}
           {readers.map((reader) => (
             <div
               key={reader.userId}
@@ -181,10 +183,10 @@ function ReadersTab() {
         </Card>
 
         <div>
-          {selectedUserId === undefined && <EmptyState title="Select a Reader to manage their Device access" />}
+          {selectedUserId === undefined && <EmptyState title={t('Select a Reader to manage their Device access')} />}
           {selectedUserId !== undefined && (
             <Card className={styles.card}>
-              <Body1Strong>Direct Device grants</Body1Strong>
+              <Body1Strong>{t('Direct Device grants')}</Body1Strong>
               {grantsQuery.isLoading && <LoadingState label="" />}
               {devices.map((device) => (
                 <Checkbox
@@ -194,9 +196,9 @@ function ReadersTab() {
                   onChange={(_, d) => {
                     const deviceLabel = device.deviceName || device.externalDeviceId;
                     if (d.checked) {
-                      grant.mutate([device.id!], { onSuccess: () => toast.success(`Access granted: ${deviceLabel}`) });
+                      grant.mutate([device.id!], { onSuccess: () => toast.success(t('Access granted: {0}', deviceLabel)) });
                     } else {
-                      revoke.mutate(device.id!, { onSuccess: () => toast.success(`Access revoked: ${deviceLabel}`) });
+                      revoke.mutate(device.id!, { onSuccess: () => toast.success(t('Access revoked: {0}', deviceLabel)) });
                     }
                   }}
                 />
@@ -205,11 +207,10 @@ function ReadersTab() {
               {revoke.isError && <ErrorState error={revoke.error} />}
 
               <Body1Strong style={{ marginTop: tokens.spacingVerticalM, display: 'block' }}>
-                Effective access (includes group/location-derived)
-              </Body1Strong>
+                {t('Effective access (includes group/location-derived)')}</Body1Strong>
               {effectiveQuery.data && (
                 <Text size={200}>
-                  {effectiveQuery.data.isCompanyAdmin ? 'Company Admin (all Devices)' : `${(effectiveQuery.data.accessibleDeviceIds ?? []).length} Device(s)`}
+                  {effectiveQuery.data.isCompanyAdmin ? t('Company Admin (all Devices)') : t('{0} Device(s)', (effectiveQuery.data.accessibleDeviceIds ?? []).length)}
                 </Text>
               )}
             </Card>
@@ -227,16 +228,17 @@ function ReadersTab() {
  * ("Mobile devices" - the registration queue, assignments and blacklist).
  */
 export function ReadersPage() {
+  const t = useT();
   const [tab, setTab] = useState<'members' | 'mobile'>('members');
   return (
     <>
       <PageHeader
-        title="Users & Access"
-        description="Company member roles, Reader Device grants, and the mobile devices (MAC addresses) registered to Users."
+        title={t('Users & Access')}
+        description={t('Company member roles, Reader Device grants, and the mobile devices (MAC addresses) registered to Users.')}
       />
       <TabList selectedValue={tab} onTabSelect={(_, d) => setTab(d.value as 'members' | 'mobile')} style={{ marginBottom: tokens.spacingVerticalL }}>
-        <Tab value="members">Members &amp; access</Tab>
-        <Tab value="mobile">Mobile devices</Tab>
+        <Tab value="members">{t('Members & access')}</Tab>
+        <Tab value="mobile">{t('Mobile devices')}</Tab>
       </TabList>
       {tab === 'members' && <ReadersTab />}
       {tab === 'mobile' && <MobileDevicesPanel />}

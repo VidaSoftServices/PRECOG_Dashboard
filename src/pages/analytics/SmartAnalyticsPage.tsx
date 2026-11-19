@@ -18,6 +18,8 @@ import {
 } from '@fluentui/react-components';
 import { Search24Regular, Share24Regular } from '@fluentui/react-icons';
 import { PageHeader } from '@/components/PageHeader';
+import { SensorDescriptionList } from '@/components/SensorDescription';
+import { useSensorDescriptions } from '@/lib/useSensorDescriptions';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
 import { EmptyState } from '@/components/states/EmptyState';
@@ -37,6 +39,7 @@ import { splitShownSensors } from '@/lib/sensorVisibility';
 import { toApiIso, formatDateTime, parseApiDate } from '@/lib/dateTime';
 import { useAuth } from '@/auth/AuthContext';
 import { useBreakpoint } from '@/lib/useMediaQuery';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   toolbar: {
@@ -93,14 +96,14 @@ const MAX_CHART_POINTS = 20_000;
 
 /** A notice when a series hit the cap: the range holds older readings than the chart shows. */
 function TruncationNotice({ labels, lengths }: { labels: string[]; lengths: number[] }) {
+  const t = useT();
   const cut = labels.filter((_, i) => (lengths[i] ?? 0) >= MAX_CHART_POINTS);
   if (cut.length === 0) return null;
   return (
     <MessageBar intent="info" style={{ marginBottom: tokens.spacingVerticalM }}>
       <MessageBarBody>
-        <MessageBarTitle>Newest {MAX_CHART_POINTS.toLocaleString('en-US')} readings shown</MessageBarTitle>
-        The selected range holds more readings of {cut.join(', ')} than one chart loads; the oldest ones are left out. Choose a shorter range to see them.
-      </MessageBarBody>
+        <MessageBarTitle>{t('Newest')}{' '}{MAX_CHART_POINTS.toLocaleString('en-US')} {t('readings shown')}</MessageBarTitle>
+        {t('The selected range holds more readings of')}{' '}{cut.join(', ')} {t('than one chart loads; the oldest ones are left out. Choose a shorter range to see them.')}</MessageBarBody>
     </MessageBar>
   );
 }
@@ -114,6 +117,7 @@ const MAX_OVERLAY_SENSORS = 4;
  * between the two (back in Single Sensor mode the first of them stays).
  */
 function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; start: Date; end: Date; multi: boolean }) {
+  const t = useT();
   const styles = useStyles();
   const breakpoint = useBreakpoint();
   const deviceQuery = useDevice(deviceId);
@@ -127,6 +131,12 @@ function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; st
   const pickedIds = selectedSensorIds.filter((id) => sensors.some((s) => s.id === id));
   const effectiveSelection = (pickedIds.length > 0 ? pickedIds : sensors.slice(0, 1).map((s) => s.id!)).slice(0, multi ? MAX_OVERLAY_SENSORS : 1);
   const primarySensor = sensors.find((s) => s.id === effectiveSelection[0]);
+  // The imported descriptions of the chosen Sensors (none imported = empty, and neither the side card nor the modal text appears).
+  const describedSensors = effectiveSelection.map((id) => {
+    const s = sensors.find((x) => x.id === id);
+    return { deviceId, sensorName: s?.externalSensorId, label: effectiveSelection.length > 1 ? s?.name || s?.externalSensorId : undefined };
+  });
+  const foundDescriptions = useSensorDescriptions(describedSensors);
 
   const policiesQuery = useAggregationPolicies(deviceId, primarySensor?.id);
   const issuesQuery = useIssues(deviceId, { includeMembers: false, take: 200 });
@@ -149,13 +159,13 @@ function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; st
     });
   });
 
-  if (sensorsQuery.isLoading || deviceQuery.isLoading) return <LoadingState label="Loading sensors…" />;
+  if (sensorsQuery.isLoading || deviceQuery.isLoading) return <LoadingState label={t('Loading sensors…')} />;
   if (sensorsQuery.isError) return <ErrorState error={sensorsQuery.error} onRetry={() => sensorsQuery.refetch()} />;
   if (sensors.length === 0) {
     return hiddenCount > 0 ? (
-      <EmptyState title="All Sensors of this Device are hidden" description="An Admin can show them again with the Visible switch of each Sensor on the Device page." />
+      <EmptyState title={t('All Sensors of this Device are hidden')} description={t('An Admin can show them again with the Visible switch of each Sensor on the Device page.')} />
     ) : (
-      <EmptyState title="This Device has no Sensors yet" />
+      <EmptyState title={t('This Device has no Sensors yet')} />
     );
   }
 
@@ -181,15 +191,16 @@ function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; st
       <div>
         {/* The chart is on top, the Sensor list (the KPIs) below it. */}
         <Card className={styles.card}>
-          {anyLoading && <LoadingState label="Loading telemetry…" />}
+          {anyLoading && <LoadingState label={t('Loading telemetry…')} />}
           {firstError && <ErrorState error={firstError.error} />}
           {!anyLoading && !firstError && (
             <TruncationNotice labels={series.map((s) => s.label)} lengths={series.map((s) => s.points.length)} />
           )}
           {!anyLoading && !firstError && (
             <EnlargeableTelemetryChart
-              title={series.map((s) => s.label).join(' · ') || 'Telemetry'}
+              title={series.map((s) => s.label).join(' · ') || t('Telemetry')}
               series={series}
+              describedSensors={describedSensors}
               mode={series.length > 1 ? 'compare' : 'single'}
               showControlLimits={series.length === 1}
               // One Sensor: the platform's full reference set as the API stored it (Target, Tolerance, UCL3/UCL2/LCL2/LCL3 and their bands),
@@ -202,23 +213,23 @@ function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; st
 
         <Card className={styles.card} style={{ marginTop: tokens.spacingVerticalM }}>
           <Body1Strong>
-            {multi ? `Sensors (${effectiveSelection.length} of ${Math.min(sensors.length, MAX_OVERLAY_SENSORS)} shown, max ${MAX_OVERLAY_SENSORS})` : 'Sensor (choose one)'}
+            {multi ? t('Sensors ({0} of {1} shown, max {2})', effectiveSelection.length, Math.min(sensors.length, MAX_OVERLAY_SENSORS), MAX_OVERLAY_SENSORS) : t('Sensor (choose one)')}
           </Body1Strong>
           <Input
-            aria-label="Filter Sensors"
-            placeholder="Filter Sensors by name…"
+            aria-label={t('Filter Sensors')}
+            placeholder={t('Filter Sensors by name…')}
             contentBefore={<Search24Regular />}
             value={sensorFilter}
             onChange={(_, d) => setSensorFilter(d.value)}
             style={{ marginTop: tokens.spacingVerticalS }}
           />
           <Text size={200} style={{ display: 'block', color: tokens.colorNeutralForeground3, margin: `${tokens.spacingVerticalXS} 0` }} role="status">
-            {sensorFilter.trim() === '' ? `${sensors.length} Sensors` : `${visibleSensors.length} of ${sensors.length} Sensors match`}
-            {hiddenCount > 0 && ` (${hiddenCount} hidden on the Device page)`}
-            {` - selected: ${effectiveSelection.map((id) => sensors.find((s) => s.id === id)).map((s) => s?.name || s?.externalSensorId).join(', ')}`}
+            {sensorFilter.trim() === '' ? t('{0} Sensors', sensors.length) : t('{0} of {1} Sensors match', visibleSensors.length, sensors.length)}
+            {hiddenCount > 0 && t(' ({0} hidden on the Device page)', hiddenCount)}
+            {t(' - selected: {0}', effectiveSelection.map((id) => sensors.find((s) => s.id === id)).map((s) => s?.name || s?.externalSensorId).join(', '))}
           </Text>
           <div className={styles.sensorList}>
-            {visibleSensors.length === 0 && <Text size={200}>No Sensor matches the filter.</Text>}
+            {visibleSensors.length === 0 && <Text size={200}>{t('No Sensor matches the filter.')}</Text>}
             {multi ? (
               visibleSensors.map((sensor) => (
                 <Checkbox
@@ -239,7 +250,7 @@ function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; st
               ))
             ) : (
               // Single Sensor: exactly one is chosen; picking another replaces it.
-              <RadioGroup aria-label="Sensor" value={String(effectiveSelection[0] ?? '')} onChange={(_, d) => setSelectedSensorIds([Number(d.value)])}>
+              <RadioGroup aria-label={t('Sensor')} value={String(effectiveSelection[0] ?? '')} onChange={(_, d) => setSelectedSensorIds([Number(d.value)])}>
                 {visibleSensors.map((sensor) => (
                   <Radio key={sensor.id} value={String(sensor.id)} label={`${sensor.name || sensor.externalSensorId} (${sensor.direction})`} />
                 ))}
@@ -249,11 +260,10 @@ function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; st
         </Card>
 
         <Card className={styles.card} style={{ marginTop: tokens.spacingVerticalM }}>
-          <Body1Strong>Issues in range ({issuesInRange.length})</Body1Strong>
+          <Body1Strong>{t('Issues in range (')}{issuesInRange.length})</Body1Strong>
           <Text size={200} style={{ color: tokens.colorNeutralForeground3, display: 'block', marginBottom: tokens.spacingVerticalS }}>
-            Filtered locally over the currently loaded bounded Issue list for this Device - not a server-side search of all history.
-          </Text>
-          {issuesInRange.length === 0 && <Text size={200}>No Issues in this range.</Text>}
+            {t('Filtered locally over the currently loaded bounded Issue list for this Device - not a server-side search of all history.')}</Text>
+          {issuesInRange.length === 0 && <Text size={200}>{t('No Issues in this range.')}</Text>}
           {issuesInRange.map((issue) => (
             <div key={issue.id} style={{ display: 'flex', justifyContent: 'space-between', padding: `${tokens.spacingVerticalXS} 0` }}>
               <Text size={200}>{formatDateTime(issue.measuredAtFrom)} → {formatDateTime(issue.measuredAtTo)}</Text>
@@ -263,11 +273,17 @@ function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; st
         </Card>
       </div>
 
+      <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalM, minWidth: 0 }}>
+      {foundDescriptions.length > 0 && (
+        <Card className={styles.card}>
+          <Body1Strong>{t('About')}{' '}{foundDescriptions.length > 1 ? t('these indicators') : t('this indicator')}</Body1Strong>
+          <SensorDescriptionList found={foundDescriptions} />
+        </Card>
+      )}
       <Card className={styles.card}>
-        <Body1Strong>Aggregation policies</Body1Strong>
+        <Body1Strong>{t('Aggregation policies')}</Body1Strong>
         <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-          For {primarySensor?.name || primarySensor?.externalSensorId} - reference only, telemetry reads always return the Sensor's primary measured signal.
-        </Text>
+          {t('For')}{' '}{primarySensor?.name || primarySensor?.externalSensorId} {t('- reference only, telemetry reads always return the Sensor\'s primary measured signal.')}</Text>
         {policiesQuery.isLoading && <LoadingState label="" />}
         {policiesQuery.data?.map((policy) => (
           <div key={policy.id} style={{ marginTop: tokens.spacingVerticalS }}>
@@ -276,17 +292,19 @@ function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; st
             </Text>
             <br />
             <Text size={200}>
-              Lookback {policy.lookback} {policy.scale} · Min issue score {policy.minIssueScore}
+              {t('Lookback')}{' '}{policy.lookback} {policy.scale} {t('· Min issue score')}{' '}{policy.minIssueScore}
             </Text>
           </div>
         ))}
       </Card>
+      </div>
     </div>
   );
 }
 
 /** Two-Device comparison mode with compatibility-aware Sensor mapping (decision #17). */
 function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { deviceIdA: number; deviceIdB: number; start: Date; end: Date }) {
+  const t = useT();
   const styles = useStyles();
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -336,16 +354,21 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
   const labelA = `${deviceA.data?.deviceName ?? 'Device A'} · ${sensorA?.name || sensorA?.externalSensorId || 'Sensor'}`;
   const labelB = `${deviceB.data?.deviceName ?? 'Device B'} · ${sensorB?.name || sensorB?.externalSensorId || 'Sensor'}`;
   const unitsDiffer = !!(sensorA?.unitCode && sensorB?.unitCode && sensorA.unitCode !== sensorB.unitCode);
+  const describedPair = [
+    { deviceId: deviceIdA, sensorName: sensorA?.externalSensorId, label: labelA },
+    { deviceId: deviceIdB, sensorName: sensorB?.externalSensorId, label: labelB },
+  ];
+  const foundPair = useSensorDescriptions(describedPair);
 
-  if (sensorsA.isLoading || sensorsB.isLoading || compatibility.isLoading) return <LoadingState label="Checking compatibility…" />;
+  if (sensorsA.isLoading || sensorsB.isLoading || compatibility.isLoading) return <LoadingState label={t('Checking compatibility…')} />;
 
   return (
     <div>
       <div className={styles.toolbar}>
         <div className={styles.column}>
-          <Text size={200}>Device A Sensor</Text>
-          <Input aria-label="Filter Device A Sensors" placeholder="Filter Sensors by name…" contentBefore={<Search24Regular />} value={filterA} onChange={(_, d) => setFilterA(d.value)} />
-          <Select aria-label="Device A Sensor" value={effectiveSensorA !== undefined ? String(effectiveSensorA) : ''} onChange={(_, d) => setSensorIdA(Number(d.value))}>
+          <Text size={200}>{t('Device A Sensor')}</Text>
+          <Input aria-label={t('Filter Device A Sensors')} placeholder={t('Filter Sensors by name…')} contentBefore={<Search24Regular />} value={filterA} onChange={(_, d) => setFilterA(d.value)} />
+          <Select aria-label={t('Device A Sensor')} value={effectiveSensorA !== undefined ? String(effectiveSensorA) : ''} onChange={(_, d) => setSensorIdA(Number(d.value))}>
             {optionsA.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name || s.externalSensorId}
@@ -354,9 +377,9 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
           </Select>
         </div>
         <div className={styles.column}>
-          <Text size={200}>Device B Sensor</Text>
-          <Input aria-label="Filter Device B Sensors" placeholder="Filter Sensors by name…" contentBefore={<Search24Regular />} value={filterB} onChange={(_, d) => setFilterB(d.value)} />
-          <Select aria-label="Device B Sensor" value={effectiveSensorB !== undefined ? String(effectiveSensorB) : ''} onChange={(_, d) => setSensorIdB(Number(d.value))}>
+          <Text size={200}>{t('Device B Sensor')}</Text>
+          <Input aria-label={t('Filter Device B Sensors')} placeholder={t('Filter Sensors by name…')} contentBefore={<Search24Regular />} value={filterB} onChange={(_, d) => setFilterB(d.value)} />
+          <Select aria-label={t('Device B Sensor')} value={effectiveSensorB !== undefined ? String(effectiveSensorB) : ''} onChange={(_, d) => setSensorIdB(Number(d.value))}>
             {optionsB.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name || s.externalSensorId}
@@ -369,24 +392,21 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
       {!provenCompatible && (
         <MessageBar intent="warning" style={{ marginBottom: tokens.spacingVerticalM }}>
           <MessageBarBody>
-            <MessageBarTitle>Not proven compatible</MessageBarTitle>
+            <MessageBarTitle>{t('Not proven compatible')}</MessageBarTitle>
             {stream?.failures?.join(' ') ??
-              'These Sensors have not been proven compatible (matching SensorType, convertible units, and matching aggregation configuration).'}{' '}
-            They are drawn in one chart as you selected them; the values are not converted or aligned.
-          </MessageBarBody>
+              t('These Sensors have not been proven compatible (matching SensorType, convertible units, and matching aggregation configuration).')}{' '}
+            {t('They are drawn in one chart as you selected them; the values are not converted or aligned.')}</MessageBarBody>
         </MessageBar>
       )}
       {unitsDiffer && (
         <MessageBar intent="warning" style={{ marginBottom: tokens.spacingVerticalM }}>
           <MessageBarBody>
-            <MessageBarTitle>Different units</MessageBarTitle>
-            {labelA} is in {sensorA?.unitLabel ?? sensorA?.unitCode}, {labelB} in {sensorB?.unitLabel ?? sensorB?.unitCode}. Both lines share one axis without
-            conversion, so compare their shape, not their values.
-          </MessageBarBody>
+            <MessageBarTitle>{t('Different units')}</MessageBarTitle>
+            {labelA} {t('is in')}{' '}{sensorA?.unitLabel ?? sensorA?.unitCode}, {labelB} {t('in')}{' '}{sensorB?.unitLabel ?? sensorB?.unitCode}{t('. Both lines share one axis without conversion, so compare their shape, not their values.')}</MessageBarBody>
         </MessageBar>
       )}
 
-      {(dataA.isLoading || dataB.isLoading) && <LoadingState label="Loading telemetry…" />}
+      {(dataA.isLoading || dataB.isLoading) && <LoadingState label={t('Loading telemetry…')} />}
       {dataA.isError && <ErrorState error={dataA.error} />}
       {dataB.isError && <ErrorState error={dataB.error} />}
       {!dataA.isLoading && !dataB.isLoading && !dataA.isError && !dataB.isError && (
@@ -394,7 +414,8 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
           <TruncationNotice labels={[labelA, labelB]} lengths={[dataA.data?.length ?? 0, dataB.data?.length ?? 0]} />
           <Card className={styles.card}>
             <EnlargeableTelemetryChart
-              title={`${labelA} and ${labelB}`}
+              title={t('{0} and {1}', labelA, labelB)}
+              describedSensors={describedPair}
               series={[
                 { label: labelA, points: dataA.data ?? [], bidirectional: sensorA?.direction === 'bidirectional', unitLabel: sensorA?.unitLabel },
                 { label: labelB, points: dataB.data ?? [], bidirectional: sensorB?.direction === 'bidirectional', unitLabel: sensorB?.unitLabel },
@@ -405,21 +426,23 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
               height={380}
             />
             <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-              The dashed horizontal line of each Sensor is the average of the plotted readings. UCL3 / LCL3 are the control limits the platform calculated and
-              stored for that Sensor; they appear only where the Sensor has them (calculation switched on - a setpoint is not needed).
-            </Text>
+              {t('The dashed horizontal line of each Sensor is the average of the plotted readings. UCL3 / LCL3 are the control limits the platform calculated and stored for that Sensor; they appear only where the Sensor has them (calculation switched on - a setpoint is not needed).')}</Text>
           </Card>
+          {foundPair.length > 0 && (
+            <Card className={styles.card} style={{ marginTop: tokens.spacingVerticalM }}>
+              <Body1Strong>{t('About')}{' '}{foundPair.length > 1 ? t('these indicators') : t('this indicator')}</Body1Strong>
+              <SensorDescriptionList found={foundPair} />
+            </Card>
+          )}
         </>
       )}
 
       {isAdmin && (
         <div style={{ marginTop: tokens.spacingVerticalM }}>
           <Button icon={<Share24Regular />} onClick={() => navigate(`/knowledge-sharing?sourceDeviceId=${deviceIdA}&targetDeviceId=${deviceIdB}`)}>
-            Start knowledge sharing between these Devices
-          </Button>
+            {t('Start knowledge sharing between these Devices')}</Button>
           <Text size={200} style={{ display: 'block', color: tokens.colorNeutralForeground3, marginTop: tokens.spacingVerticalXXS }}>
-            This comparison view only visualizes data - it does not itself approve sharing, remap Sensors, or affect training.
-          </Text>
+            {t('This comparison view only visualizes data - it does not itself approve sharing, remap Sensors, or affect training.')}</Text>
         </div>
       )}
     </div>
@@ -430,6 +453,7 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
 type AnalyticsMode = 'sensor' | 'multi' | 'compare';
 
 export function SmartAnalyticsPage() {
+  const t = useT();
   const styles = useStyles();
   const [mode, setMode] = useState<AnalyticsMode>('sensor');
   const [deviceIdB, setDeviceIdB] = useNumberSearchParam('compareDeviceId');
@@ -443,23 +467,26 @@ export function SmartAnalyticsPage() {
 
   const validationMessage = range.start >= range.end ? 'Start must be before end.' : undefined;
 
-  if (devicesQuery.isLoading) return <LoadingState label="Loading devices…" />;
+  if (devicesQuery.isLoading) return <LoadingState label={t('Loading devices…')} />;
   if (devicesQuery.isError) return <ErrorState error={devicesQuery.error} onRetry={() => devicesQuery.refetch()} />;
 
   return (
     <>
-      <PageHeader title="Smart Analytics" description="Historical exploration of one Sensor, multi-Sensor comparison, and two-Device comparison." />
+      <PageHeader
+        title={t('Smart Analytics')}
+        description={t('Historical exploration of one Sensor, multi-Sensor comparison, and two-Device comparison.')}
+      />
 
       <div className={styles.toolbar}>
-        <RadioGroup aria-label="Mode" value={mode} onChange={(_, d) => setMode(d.value as AnalyticsMode)} layout="horizontal">
-          <Radio value="sensor" label="Single Sensor" />
-          <Radio value="multi" label="Multi Sensor" />
-          <Radio value="compare" label="Compare Devices" />
+        <RadioGroup aria-label={t('Mode')} value={mode} onChange={(_, d) => setMode(d.value as AnalyticsMode)} layout="horizontal">
+          <Radio value="sensor" label={t('Single Sensor')} />
+          <Radio value="multi" label={t('Multi Sensor')} />
+          <Radio value="compare" label={t('Compare Devices')} />
         </RadioGroup>
 
         <div className={styles.column}>
-          <Text size={200}>{mode === 'compare' ? 'Device A' : 'Device'}</Text>
-          <Select aria-label={mode === 'compare' ? 'Device A' : 'Device'} value={effectiveA !== undefined ? String(effectiveA) : ''} onChange={(_, d) => setDeviceIdA(Number(d.value))}>
+          <Text size={200}>{mode === 'compare' ? t('Device A') : t('Device')}</Text>
+          <Select aria-label={mode === 'compare' ? t('Device A') : t('Device')} value={effectiveA !== undefined ? String(effectiveA) : ''} onChange={(_, d) => setDeviceIdA(Number(d.value))}>
             {devices.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.deviceName || d.externalDeviceId}
@@ -470,9 +497,9 @@ export function SmartAnalyticsPage() {
 
         {mode === 'compare' && (
           <div className={styles.column}>
-            <Text size={200}>Device B</Text>
-            <Select aria-label="Device B" value={deviceIdB !== undefined ? String(deviceIdB) : ''} onChange={(_, d) => setDeviceIdB(Number(d.value))}>
-              <option value="">Select…</option>
+            <Text size={200}>{t('Device B')}</Text>
+            <Select aria-label={t('Device B')} value={deviceIdB !== undefined ? String(deviceIdB) : ''} onChange={(_, d) => setDeviceIdB(Number(d.value))}>
+              <option value="">{t('Select…')}</option>
               {devices.filter((d) => d.id !== effectiveA).map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.deviceName || d.externalDeviceId}
@@ -482,9 +509,9 @@ export function SmartAnalyticsPage() {
           </div>
         )}
 
-        <Button onClick={() => setRange(lastFifteenMinutes())}>Last 15 minutes</Button>
-        <DateTimeField label="Start" value={range.start} onChange={(d) => d && setRange((r) => ({ ...r, start: d }))} maxDate={range.end} />
-        <DateTimeField label="End" value={range.end} onChange={(d) => d && setRange((r) => ({ ...r, end: d }))} minDate={range.start} validationMessage={validationMessage} />
+        <Button onClick={() => setRange(lastFifteenMinutes())}>{t('Last 15 minutes')}</Button>
+        <DateTimeField label={t('Start')} value={range.start} onChange={(d) => d && setRange((r) => ({ ...r, start: d }))} maxDate={range.end} />
+        <DateTimeField label={t('End')} value={range.end} onChange={(d) => d && setRange((r) => ({ ...r, end: d }))} minDate={range.start} validationMessage={validationMessage} />
       </div>
 
       {validationMessage && (
@@ -501,7 +528,7 @@ export function SmartAnalyticsPage() {
         <DeviceComparisonAnalytics deviceIdA={effectiveA} deviceIdB={deviceIdB} start={range.start} end={range.end} />
       )}
 
-      {mode === 'compare' && deviceIdB === undefined && <EmptyState title="Select a second Device to compare" />}
+      {mode === 'compare' && deviceIdB === undefined && <EmptyState title={t('Select a second Device to compare')} />}
     </>
   );
 }

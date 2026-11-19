@@ -3,6 +3,7 @@ import { Field, Input, Text } from '@fluentui/react-components';
 import { tokens } from '@fluentui/react-components';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ErrorState } from '@/components/states/ErrorState';
+import { useT } from '@/lib/language';
 
 /**
  * The two-step confirmation used for the irreversible Device actions:
@@ -45,6 +46,7 @@ export function TypeNameConfirmDialog({
   onConfirm: (typedName: string) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const [step, setStep] = useState<'warning' | 'confirm'>('warning');
   const [typed, setTyped] = useState('');
 
@@ -82,7 +84,7 @@ export function TypeNameConfirmDialog({
         label={nameFieldLabel}
         style={{ marginTop: tokens.spacingVerticalM }}
         validationState={typed !== '' && !matches ? 'error' : 'none'}
-        validationMessage={typed !== '' && !matches ? 'Does not match the device name (case sensitive).' : undefined}
+        validationMessage={typed !== '' && !matches ? t('Does not match the device name (case sensitive).') : undefined}
       >
         <Input value={typed} onChange={(_, d) => setTyped(d.value)} autoComplete="off" disabled={busy} />
       </Field>

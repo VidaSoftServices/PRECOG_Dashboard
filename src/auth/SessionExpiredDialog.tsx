@@ -18,6 +18,7 @@ import {
 } from '@fluentui/react-components';
 import { useAppToast } from '@/components/ToastProvider';
 import { useAuth } from './AuthContext';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   form: { display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalM },
@@ -34,6 +35,7 @@ const useStyles = makeStyles({
  * a new sign-in).
  */
 export function SessionExpiredDialog() {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const queryClient = useQueryClient();
@@ -52,7 +54,7 @@ export function SessionExpiredDialog() {
       await login(userName, password);
       // The queries that failed while the access was out are asked again; the page itself never went anywhere.
       void queryClient.invalidateQueries({ predicate: (query) => query.state.status === 'error' });
-      toast.success('Signed in again - an action that did not go through has to be repeated.');
+      toast.success(t('Signed in again - an action that did not go through has to be repeated.'));
     } catch {
       // loginError is shown below.
     } finally {
@@ -65,16 +67,14 @@ export function SessionExpiredDialog() {
       <DialogSurface>
         <form onSubmit={submit}>
           <DialogBody>
-            <DialogTitle>Your session has expired</DialogTitle>
+            <DialogTitle>{t('Your session has expired')}</DialogTitle>
             <DialogContent className={styles.form}>
               <Text>
-                For your security the access expires after a while. Sign in again to continue exactly where you are - nothing on this
-                page is lost. If an action did not go through, repeat it after signing in.
-              </Text>
-              <Field label="Username">
+                {t('For your security the access expires after a while. Sign in again to continue exactly where you are - nothing on this page is lost. If an action did not go through, repeat it after signing in.')}</Text>
+              <Field label={t('Username')}>
                 <Input value={userName ?? ''} readOnly autoComplete="username" />
               </Field>
-              <Field label="Password" required>
+              <Field label={t('Password')} required>
                 <Input
                   type="password"
                   value={password}
@@ -92,10 +92,9 @@ export function SessionExpiredDialog() {
             </DialogContent>
             <DialogActions>
               <Button appearance="secondary" onClick={logout} disabled={loginPending}>
-                Sign out
-              </Button>
+                {t('Sign out')}</Button>
               <Button appearance="primary" type="submit" disabled={loginPending || password === ''}>
-                {loginPending ? 'Signing in…' : 'Sign in'}
+                {loginPending ? t('Signing in…') : t('Sign in')}
               </Button>
             </DialogActions>
           </DialogBody>

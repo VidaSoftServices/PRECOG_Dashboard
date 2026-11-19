@@ -36,6 +36,7 @@ import {
   type AuditFilters,
   type SystemFilters,
 } from '@/lib/logFilters';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   filters: {
@@ -82,21 +83,21 @@ function ListFooter({
   onMore: () => void;
   reachedLimit: boolean;
 }) {
+  const t = useT();
   const styles = useStyles();
   return (
     <div className={styles.footer}>
       <Text role="status" size={200} className={styles.muted}>
-        Showing {shown} {shown === 1 ? 'entry' : 'entries'}, newest first ({localZone()}).
+        {shown === 1 ? t('Showing 1 entry, newest first ({0}).', localZone()) : t('Showing {0} entries, newest first ({1}).', shown, localZone())}
       </Text>
       {hasNext && (
         <Button onClick={onMore} disabled={fetching}>
-          {fetching ? 'Loading…' : `Load ${LOG_PAGE_SIZE} more`}
+          {fetching ? t('Loading…') : t('Load {0} more', LOG_PAGE_SIZE)}
         </Button>
       )}
       {reachedLimit && (
         <Text size={200} className={styles.muted}>
-          Older entries exist, but at most {LOG_MAX_SKIP + LOG_PAGE_SIZE} can be paged through - narrow the time range or the filters.
-        </Text>
+          {t('Older entries exist, but at most')}{' '}{LOG_MAX_SKIP + LOG_PAGE_SIZE} {t('can be paged through - narrow the time range or the filters.')}</Text>
       )}
     </div>
   );
@@ -118,20 +119,20 @@ function actorText(e: AuditEventDto): string {
 }
 
 function FilterActions({ onApply, onReset, canReset }: { onApply: () => void; onReset: () => void; canReset: boolean }) {
+  const t = useT();
   const styles = useStyles();
   return (
     <div className={styles.actions}>
       <Button appearance="primary" onClick={onApply}>
-        Apply filters
-      </Button>
+        {t('Apply filters')}</Button>
       <Button onClick={onReset} disabled={!canReset}>
-        Reset
-      </Button>
+        {t('Reset')}</Button>
     </div>
   );
 }
 
 function ActivityLogTab() {
+  const t = useT();
   const styles = useStyles();
   const [draft, setDraft] = useState<AuditFilters>(EMPTY_AUDIT_FILTERS);
   const [applied, setApplied] = useState<AuditFilters>(EMPTY_AUDIT_FILTERS);
@@ -143,23 +144,23 @@ function ActivityLogTab() {
 
   return (
     <>
-      <Card className={styles.filters} role="search" aria-label="Activity log filters">
-        <Field label="From">
+      <Card className={styles.filters} role="search" aria-label={t('Activity log filters')}>
+        <Field label={t('From')}>
           <Input type="datetime-local" value={draft.from} onChange={set('from')} />
         </Field>
-        <Field label="To">
+        <Field label={t('To')}>
           <Input type="datetime-local" value={draft.to} onChange={set('to')} />
         </Field>
-        <Field label="Action" hint='contains, e.g. "device."'>
+        <Field label={t('Action')} hint={t('contains, e.g. "device."')}>
           <Input value={draft.action} onChange={set('action')} />
         </Field>
-        <Field label="Entity type" hint="e.g. Device, Sensor">
+        <Field label={t('Entity type')} hint={t('e.g. Device, Sensor')}>
           <Input value={draft.entityType} onChange={set('entityType')} />
         </Field>
-        <Field label="Entity id" hint="contains">
+        <Field label={t('Entity id')} hint={t('contains')}>
           <Input value={draft.entityId} onChange={set('entityId')} />
         </Field>
-        <Field label="User id">
+        <Field label={t('User id')}>
           <Input inputMode="numeric" value={draft.actorUserId} onChange={set('actorUserId')} />
         </Field>
         <FilterActions
@@ -172,22 +173,22 @@ function ActivityLogTab() {
         />
       </Card>
 
-      {query.isLoading && <LoadingState label="Loading activity log…" />}
+      {query.isLoading && <LoadingState label={t('Loading activity log…')} />}
       {query.isError && <ErrorState error={query.error} onRetry={() => query.refetch()} />}
       {query.data && entries.length === 0 && (
-        <EmptyState title={hasFilters({ ...applied }) ? 'No entries match these filters' : 'No activity recorded yet'} />
+        <EmptyState title={hasFilters({ ...applied }) ? t('No entries match these filters') : t('No activity recorded yet')} />
       )}
       {entries.length > 0 && (
         <>
           <div className={styles.tableWrap}>
-            <Table aria-label="Activity log" size="small">
+            <Table aria-label={t('Activity log')} size="small">
               <TableHeader>
                 <TableRow>
-                  <TableHeaderCell>Time</TableHeaderCell>
-                  <TableHeaderCell>Action</TableHeaderCell>
-                  <TableHeaderCell>Entity</TableHeaderCell>
-                  <TableHeaderCell>Who</TableHeaderCell>
-                  <TableHeaderCell>Details</TableHeaderCell>
+                  <TableHeaderCell>{t('Time')}</TableHeaderCell>
+                  <TableHeaderCell>{t('Action')}</TableHeaderCell>
+                  <TableHeaderCell>{t('Entity')}</TableHeaderCell>
+                  <TableHeaderCell>{t('Who')}</TableHeaderCell>
+                  <TableHeaderCell>{t('Details')}</TableHeaderCell>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -204,9 +205,9 @@ function ActivityLogTab() {
                     <TableCell>{actorText(e)}</TableCell>
                     <TableCell>
                       <div className={styles.message}>
-                        {e.beforeState && <DetailsLine label="Before">{e.beforeState}</DetailsLine>}
-                        {e.afterState && <DetailsLine label="After">{e.afterState}</DetailsLine>}
-                        {e.ip && <DetailsLine label="IP">{e.ip}</DetailsLine>}
+                        {e.beforeState && <DetailsLine label={t('Before')}>{e.beforeState}</DetailsLine>}
+                        {e.afterState && <DetailsLine label={t('After')}>{e.afterState}</DetailsLine>}
+                        {e.ip && <DetailsLine label={t('IP')}>{e.ip}</DetailsLine>}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -228,6 +229,7 @@ function ActivityLogTab() {
 }
 
 function SystemLogTab() {
+  const t = useT();
   const styles = useStyles();
   const [draft, setDraft] = useState<SystemFilters>(EMPTY_SYSTEM_FILTERS);
   const [applied, setApplied] = useState<SystemFilters>(EMPTY_SYSTEM_FILTERS);
@@ -239,16 +241,16 @@ function SystemLogTab() {
 
   return (
     <>
-      <Card className={styles.filters} role="search" aria-label="System log filters">
-        <Field label="From" hint="default: the last 7 days">
+      <Card className={styles.filters} role="search" aria-label={t('System log filters')}>
+        <Field label={t('From')} hint={t('default: the last 7 days')}>
           <Input type="datetime-local" value={draft.from} onChange={set('from')} />
         </Field>
-        <Field label="To" hint="at most 31 days after From">
+        <Field label={t('To')} hint={t('at most 31 days after From')}>
           <Input type="datetime-local" value={draft.to} onChange={set('to')} />
         </Field>
-        <Field label="Level" hint="this level and above">
+        <Field label={t('Level')} hint={t('this level and above')}>
           <Select value={draft.minLevel} onChange={(_, d) => setDraft((f) => ({ ...f, minLevel: d.value }))}>
-            <option value="">All levels</option>
+            <option value="">{t('All levels')}</option>
             {LOG_LEVELS.map((l) => (
               <option key={l} value={l}>
                 {l}
@@ -256,9 +258,9 @@ function SystemLogTab() {
             ))}
           </Select>
         </Field>
-        <Field label="Application">
+        <Field label={t('Application')}>
           <Select value={draft.application} onChange={(_, d) => setDraft((f) => ({ ...f, application: d.value }))}>
-            <option value="">All</option>
+            <option value="">{t('All')}</option>
             {LOG_APPLICATIONS.map((a) => (
               <option key={a} value={a}>
                 {a}
@@ -266,16 +268,16 @@ function SystemLogTab() {
             ))}
           </Select>
         </Field>
-        <Field label="Device id">
+        <Field label={t('Device id')}>
           <Input inputMode="numeric" value={draft.deviceId} onChange={set('deviceId')} />
         </Field>
-        <Field label="Sensor id">
+        <Field label={t('Sensor id')}>
           <Input inputMode="numeric" value={draft.sensorId} onChange={set('sensorId')} />
         </Field>
-        <Field label="User id">
+        <Field label={t('User id')}>
           <Input inputMode="numeric" value={draft.userId} onChange={set('userId')} />
         </Field>
-        <Field label="Message contains">
+        <Field label={t('Message contains')}>
           <Input value={draft.text} onChange={set('text')} />
         </Field>
         <FilterActions
@@ -288,22 +290,22 @@ function SystemLogTab() {
         />
       </Card>
 
-      {query.isLoading && <LoadingState label="Loading system log…" />}
+      {query.isLoading && <LoadingState label={t('Loading system log…')} />}
       {query.isError && <ErrorState error={query.error} onRetry={() => query.refetch()} />}
       {query.data && entries.length === 0 && (
-        <EmptyState title={hasFilters({ ...applied }) ? 'No entries match these filters' : 'No system log entries in the last 7 days'} />
+        <EmptyState title={hasFilters({ ...applied }) ? t('No entries match these filters') : t('No system log entries in the last 7 days')} />
       )}
       {entries.length > 0 && (
         <>
           <div className={styles.tableWrap}>
-            <Table aria-label="System log" size="small">
+            <Table aria-label={t('System log')} size="small">
               <TableHeader>
                 <TableRow>
-                  <TableHeaderCell>Time</TableHeaderCell>
-                  <TableHeaderCell>Level</TableHeaderCell>
-                  <TableHeaderCell>Application</TableHeaderCell>
-                  <TableHeaderCell>Device / Sensor</TableHeaderCell>
-                  <TableHeaderCell>Message</TableHeaderCell>
+                  <TableHeaderCell>{t('Time')}</TableHeaderCell>
+                  <TableHeaderCell>{t('Level')}</TableHeaderCell>
+                  <TableHeaderCell>{t('Application')}</TableHeaderCell>
+                  <TableHeaderCell>{t('Device / Sensor')}</TableHeaderCell>
+                  <TableHeaderCell>{t('Message')}</TableHeaderCell>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -318,20 +320,20 @@ function SystemLogTab() {
                       {e.eventCode && e.eventCode !== e.application ? ` · ${e.eventCode}` : ''}
                     </TableCell>
                     <TableCell>
-                      {e.deviceId != null ? `device ${e.deviceId}` : '-'}
-                      {e.sensorId != null ? ` / sensor ${e.sensorId}` : ''}
+                      {e.deviceId != null ? t('device {0}', e.deviceId) : '-'}
+                      {e.sensorId != null ? t(' / sensor {0}', e.sensorId) : ''}
                     </TableCell>
                     <TableCell>
                       <div className={styles.message}>{e.message}</div>
                       {(e.requestId || e.traceId || e.ip || (e.properties && e.properties !== '{}')) && (
                         <details>
-                          <summary>Details</summary>
+                          <summary>{t('Details')}</summary>
                           <div className={styles.mono}>
-                            {e.requestId && <DetailsLine label="Request">{e.requestId}</DetailsLine>}
-                            {e.traceId && <DetailsLine label="Trace">{e.traceId}</DetailsLine>}
-                            {e.ip && <DetailsLine label="IP">{e.ip}</DetailsLine>}
-                            {e.userId != null && <DetailsLine label="User">{e.userId}</DetailsLine>}
-                            {e.properties && e.properties !== '{}' && <DetailsLine label="Properties">{e.properties}</DetailsLine>}
+                            {e.requestId && <DetailsLine label={t('Request')}>{e.requestId}</DetailsLine>}
+                            {e.traceId && <DetailsLine label={t('Trace')}>{e.traceId}</DetailsLine>}
+                            {e.ip && <DetailsLine label={t('IP')}>{e.ip}</DetailsLine>}
+                            {e.userId != null && <DetailsLine label={t('User')}>{e.userId}</DetailsLine>}
+                            {e.properties && e.properties !== '{}' && <DetailsLine label={t('Properties')}>{e.properties}</DetailsLine>}
                           </div>
                         </details>
                       )}
@@ -360,13 +362,14 @@ function SystemLogTab() {
  * and the API itself answers 403 to a non-Admin; entries of other Companies are never returned.
  */
 export function LogsPage() {
+  const t = useT();
   const [tab, setTab] = useState<'activity' | 'system'>('activity');
   return (
     <>
-      <PageHeader title="Logs" description="Activity log (who changed what) and system log of your Company. Admin only." />
+      <PageHeader title={t('Logs')} description={t('Activity log (who changed what) and system log of your Company. Admin only.')} />
       <TabList selectedValue={tab} onTabSelect={(_, d) => setTab(d.value as 'activity' | 'system')} style={{ marginBottom: tokens.spacingVerticalL }}>
-        <Tab value="activity">Activity log</Tab>
-        <Tab value="system">System log</Tab>
+        <Tab value="activity">{t('Activity log')}</Tab>
+        <Tab value="system">{t('System log')}</Tab>
       </TabList>
       {tab === 'activity' ? <ActivityLogTab /> : <SystemLogTab />}
     </>

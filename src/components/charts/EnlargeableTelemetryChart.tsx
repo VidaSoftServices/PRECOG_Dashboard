@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, makeStyles, tokens } from '@fluentui/react-components';
 import { FullScreenMaximize16Regular } from '@fluentui/react-icons';
+import { ChartWithDescription } from '@/components/SensorDescription';
+import { useSensorDescriptions, type DescribedSensor } from '@/lib/useSensorDescriptions';
 import { TelemetryChart, type TelemetryChartProps } from './TelemetryChart';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   // Larger than the Live Monitoring modal (85vw): a long-range analysis chart needs the room (about 5% of the window stays free).
@@ -9,14 +12,27 @@ const useStyles = makeStyles({
   bar: { display: 'flex', justifyContent: 'flex-end' },
 });
 
+const CHART_HEIGHT = 'calc(92vh - 200px)';
+
 /**
  * A TelemetryChart that can be opened large in a modal window: by clicking the chart (not its legend, which keeps toggling
  * series) or with the Enlarge button, which is the keyboard and screen-reader route. The modal draws the same series with a
  * full yy-MM-dd HH:mm:ss time axis and an enlarged hover marker.
  */
-export function EnlargeableTelemetryChart({ title, ...chart }: TelemetryChartProps & { title: string }) {
+export function EnlargeableTelemetryChart({
+  title,
+  describedSensors,
+  ...chart
+}: TelemetryChartProps & {
+  title: string;
+  /** Sensors whose imported description opens beside the enlarged chart with the "?" button; none imported = no button. */
+  describedSensors?: readonly DescribedSensor[];
+}) {
+  const t = useT();
   const styles = useStyles();
   const [open, setOpen] = useState(false);
+  const found = useSensorDescriptions(describedSensors);
+  const [showInfo, setShowInfo] = useState(false);
 
   return (
     <>
@@ -25,8 +41,8 @@ export function EnlargeableTelemetryChart({ title, ...chart }: TelemetryChartPro
           appearance="subtle"
           size="small"
           icon={<FullScreenMaximize16Regular />}
-          aria-label={`Enlarge chart: ${title}`}
-          title="Open the chart in a large window"
+          aria-label={t('Enlarge chart: {0}', title)}
+          title={t('Open the chart in a large window')}
           onClick={() => setOpen(true)}
         />
       </div>
@@ -37,12 +53,13 @@ export function EnlargeableTelemetryChart({ title, ...chart }: TelemetryChartPro
             <DialogTitle>{title}</DialogTitle>
             <DialogContent style={{ paddingTop: tokens.spacingVerticalS }}>
               {/* Only built while open: a closed dialog renders nothing, so no second chart sits in the page. */}
-              <TelemetryChart {...chart} height="calc(92vh - 200px)" timeAxis="fullDateTime" emphasizeHover onEnlarge={undefined} />
+              <ChartWithDescription found={found} open={showInfo} onToggle={() => setShowInfo(!showInfo)} height={CHART_HEIGHT}>
+                <TelemetryChart {...chart} height={CHART_HEIGHT} timeAxis="fullDateTime" emphasizeHover onEnlarge={undefined} />
+              </ChartWithDescription>
             </DialogContent>
             <DialogActions>
               <Button appearance="primary" onClick={() => setOpen(false)}>
-                Close
-              </Button>
+                {t('Close')}</Button>
             </DialogActions>
           </DialogBody>
         </DialogSurface>

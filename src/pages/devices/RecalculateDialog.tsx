@@ -6,6 +6,7 @@ import { useAppToast } from '@/components/ToastProvider';
 import { useStartRecalculation } from '@/api/hooks/recalculation';
 import { isDeleteOnly, isRecalculable } from '@/lib/recalculation';
 import type { SensorDto } from '@/api/hooks/sensors';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   body: { display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalM },
@@ -34,6 +35,7 @@ export function RecalculateDialog({
   open: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
   const start = useStartRecalculation(deviceId);
@@ -58,27 +60,27 @@ export function RecalculateDialog({
     const started = await start.mutateAsync(sensor?.id ?? undefined);
     const skipped = started.skipped?.length ?? 0;
     const onlyDeleted = started.deleteOnlySensorIds?.length ?? 0;
-    let message = `Recalculation started on ${started.sensorIds?.length ?? 0} Sensor(s)${onlyDeleted > 0 ? ` (${onlyDeleted} only deleted)` : ''}${skipped > 0 ? `; ${skipped} left out` : ''}.`;
-    if (singleDeleteOnly) message = `Deleting the calculated values: ${label}`;
-    else if (single) message = `Recalculation started: ${label}`;
+    let message = t('Recalculation started on {0} Sensor(s){1}{2}.', started.sensorIds?.length ?? 0, onlyDeleted > 0 ? ` (${onlyDeleted} only deleted)` : '', skipped > 0 ? `; ${skipped} left out` : '');
+    if (singleDeleteOnly) message = t('Deleting the calculated values: {0}', label);
+    else if (single) message = t('Recalculation started: {0}', label);
     toast.success(message);
     setAcknowledged(false);
     onClose();
   };
 
-  let confirmLabel = `Recalculate ${eligible.length} Sensor(s)`;
-  if (singleDeleteOnly) confirmLabel = 'Delete';
-  else if (single) confirmLabel = 'Recalculate';
+  let confirmLabel = t('Recalculate {0} Sensor(s)', eligible.length);
+  if (singleDeleteOnly) confirmLabel = t('Delete');
+  else if (single) confirmLabel = t('Recalculate');
 
-  let title = 'Recalculate all Sensors from the start?';
-  if (singleDeleteOnly) title = `Delete the calculated values of ${label}?`;
-  else if (single) title = `Recalculate ${label} from the start?`;
+  let title = t('Recalculate all Sensors from the start?');
+  if (singleDeleteOnly) title = t('Delete the calculated values of {0}?', label);
+  else if (single) title = t('Recalculate {0} from the start?', label);
 
-  let intro = `Everything calculated for ${eligible.length} Sensor(s) of this Device is deleted. Sensors with calculation on are calculated again, starting from each Sensor’s first stored value.`;
+  let intro = t('Everything calculated for {0} Sensor(s) of this Device is deleted. Sensors with calculation on are calculated again, starting from each Sensor’s first stored value.', eligible.length);
   if (singleDeleteOnly)
     intro =
-      'Calculation is switched off for this Sensor, so its calculated values and unreviewed Issues are only deleted - nothing is calculated (this frees their space). Switching calculation on later calculates everything again.';
-  else if (single) intro = 'Everything calculated for this Sensor is deleted and calculated again, starting from its first stored value.';
+      t('Calculation is switched off for this Sensor, so its calculated values and unreviewed Issues are only deleted - nothing is calculated (this frees their space). Switching calculation on later calculates everything again.');
+  else if (single) intro = t('Everything calculated for this Sensor is deleted and calculated again, starting from its first stored value.');
 
   return (
     <ConfirmDialog
@@ -94,63 +96,52 @@ export function RecalculateDialog({
       <div className={styles.body}>
         <Text>{intro}</Text>
         <div>
-          <Text weight="semibold">Deleted first</Text>
+          <Text weight="semibold">{t('Deleted first')}</Text>
           <ul className={styles.list}>
             {singleDeleteOnly ? (
-              <li>the calculated values: analysis results, anomaly scores and the control limits (UCL3, UCL2, LCL2, LCL3)</li>
+              <li>{t('the calculated values: analysis results, anomaly scores and the control limits (UCL3, UCL2, LCL2, LCL3)')}</li>
             ) : (
               <li>
-                the calculated values: analysis results and anomaly scores. The control limits (UCL3, UCL2, LCL2, LCL3) are kept - they depend only on the
-                stored values, so calculating them again gives the same numbers - and only filled in where one is missing
-                {!single && deleteOnly > 0 ? ' (for a Sensor whose calculation is off they are deleted too)' : ''}
+                {t('the calculated values: analysis results and anomaly scores. The control limits (UCL3, UCL2, LCL2, LCL3) are kept - they depend only on the stored values, so calculating them again gives the same numbers - and only filled in where one is missing')}{!single && deleteOnly > 0 ? t(' (for a Sensor whose calculation is off they are deleted too)') : ''}
               </li>
             )}
-            <li>every Issue that no person has reviewed (with its category suggestion and Ollama summary)</li>
+            <li>{t('every Issue that no person has reviewed (with its category suggestion and Ollama summary)')}</li>
             {!singleDeleteOnly && (
               <li>
-                the aggregated values of the Sensor’s aggregation levels (a switched-off level keeps its values) - they are aggregated again from the stored
-                values in the background{!single && deleteOnly > 0 ? ' (not for a Sensor whose calculation is off: its levels are left as they are)' : ''}
+                {t('the aggregated values of the Sensor’s aggregation levels (a switched-off level keeps its values) - they are aggregated again from the stored values in the background')}{!single && deleteOnly > 0 ? t(' (not for a Sensor whose calculation is off: its levels are left as they are)') : ''}
               </li>
             )}
           </ul>
         </div>
         <div>
-          <Text weight="semibold">Kept</Text>
+          <Text weight="semibold">{t('Kept')}</Text>
           <ul className={styles.list}>
-            <li>all stored values (training data is unchanged, no retraining is started)</li>
-            <li>Issues a person has reviewed (Reviewed fault / Reviewed false positive) - they are not deleted and not duplicated</li>
-            <li>setpoints, policies and every setting{singleDeleteOnly ? '; the aggregated values (they are built from the stored values whether calculation is on or off)' : ''}</li>
+            <li>{t('all stored values (training data is unchanged, no retraining is started)')}</li>
+            <li>{t('Issues a person has reviewed (Reviewed fault / Reviewed false positive) - they are not deleted and not duplicated')}</li>
+            <li>{t('setpoints, policies and every setting')}{singleDeleteOnly ? t('; the aggregated values (they are built from the stored values whether calculation is on or off)') : ''}</li>
           </ul>
         </div>
         {!singleDeleteOnly && (
           <Text>
-            Then the stored values are evaluated <b>one by one, in time order</b>, each as if it had just arrived from the Device: every value gets a full
-            evaluation and new Issues are raised from the start (only faster, as nothing has to wait for the next value). New Issues get their Ollama summary
-            as for live data. Values that arrive while it runs are evaluated too: it goes on up to the newest stored value, and then the live calculation takes
-            over. It can take a long time for many values; the progress is shown on this page, and you can stop it.
-          </Text>
+            {t('Then the stored values are evaluated')}{' '}<b>{t('one by one, in time order')}</b>{t(', each as if it had just arrived from the Device: every value gets a full evaluation and new Issues are raised from the start (only faster, as nothing has to wait for the next value). New Issues get their Ollama summary as for live data. Values that arrive while it runs are evaluated too: it goes on up to the newest stored value, and then the live calculation takes over. It can take a long time for many values; the progress is shown on this page, and you can stop it.')}</Text>
         )}
         {!single && deleteOnly > 0 && (
           <MessageBar intent="warning">
             <MessageBarBody>
-              {deleteOnly} Sensor(s) have calculation switched off: they are only deleted from, nothing is calculated for them ({recalculated} Sensor(s) are
-              recalculated). Switching their calculation on later calculates everything.
-            </MessageBarBody>
+              {deleteOnly} {t('Sensor(s) have calculation switched off: they are only deleted from, nothing is calculated for them (')}{recalculated} {t('Sensor(s) are recalculated). Switching their calculation on later calculates everything.')}</MessageBarBody>
           </MessageBar>
         )}
         {!single && left > 0 && (
           <MessageBar intent="info">
             <MessageBarBody>
-              {left} Sensor(s) are left out because they are in maintenance mode. Sensors that are not continuous and unidirectional are left out too; the result
-              lists them.
-            </MessageBarBody>
+              {left} {t('Sensor(s) are left out because they are in maintenance mode. Sensors that are not continuous and unidirectional are left out too; the result lists them.')}</MessageBarBody>
           </MessageBar>
         )}
         {!single && (
           <Checkbox
             checked={acknowledged}
             onChange={(_, d) => setAcknowledged(d.checked === true)}
-            label="I understand that the calculated values and the unreviewed Issues of these Sensors are deleted and recalculated."
+            label={t('I understand that the calculated values and the unreviewed Issues of these Sensors are deleted and recalculated.')}
           />
         )}
         {start.isError && <ErrorState error={start.error} />}
