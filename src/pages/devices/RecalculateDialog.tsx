@@ -15,8 +15,8 @@ const useStyles = makeStyles({
 
 /**
  * "Recalc": deletes every calculated value of a Sensor (or of every Sensor of the Device) and every Issue that no person has reviewed.
- * With calculation ON it then lets the API evaluate the stored readings one by one from the first one - each as if it had just arrived -
- * so the result equals what the live analysis would have produced. With calculation OFF it only deletes (nothing is calculated; switching
+ * With calculation ON it then lets the API evaluate the stored readings from the first one, in the live analysis's batches (since
+ * 2026-11-19; before, one by one), so the result equals what the live analysis would have produced. With calculation OFF it only deletes (nothing is calculated; switching
  * calculation on later calculates everything). Confirmation is mandatory (it deletes calculated results and can run for a long time), and
  * the Device-wide run also needs an explicit acknowledgement. The percentage is shown on the Device page (`RecalculationProgress`).
  * Company Admin only - the buttons that open this dialog are shown to an Admin only, and the server answers any non-Admin with 403.
@@ -123,7 +123,7 @@ export function RecalculateDialog({
         </div>
         {!singleDeleteOnly && (
           <Text>
-            {t('Then the stored values are evaluated')}{' '}<b>{t('one by one, in time order')}</b>{t(', each as if it had just arrived from the Device: every value gets a full evaluation and new Issues are raised from the start (only faster, as nothing has to wait for the next value). New Issues get their Ollama summary as for live data. Values that arrive while it runs are evaluated too: it goes on up to the newest stored value, and then the live calculation takes over. It can take a long time for many values; the progress is shown on this page, and you can stop it.')}</Text>
+            {t('Then the stored values are evaluated')}{' '}<b>{t('in time order, in batches')}</b>{t(', the way the live calculation catches up after a pause: every value gets a full evaluation and the Issues are raised again from the start - the result is the same as if each value had just arrived from the Device. New Issues get their Ollama summary as for live data. Values that arrive while it runs are evaluated too: it goes on up to the newest stored value, and then the live calculation takes over. It can take a long time for many values; the progress is shown on this page, and you can stop it.')}</Text>
         )}
         {!single && deleteOnly > 0 && (
           <MessageBar intent="warning">

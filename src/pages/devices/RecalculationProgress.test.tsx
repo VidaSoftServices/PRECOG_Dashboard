@@ -64,7 +64,7 @@ describe('RecalculationProgress', { timeout: 20_000 }, () => {
 
     expect(await screen.findByText(/Recalculating from the start: 37\.2 %/)).toBeInTheDocument();
     expect(screen.getByText(/12,345 of 33,210 values/)).toBeInTheDocument();
-    expect(screen.getByText(/Acceleration RMS X: evaluating the values one by one/)).toBeInTheDocument();
+    expect(screen.getByText(/Acceleration RMS X: evaluating the values in batches/)).toBeInTheDocument();
     expect(screen.getByText(/3 of 12 Sensor\(s\) finished/)).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'Recalculation progress' })).toBeInTheDocument();
 

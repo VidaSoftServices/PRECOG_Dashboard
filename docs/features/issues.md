@@ -99,3 +99,7 @@ An Issue whose e-mail notification reached at least one person (the API's Issue 
 - `emailRecipientCount` is not in `schema.generated.ts` yet (the local API was not running when this was built). `IssueEmailFields` in `src/api/domainTypes.ts` types it until the next `npm run gen:api`.
 - Texts in English and Hungarian (`translations.status.ts`): "E-mail sent" / "E-mail elküldve".
 - Tests: `IssueListPage.test.tsx` (the mailed Issue has the badge, an unmailed one does not), `src/lib/issueEmail.test.ts` (the sentence in both languages, with and without the count, empty when none was sent).
+
+## Issues are anomaly runs that reach MinIssueScore (2026-11-19, API)
+
+The API's raw-level Issue rule changed (API `docs/features/issues.md` "Raw-level Issues: one anomaly run, its own score"): an Issue's score is the score of ONE anomaly run (it ends after 5 readings without a new anomaly), an Issue is created only when that score reaches the raw policy's MinIssueScore, and it spans the run up to its last positive anomaly. No Dashboard change was needed: the Issue list and detail show what the API stores. Two old defects made Issues that should not exist (a one-point run ending on a batch boundary; separate runs glued into one Issue spanning days); a Recalc removes them and rebuilds the unreviewed Issues with the new rule. The Recalc dialog now says the values are evaluated "in time order, in batches" (the API evaluates a Recalc in the live analysis's batches since the same day), and the progress line's phase texts are translated ("evaluating the values in batches").

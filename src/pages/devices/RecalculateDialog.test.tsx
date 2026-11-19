@@ -59,7 +59,7 @@ describe('RecalculateDialog', { timeout: 20_000 }, () => {
     expect(screen.getByText(/only deleted - nothing is calculated/)).toBeInTheDocument();
     expect(screen.getByText(/Switching calculation on later calculates everything again/)).toBeInTheDocument();
     expect(screen.getByText(/anomaly scores and the control limits \(UCL3, UCL2, LCL2, LCL3\)/)).toBeInTheDocument(); // calculation off: the limits go too
-    expect(screen.queryByText(/one by one, in time order/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/in time order, in batches/)).not.toBeInTheDocument();
     expect(screen.queryByText(/aggregated again/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Delete' }));
@@ -85,7 +85,7 @@ describe('RecalculateDialog', { timeout: 20_000 }, () => {
     expect(screen.getByText(/Recalculate S1 from the start\?/)).toBeInTheDocument();
     expect(screen.getByText(/every Issue that no person has reviewed/)).toBeInTheDocument();
     expect(screen.getByText(/Issues a person has reviewed/)).toBeInTheDocument();
-    expect(screen.getByText(/one by one, in time order/)).toBeInTheDocument();
+    expect(screen.getByText(/in time order, in batches/)).toBeInTheDocument();
     expect(screen.getByText(/The control limits \(UCL3, UCL2, LCL2, LCL3\) are kept/)).toBeInTheDocument(); // calculation on: the limits stay
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument(); // a single Sensor needs only the confirmation
 

@@ -155,7 +155,7 @@ export const HU_DEVICES: Record<string, string> = {
   Kept: 'Megmarad',
   'all stored values (training data is unchanged, no retraining is started)': 'minden tárolt érték (a tanítóadat nem változik, újratanítás nem indul)',
   'Issues a person has reviewed (Reviewed fault / Reviewed false positive) - they are not deleted and not duplicated': 'az ember által felülvizsgált problémák (Megerősített hiba / Téves riasztás) – ezek nem törlődnek és nem duplázódnak',
-  'one by one, in time order': 'egyenként, időrendben',
+  'in time order, in batches': 'időrendben, kötegekben',
   'I understand that the calculated values and the unreviewed Issues of these Sensors are deleted and recalculated.': 'Tudomásul veszem, hogy e szenzorok kiszámolt értékei és a felül nem vizsgált problémái törlődnek és újra kiszámolásra kerülnek.',
   'Recalculation progress': 'Az újraszámolás haladása',
   Dismiss: 'Elrejtés',

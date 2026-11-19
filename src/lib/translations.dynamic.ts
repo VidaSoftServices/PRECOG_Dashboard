@@ -4,6 +4,12 @@
  */
 export const HU_DYNAMIC: Record<string, string> = {
   'Company name updated': 'A cégnév frissítve',
+  // Recalculation phases (RecalculationProgress PHASE_TEXT)
+  'deleting the old results': 'a régi eredmények törlése',
+  'calculating the control limits': 'a szabályozási határok számítása',
+  'evaluating the values in batches': 'az értékek kiértékelése kötegekben',
+  'freeing the space of the deleted rows (vacuum) - it does not shrink the files, the space is reused by new data': 'a törölt sorok helyének felszabadítása (vacuum) - a fájlok nem lesznek kisebbek, a helyet az új adatok használják fel',
+  waiting: 'várakozik',
   'Locally managed': 'Helyben kezelt',
   'Synchronized from WordPress': 'WordPressből szinkronizált',
   'Saving…': 'Mentés…',

@@ -18,7 +18,7 @@ const FINISHED_VISIBLE_MS = 10 * 60 * 1000;
 const PHASE_TEXT: Record<string, string> = {
   Deleting: 'deleting the old results',
   ControlLimits: 'calculating the control limits',
-  Analysing: 'evaluating the values one by one',
+  Analysing: 'evaluating the values in batches',
   Vacuum: 'freeing the space of the deleted rows (vacuum) - it does not shrink the files, the space is reused by new data',
 };
 
@@ -82,7 +82,7 @@ export function RecalculationProgress({ deviceId, isAdmin }: { deviceId: number;
 
   if (active) {
     const percent = Math.max(0, Math.min(100, data.percent ?? 0));
-    const phase = data.currentPhase ? PHASE_TEXT[data.currentPhase] ?? data.currentPhase : 'waiting';
+    const phase = data.currentPhase ? (PHASE_TEXT[data.currentPhase] ? t(PHASE_TEXT[data.currentPhase]!) : data.currentPhase) : t('waiting');
     return (
       <div className={styles.box} role="status" aria-live="polite">
         <MessageBar intent="info">
