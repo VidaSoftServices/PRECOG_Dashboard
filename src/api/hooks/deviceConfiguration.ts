@@ -38,3 +38,16 @@ export function fetchDeviceSetpoints(queryClient: QueryClient, deviceId: number,
 export function fetchDeviceAggregationPolicies(queryClient: QueryClient, deviceId: number, signal?: AbortSignal) {
   return queryClient.fetchQuery({ queryKey: queryKeys.deviceAggregationPolicies(deviceId), queryFn: () => getDeviceAggregationPolicies(deviceId, signal), staleTime: 0 });
 }
+
+/**
+ * The aggregation levels of every Sensor of the Device (one request), for the pickers of Live Monitoring and Smart Analytics: the list of
+ * levels changes rarely, so it is kept for a minute and shared by every card of a page.
+ */
+export function useDeviceAggregationPolicies(deviceId: number | undefined, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.deviceAggregationPolicies(deviceId ?? -1),
+    queryFn: ({ signal }) => getDeviceAggregationPolicies(deviceId!, signal),
+    enabled: enabled && deviceId !== undefined,
+    staleTime: 60_000,
+  });
+}

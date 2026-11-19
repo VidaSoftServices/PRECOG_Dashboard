@@ -6,7 +6,7 @@ export const HU_DEVICES: Record<string, string> = {
   'Deactivate the level': 'Szint kikapcsolása',
   'Import from CSV': 'Importálás CSV-ből',
   'Download sample (CSV)': 'Minta letöltése (CSV)',
-  'Download current levels (CSV)': 'Jelenlegi szintek letöltése (CSV)',
+  'Export current aggregations (CSV)': 'Jelenlegi aggregációk exportálása (CSV)',
   'Choose a CSV file': 'CSV-fájl kiválasztása',
   'Upload CSV…': 'CSV feltöltése…',
   '…or paste the cells': '…vagy illeszd be a cellákat',
@@ -229,4 +229,9 @@ export const HU_DEVICES: Record<string, string> = {
   'Where the days of this machine start and end (midnight to midnight). Every aggregation level of the Device follows it. Changing it recalculates the aggregated values from the stored readings; the readings themselves are not touched.': 'Itt kezdődnek és érnek véget a gép napjai (éjféltől éjfélig). Az eszköz minden aggregációs szintje ezt követi. A módosítás a tárolt mérésekből újraszámolja az aggregált értékeket; magukat a méréseket nem érinti.',
   'are optional (defaults 1 and 10 %). The time zone is the Device’s, there is no column for it. The columns': 'nem kötelezők (alapértelmezés: 1 és 10 %). Az időzóna az eszközé, ehhez nincs oszlop. Az oszlopok:',
   'are ignored. A level a Sensor already has gets the sheet’s settings (listed as Updated).': 'figyelmen kívül maradnak. Ha a szenzornak már van ilyen szintje, megkapja a lap beállításait (Frissítve-ként jelenik meg).',
+  'Up / Down arrow: previous / next Sensor': 'Fel / le nyíl: előző / következő szenzor',
+  'Aggregation': 'Aggregáció',
+  'Raw readings': 'Nyers mérések',
+  'bucket from': 'szelet kezdete:',
+  'No such aggregation level on': 'Nincs ilyen aggregációs szint ezen:',
 };

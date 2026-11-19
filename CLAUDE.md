@@ -29,7 +29,7 @@ Readers of one Company at a time. It supports:
   data (including DeviceGroup membership).
 - Per-Sensor maintenance mode: any level sees it, Admins switch it.
 - Bulk Sensor import (Excel paste or CSV) for a Device with hundreds of Sensors.
-- Per-Sensor calculation switch: store and train on a Sensor's data without calculating from it.
+- Per-Sensor calculation switch: store a Sensor's data without calculating from it (and, since 2026-11-19, without training the model on it).
 
 **The old dashboard is a product-reference prototype only.** It's useful for
 the workflows, visual ideas, live-monitoring instinct, and comparison
@@ -736,7 +736,7 @@ rendered as text (`resultText`), never raw HTML.
 By default every accepted batch triggers calculation for each Sensor in it (the
 API's analysis pipeline: scoring, Issue detection, summaries). `SensorDto.processingEnabled`
 (default true) lets an Admin turn that off for one Sensor: its data is **still
-stored and still used to train the model** (training reads the stored values, not
+stored, but is NOT part of the model any more (changed 2026-11-19: the API leaves it out of the training and the switch schedules retraining; before, training read the stored values, not
 the analysis), but new values trigger no analysis and so no Issue from that Sensor.
 Meant for Sensors that should feed the model without ever raising an Issue of their own.
 
@@ -765,7 +765,7 @@ Meant for Sensors that should feed the model without ever raising an Issue of th
 - Distinct from maintenance mode (which also discards the data) and from `enabled`.
 - **Import**: the sheet has an optional `processingEnabled` column (true/false, 1/0, yes/no,
   on/off, igen/nem), and the dialog has a "Calculation" default for rows that leave it empty -
-  so a 163-row sheet can mark only some Sensors as "store and train, don't calculate".
+  so a 163-row sheet can mark only some Sensors as "store, don't calculate (and keep out of the model)".
 
 ## Per-Sensor visible switch
 
@@ -1447,3 +1447,11 @@ The Sensors header of the Device page (Admin only) now reads, left to right: **A
 - **Minimum evaluation (%)** (`minEvaluationPercent`, 0-100, default 10; `DEFAULT_MIN_EVALUATION_PERCENT`): field in the New level form, the Bulk dialog and the level card on the Policies page (non-raw levels only; Save is disabled for a value outside 0-100); CSV column `minEvaluation` (replaces `timeZone` in the header, export and sample; optional, empty = API default). The three prepared sheets in Downloads were rewritten accordingly (backups in the session scratchpad) and checked with the real importer against the production Sensor names.
 - Tests: `aggregationSheet.test.ts`, `NewPolicyForm.test.tsx`, `BulkAggregationDialog.test.tsx`; whole suite 598 pass. `schema.generated.ts` was regenerated from the API's OpenAPI document (dumped by a temporary test, as before).
 
+## Dashboard additions of 2026-11-19 (overnight batch)
+
+- **Aggregation pickers.** The Live Monitoring large window has an **Aggregation** select at its top right (before Refresh / Close): "Raw readings" or one of the levels the Sensor has (`AggregationSelect`, `levelsOfSensor`); with a level chosen the chart draws the newest 100 buckets (value at the bucket START, `useAggregatedPoints`, re-read every 15 s) without limits/target, and the big number shows the newest bucket. The choice stays while the arrow keys move between Sensors. **Smart Analytics** shows the select right after the Device (Single and Multi Sensor mode, only when the Device has a level) and also in its large window; with a level chosen each selected Sensor draws its buckets for the chosen range (a Sensor without that level is listed in a notice). The levels come from one Device-wide request (`useDeviceAggregationPolicies`, kept a minute). Aggregated buckets have no target/tolerance/limits (the API's evaluation lives on the level, not in the reading), so only the value is drawn.
+- **Arrow keys in a large window**: Up / Down = previous / next Sensor of the page (Live Monitoring: the Sensors shown on the page that have a chart; Smart Analytics: the Sensor list, one Sensor on the chart). `useArrowStep` listens on the document (a handler on the window's own element lost the keys after a step, when the focus fell back to the page) and ignores keys while a select / input uses them.
+- **Calculation-off Sensors are shown grey** (Live card: grey, "Calculation off" pill; Smart Analytics lists and the compare selects: grey/italic with the text "Calculation off"). Hidden (Visible = false) Sensors were never shown in Smart Analytics and still are not.
+- **Compare Devices**: the two Sensor selects are **linked by default** (a link icon between them): choosing a Sensor on one side chooses the one with the same external id (else the same name) on the other (`findSameSensor`); click the icon to unlink; the icon is light grey when the other Device has no such Sensor. The compare chart now draws, per Sensor and in the Sensor's colour, UCL3 / LCL3 (heavier, own dash per Sensor) **and Target / Tolerance** (`TelemetryChart` `showSetpoint`).
+- **Device page**: each Sensor row shows its **External Sensor ID**; **Export all sensors** is inside the Import Sensors dialog; **Bulk aggregation** has an always-visible **Export current aggregations (CSV)** button.
+- Tests added or changed: `aggregationLevels.test.ts`, `sensorLink.test.ts`, `SmartAnalyticsPage.test.tsx`, `LiveMonitoringPage.test.tsx`, `BulkAggregationDialog.test.tsx`. Not built: the aggregation of the two-Device comparison.

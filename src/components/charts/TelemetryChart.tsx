@@ -102,6 +102,12 @@ export interface TelemetryChartProps {
    * ("Actual", "Target", "UCL3", ...) without the Sensor's name. Every value is the API's; only target +/- tolerance is added up here.
    */
   detailedLimits?: boolean;
+  /**
+   * For the 'compare' overlay: each series also draws its own Target and Tolerance (the target compensated by the tolerance, on the side where a
+   * deviation is bad; a bidirectional Sensor gets Above / Below) in the series' colour, next to its UCL3 / LCL3 - the reference an
+   * comparison needs. Only where the API has the values; nothing is computed here but target +/- tolerance.
+   */
+  showSetpoint?: boolean;
   /** Called when the chart is clicked anywhere except on its legend (which keeps toggling series); the pointer shows a zoom cursor. */
   onEnlarge?: () => void;
 }
@@ -241,6 +247,7 @@ export function TelemetryChart({
   averageLine = false,
   plainTooltip = false,
   detailedLimits = false,
+  showSetpoint = false,
   onEnlarge,
 }: TelemetryChartProps) {
   const t = useT();
@@ -292,7 +299,8 @@ export function TelemetryChart({
       // the series has such values. With several series each pair of limits takes its series' colour so it is clear whose they are.
       if (showControlLimits) {
         const limitColor = series.length > 1 ? color : tokens.colorNeutralStroke2;
-        const limitDash = series.length > 1 ? [2, 3] : [6, 4];
+        // Each series has its own dash so the two series' limits can be told apart (the line colour already is the series').
+        const limitDash = series.length > 1 ? (seriesIndex % 2 === 0 ? [6, 4] : [2, 4]) : [6, 4];
         const upper = aligned.map((p) => p?.upperControlLimit3S ?? null);
         const lower = aligned.map((p) => p?.lowerControlLimit3S ?? null);
         for (const [name, values] of [['UCL3', upper], ['LCL3', lower]] as const) {
@@ -304,8 +312,35 @@ export function TelemetryChart({
             borderDash: limitDash,
             pointRadius: 0,
             ...(emphasizeHover ? { pointHoverRadius: 0 } : {}),
-            borderWidth: 1,
+            borderWidth: 1.5,
           });
+        }
+      }
+
+      if (showSetpoint && mode === 'compare') {
+        const own = (suffix: string, values: (number | null)[], lineDash: number[]) => {
+          if (!values.some((v) => v !== null)) return;
+          datasets.push({
+            label: `${s.label} ${translate(suffix)}`,
+            data: values,
+            borderColor: color,
+            borderDash: lineDash,
+            pointRadius: 0,
+            ...(emphasizeHover ? { pointHoverRadius: 0 } : {}),
+            borderWidth: 1.5,
+          });
+        };
+        const plus = (a: number | null | undefined, b: number | null | undefined, sign: 1 | -1) => (a != null && b != null ? a + sign * b : null);
+        if (s.bidirectional) {
+          own('Target Above', aligned.map((p) => p?.targetAbove ?? null), [12, 3]);
+          own('Tolerance Above', aligned.map((p) => plus(p?.targetAbove, p?.toleranceAbove, 1)), [3, 3]);
+          own('Target Below', aligned.map((p) => p?.targetBelow ?? null), [12, 3]);
+          own('Tolerance Below', aligned.map((p) => plus(p?.targetBelow, p?.toleranceBelow, -1)), [3, 3]);
+        } else {
+          own('Target', aligned.map((p) => p?.target ?? null), [12, 3]);
+          // Without a known direction the tolerance side would be a guess: not drawn.
+          const sign = s.direction === 'lowerisbetter' ? 1 : s.direction === 'higherisbetter' ? -1 : null;
+          if (sign !== null) own('Tolerance', aligned.map((p) => plus(p?.target, p?.tolerance, sign)), [3, 3]);
         }
       }
 
@@ -328,15 +363,17 @@ export function TelemetryChart({
         const target = s.bidirectional
           ? aligned.map((p) => p?.targetAbove ?? null)
           : aligned.map((p) => p?.target ?? null);
-        datasets.push({
-          label: `${s.label} ${translate('Target')}`,
-          data: target,
-          borderColor: anomalyColors.warning,
-          borderDash: [4, 4],
-          pointRadius: 0,
-          ...(emphasizeHover ? { pointHoverRadius: 0 } : {}),
-          borderWidth: 1.5,
-        });
+        // No target at all (an aggregated bucket has none) = no empty legend entry.
+        if (target.some((v) => v !== null))
+          datasets.push({
+            label: `${s.label} ${translate('Target')}`,
+            data: target,
+            borderColor: anomalyColors.warning,
+            borderDash: [4, 4],
+            pointRadius: 0,
+            ...(emphasizeHover ? { pointHoverRadius: 0 } : {}),
+            borderWidth: 1.5,
+          });
       }
 
       datasets.push(actualDataset);

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -34,6 +34,10 @@ const rangeRequests: { deviceId: string | null; startDate: string | null; endDat
 /** When set, this Device (id as a string) returns full pages of readings, so a series reaches the load cap. */
 let bulkFor: string | null = null;
 
+/** The aggregation levels of Device 4 and the buckets of every policy; null = the Device has none (the default). */
+let aggregation: { policies: unknown[]; values: unknown[] } | null = null;
+const valueRequests: string[] = [];
+
 function mockApi(sensorsByDevice: Record<number, unknown[]>, compatibility: unknown = { fullyCompatible: false, streams: [] }) {
   fetchMock().mockImplementation(async (input: RequestInfo | URL) => {
     const path = new URL((input as Request).url).pathname;
@@ -45,6 +49,11 @@ function mockApi(sensorsByDevice: Record<number, unknown[]>, compatibility: unkn
     else if (sensors) body = sensorsByDevice[Number(sensors[1])] ?? [];
     else if (path === '/api/User/GetUserDetails') body = { isCompanyAdmin: true, hasAuthorizedCompany: true, userName: 'admin' };
     else if (path === '/api/KnowledgeSharing/Compatibility') body = compatibility;
+    else if (/^\/api\/Devices\/\d+\/AggregationPolicies$/.test(path)) body = aggregation?.policies ?? [];
+    else if (/\/AggregationPolicies\/\d+\/Values$/.test(path)) {
+      valueRequests.push(path);
+      body = aggregation?.values ?? [];
+    }
     else if (path === '/api/Continuous/MeasuredDateRange') {
       // One reading per Device so each series has something to summarise: Device 4 reads 1.5 (with control limits), Device 5 reads 2.5.
       // Ranges are read in pages (skip/take): only the first page holds the reading, the next one is empty and ends the read.
@@ -89,6 +98,8 @@ describe('SmartAnalyticsPage and hidden Sensors', { timeout: 40_000 }, () => {
     drawn.labels = [];
     rangeRequests.length = 0;
     bulkFor = null;
+    aggregation = null;
+    valueRequests.length = 0;
     // jsdom has no matchMedia (the page's breakpoint and chart hooks use it).
     window.matchMedia = ((query: string) => ({
       matches: false, media: query, onchange: null, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false,
@@ -103,6 +114,14 @@ describe('SmartAnalyticsPage and hidden Sensors', { timeout: 40_000 }, () => {
     expect(screen.getByRole('radio', { name: /RMS C/ })).toBeInTheDocument(); // no flag at all = shown
     expect(screen.queryByRole('radio', { name: /RMS B \(hidden\)/ })).not.toBeInTheDocument();
     expect(screen.getByText(/2 Sensors/)).toHaveTextContent('(1 hidden on the Device page)');
+  });
+
+  it('lists a Sensor whose calculation is switched off with a "Calculation off" marker; a calculating one has none', async () => {
+    mockApi({ 4: [{ ...sensor(1, 'RMS A', true), processingEnabled: false }, sensor(2, 'RMS C', true)] });
+    renderPage('/analytics?deviceId=4');
+
+    expect(await screen.findByRole('radio', { name: /RMS A.*Calculation off/ })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /RMS C/ })).not.toHaveAccessibleName(/Calculation off/);
   });
 
   it('single Sensor: never starts with a hidden Sensor selected, even when it is the first one', async () => {
@@ -129,6 +148,23 @@ describe('SmartAnalyticsPage and hidden Sensors', { timeout: 40_000 }, () => {
     expect(screen.getByRole('radio', { name: /RMS B/ })).toBeChecked();
     expect(screen.getByRole('radio', { name: /RMS A/ })).not.toBeChecked(); // exactly one
     await waitFor(() => expect(lastDrawn().every((label) => label.startsWith('RMS B'))).toBe(true)); // only the chosen Sensor is drawn
+  });
+
+  it('in the large chart window the Down / Up arrow keys choose the next / previous Sensor and the window stays open', async () => {
+    mockApi({ 4: [sensor(1, 'RMS A', true), sensor(2, 'RMS B', true)] });
+    const user = userEvent.setup();
+    renderPage('/analytics?deviceId=4');
+    await user.click(await screen.findByRole('button', { name: /Enlarge chart: RMS A/ }));
+    const dialog = await screen.findByRole('dialog', {}, { timeout: 8000 });
+    // Where a real browser has put the focus: inside the window (the dialog traps it).
+    within(dialog).getAllByRole('button', { name: 'Close', hidden: true })[0]!.focus();
+
+    await user.keyboard('{ArrowDown}');
+
+    await waitFor(() => expect(screen.getByRole('radio', { name: /RMS B/, hidden: true })).toBeChecked(), { timeout: 8000 });
+    await waitFor(() => expect(screen.getByRole('dialog', { hidden: true })).toBeInTheDocument(), { timeout: 8000 });
+    await user.keyboard('{ArrowUp}');
+    await waitFor(() => expect(screen.getByRole('radio', { name: /RMS A/, hidden: true })).toBeChecked(), { timeout: 8000 });
   });
 
   it('puts the chart above the Sensor list (the KPIs), in Single Sensor and in Multi Sensor mode', async () => {
@@ -198,6 +234,67 @@ describe('SmartAnalyticsPage and hidden Sensors', { timeout: 40_000 }, () => {
     await user.click(await screen.findByRole('radio', { name: 'Compare Devices' }));
   }
 
+  it('offers the aggregation levels of the Device right after the Device name; picking one draws the aggregated buckets of the chosen Sensor', async () => {
+    aggregation = {
+      policies: [
+        { id: 7, sensorId: 1, sourceDataKey: 'Actual', timeScale: 'Native', aggregationFunction: 'Raw', enabled: true },
+        { id: 8, sensorId: 1, sourceDataKey: 'Actual', timeScale: 'Days', aggregationFunction: 'AVG', enabled: true },
+      ],
+      values: [{ bucketStart: '2026-10-20T22:00:00Z', bucketEnd: '2026-10-21T22:00:00Z', value: 3.5, sampleCount: 100, calculatedAt: '2026-10-21T10:00:00Z' }],
+    };
+    mockApi({ 4: [sensor(1, 'RMS A', true), sensor(2, 'RMS B', true)] });
+    const user = userEvent.setup();
+    renderPage('/analytics?deviceId=4');
+
+    const select = await screen.findByRole('combobox', { name: 'Aggregation' });
+    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Raw readings', '1 day · Average']);
+    await user.selectOptions(select, '1 day · Average');
+
+    await waitFor(() => expect(lastDrawn()).toEqual(['RMS A · 1 day · Average']));
+    expect(valueRequests).toEqual(['/api/Devices/4/Sensors/1/AggregationPolicies/8/Values']);
+    // Back to the raw readings.
+    await user.selectOptions(select, 'Raw readings');
+    await waitFor(() => expect(lastDrawn()).toContain('RMS A Target'));
+  });
+
+  it('has no aggregation picker when the Device has no aggregation level', async () => {
+    mockApi({ 4: [sensor(1, 'RMS A', true)] });
+    renderPage('/analytics?deviceId=4');
+
+    expect(await screen.findByRole('radio', { name: /RMS A/ })).toBeChecked();
+    expect(screen.queryByRole('combobox', { name: 'Aggregation' })).not.toBeInTheDocument();
+  });
+
+  it('two-Device comparison: the Sensor lists are linked by default - choosing a Sensor on one side chooses the one with the same name on the other; unlinking stops it', async () => {
+    mockApi({ 4: [sensor(1, 'Vibration X'), sensor(2, 'Vibration Y')], 5: [sensor(11, 'Vibration X'), sensor(12, 'Vibration Y')] });
+    const user = userEvent.setup();
+    await openComparison();
+    const selectA = await screen.findByRole('combobox', { name: 'Device A Sensor' });
+    const selectB = screen.getByRole('combobox', { name: 'Device B Sensor' });
+    const link = screen.getByRole('button', { name: /Unlink the two Sensor lists/ });
+    expect(link).toHaveAttribute('aria-pressed', 'true');
+    expect(link).toHaveAttribute('data-link-available', 'true');
+
+    await user.selectOptions(selectA, '2');
+    expect(selectB).toHaveValue('12'); // Vibration Y on Device B
+
+    await user.selectOptions(selectB, '11'); // and the other way round
+    expect(selectA).toHaveValue('1');
+
+    await user.click(link); // unlinked
+    expect(screen.getByRole('button', { name: /Link the two Sensor lists/ })).toHaveAttribute('aria-pressed', 'false');
+    await user.selectOptions(selectA, '2');
+    expect(selectB).toHaveValue('11'); // stays
+  });
+
+  it('two-Device comparison: the link icon is light grey when the other Device has no Sensor with that name', async () => {
+    mockApi({ 4: [sensor(1, 'Vibration X')], 5: [sensor(11, 'Temperature')] });
+    await openComparison();
+
+    const link = await screen.findByRole('button', { name: /Unlink the two Sensor lists/ });
+    expect(link).toHaveAttribute('data-link-available', 'false');
+  });
+
   it('two-Device comparison: the two chosen Sensors share ONE chart, also when the API could not prove them compatible', async () => {
     mockApi({ 4: [sensor(1, 'Vibration X')], 5: [sensor(11, 'Vibration X')] }); // no compatibility streams at all = not proven
     await openComparison();
@@ -260,7 +357,11 @@ describe('SmartAnalyticsPage and hidden Sensors', { timeout: 40_000 }, () => {
     expect(await screen.findByText(/Fan 1 · Vibration X: latest 1\.5/)).toHaveTextContent('average 1.5 over 1 points');
     expect(screen.getByText(/Fan 2 · Vibration X: latest 2\.5/)).toHaveTextContent('average 2.5 over 1 points');
     // Fan 1 has control limits (drawn, in its colour); Fan 2 has none (no empty legend entries).
-    expect(lastDrawn()).toEqual(['Fan 1 · Vibration X UCL3', 'Fan 1 · Vibration X LCL3', 'Fan 1 · Vibration X average', 'Fan 1 · Vibration X', 'Fan 2 · Vibration X average', 'Fan 2 · Vibration X']);
+    // ... and its setpoint (Target and Tolerance, lower is better: target + tolerance); Fan 2 has no setpoint either.
+    expect(lastDrawn()).toEqual([
+      'Fan 1 · Vibration X UCL3', 'Fan 1 · Vibration X LCL3', 'Fan 1 · Vibration X Target', 'Fan 1 · Vibration X Tolerance', 'Fan 1 · Vibration X average', 'Fan 1 · Vibration X',
+      'Fan 2 · Vibration X average', 'Fan 2 · Vibration X',
+    ]);
     expect(screen.getByText(/dashed horizontal line of each Sensor is the average of the plotted readings/)).toBeInTheDocument();
   });
 

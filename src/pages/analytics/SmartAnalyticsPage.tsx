@@ -16,7 +16,7 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import { Search24Regular, Share24Regular } from '@fluentui/react-icons';
+import { Link24Regular, LinkDismiss24Regular, Search24Regular, Share24Regular } from '@fluentui/react-icons';
 import { PageHeader } from '@/components/PageHeader';
 import { SensorDescriptionList } from '@/components/SensorDescription';
 import { useSensorDescriptions } from '@/lib/useSensorDescriptions';
@@ -36,6 +36,11 @@ import { useNumberSearchParam } from '@/lib/useNumberSearchParam';
 import { useDeviceSelection } from '@/lib/selectedDevice';
 import { filterSensors } from '@/lib/sensorFilter';
 import { splitShownSensors } from '@/lib/sensorVisibility';
+import { findSameSensor } from '@/lib/sensorLink';
+import { useDeviceAggregationPolicies } from '@/api/hooks/deviceConfiguration';
+import { useAggregatedPoints } from '@/api/hooks/aggregatedPoints';
+import { AggregationSelect } from '@/components/AggregationSelect';
+import { levelOfSensorByKey, levelsOfSensors, type LevelPolicy } from '@/lib/aggregationLevels';
 import { toApiIso, formatDateTime, parseApiDate } from '@/lib/dateTime';
 import { useAuth } from '@/auth/AuthContext';
 import { useBreakpoint } from '@/lib/useMediaQuery';
@@ -108,6 +113,14 @@ function TruncationNotice({ labels, lengths }: { labels: string[]; lengths: numb
   );
 }
 
+/** A Sensor whose calculation is switched off (no analysis, no Issues, not part of the model) is listed grey, with a text marker (never colour alone). */
+function calculationOffStyle(sensor: { processingEnabled?: boolean | null }): React.CSSProperties | undefined {
+  return sensor.processingEnabled === false ? { color: tokens.colorNeutralForeground4, fontStyle: 'italic' } : undefined;
+}
+function calculationOffSuffix(sensor: { processingEnabled?: boolean | null }, t: (text: string) => string): string {
+  return sensor.processingEnabled === false ? ` · ${t('Calculation off')}` : '';
+}
+
 /** Most Sensors one overlay chart draws (Multi Sensor mode); Single Sensor mode draws exactly one. */
 const MAX_OVERLAY_SENSORS = 4;
 
@@ -116,7 +129,24 @@ const MAX_OVERLAY_SENSORS = 4;
  * reference set. "Multi Sensor": up to 4 Sensors are overlaid (a checkbox list, decision #16). The chosen Sensors are kept when switching
  * between the two (back in Single Sensor mode the first of them stays).
  */
-function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; start: Date; end: Date; multi: boolean }) {
+function SensorAnalytics({
+  deviceId,
+  start,
+  end,
+  multi,
+  levelKey,
+  levelPolicies,
+  onLevelKeyChange,
+}: {
+  deviceId: number;
+  start: Date;
+  end: Date;
+  multi: boolean;
+  /** The aggregation chosen in the toolbar ('' = the raw readings). */
+  levelKey: string;
+  levelPolicies: readonly LevelPolicy[] | undefined;
+  onLevelKeyChange: (key: string) => void;
+}) {
   const t = useT();
   const styles = useStyles();
   const breakpoint = useBreakpoint();
@@ -124,6 +154,8 @@ function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; st
   const sensorsQuery = useSensors(deviceId);
   const [selectedSensorIds, setSelectedSensorIds] = useState<number[]>([]);
   const [sensorFilter, setSensorFilter] = useState('');
+  // The large chart window stays open while the next / previous Sensor loads (Up / Down arrow).
+  const [enlarged, setEnlarged] = useState(false);
 
   // A Sensor hidden with the Device page's "Visible" switch is not offered here (an Issue that involves it still shows it elsewhere).
   const { shown: sensors, hiddenCount } = useMemo(() => splitShownSensors(sensorsQuery.data), [sensorsQuery.data]);
@@ -156,8 +188,19 @@ function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; st
       startDate: toApiIso(start),
       endDate: toApiIso(end),
       maxPoints: MAX_CHART_POINTS,
+      enabled: levelKey === '',
     });
   });
+  // The aggregated buckets of the same Sensors for the chosen level (a Sensor without that level has none).
+  const aggregatedQueries = slots.map((i) => {
+    const sensorId = effectiveSelection[i];
+    const level = levelKey === '' ? undefined : levelOfSensorByKey(levelPolicies, sensorId, levelKey);
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    return useAggregatedPoints({
+      deviceId, sensorId, policyId: level?.policyId, range: { startDate: toApiIso(start), endDate: toApiIso(end) }, enabled: level !== undefined, refetchMs: 30_000,
+    });
+  });
+  const aggregatedLevels = effectiveSelection.map((sensorId) => (levelKey === '' ? undefined : levelOfSensorByKey(levelPolicies, sensorId, levelKey)));
 
   if (sensorsQuery.isLoading || deviceQuery.isLoading) return <LoadingState label={t('Loading sensors…')} />;
   if (sensorsQuery.isError) return <ErrorState error={sensorsQuery.error} onRetry={() => sensorsQuery.refetch()} />;
@@ -169,17 +212,35 @@ function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; st
     );
   }
 
+  const levelsAvailable = levelsOfSensors(levelPolicies, sensors.map((x) => x.id!));
+  const stepSensor = (delta: -1 | 1) => {
+    const ids = visibleSensors.map((x) => x.id!);
+    const next = ids.indexOf(effectiveSelection[0] ?? -1) + delta;
+    if (next >= 0 && next < ids.length) setSelectedSensorIds([ids[next]!]);
+  };
+
   const series = effectiveSelection
     .map((sensorId, i) => {
       const sensor = sensors.find((s) => s.id === sensorId);
-      const q = queries[i];
+      const q = levelKey === '' ? queries[i] : aggregatedQueries[i];
       if (!sensor || !q) return null;
-      return { label: sensor.name || sensor.externalSensorId || `Sensor ${sensorId}`, points: q.data ?? [], bidirectional: sensor.direction === 'bidirectional', direction: sensor.direction, unitLabel: sensor.unitLabel };
+      const levelOfThis = aggregatedLevels[i];
+      const name = sensor.name || sensor.externalSensorId || `Sensor ${sensorId}`;
+      return {
+        label: levelKey === '' ? name : `${name} · ${t(levelOfThis?.label ?? '')}`.replace(/ · $/, ''),
+        points: q.data ?? [],
+        bidirectional: levelKey === '' && sensor.direction === 'bidirectional',
+        direction: sensor.direction,
+        unitLabel: sensor.unitLabel,
+      };
     })
     .filter((s): s is NonNullable<typeof s> => s !== null);
 
-  const anyLoading = queries.some((q) => q.isLoading);
-  const firstError = queries.find((q) => q.isError);
+  const activeQueries = levelKey === '' ? queries : aggregatedQueries.filter((_, i) => aggregatedLevels[i] !== undefined && i < effectiveSelection.length);
+  const anyLoading = activeQueries.some((q) => q.isLoading);
+  const firstError = activeQueries.find((q) => q.isError);
+  // Sensors of the selection that do not have the chosen level: nothing to draw for them.
+  const withoutLevel = levelKey === '' ? [] : effectiveSelection.filter((_, i) => aggregatedLevels[i] === undefined).map((id) => sensors.find((x) => x.id === id)?.name || sensors.find((x) => x.id === id)?.externalSensorId || `Sensor ${id}`);
 
   const issuesInRange = (issuesQuery.data ?? []).filter((issue) => {
     const at = parseApiDate(issue.measuredAtTo ?? issue.measuredAtFrom);
@@ -193,11 +254,22 @@ function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; st
         <Card className={styles.card}>
           {anyLoading && <LoadingState label={t('Loading telemetry…')} />}
           {firstError && <ErrorState error={firstError.error} />}
-          {!anyLoading && !firstError && (
+          {withoutLevel.length > 0 && (
+            <MessageBar intent="info" style={{ marginBottom: tokens.spacingVerticalM }}>
+              <MessageBarBody>{t('No such aggregation level on')}{' '}{withoutLevel.join(', ')}.</MessageBarBody>
+            </MessageBar>
+          )}
+          {levelKey === '' && !anyLoading && !firstError && (
             <TruncationNotice labels={series.map((s) => s.label)} lengths={series.map((s) => s.points.length)} />
           )}
-          {!anyLoading && !firstError && (
+          {((!anyLoading && !firstError) || enlarged) && (
             <EnlargeableTelemetryChart
+              open={enlarged}
+              onOpenChange={setEnlarged}
+              // Up / Down: the previous / next Sensor of the list (one Sensor on the chart; in Multi Sensor mode with several chosen the arrows do nothing).
+              onStep={effectiveSelection.length === 1 ? stepSensor : undefined}
+              // The aggregation can also be changed in the large window, at its top right.
+              titleAction={levelsAvailable.length > 0 ? <AggregationSelect levels={levelsAvailable} value={levelKey} onChange={onLevelKeyChange} /> : undefined}
               title={series.map((s) => s.label).join(' · ') || t('Telemetry')}
               series={series}
               describedSensors={describedSensors}
@@ -205,7 +277,7 @@ function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; st
               showControlLimits={series.length === 1}
               // One Sensor: the platform's full reference set as the API stored it (Target, Tolerance, UCL3/UCL2/LCL2/LCL3 and their bands),
               // like the enlarged Live Monitoring chart. Several Sensors stay a clean overlay without limits.
-              detailedLimits={series.length === 1}
+              detailedLimits={series.length === 1 && levelKey === ''}
               height={360}
             />
           )}
@@ -234,7 +306,8 @@ function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; st
               visibleSensors.map((sensor) => (
                 <Checkbox
                   key={sensor.id}
-                  label={`${sensor.name || sensor.externalSensorId} (${sensor.direction})`}
+                  style={calculationOffStyle(sensor)}
+                  label={`${sensor.name || sensor.externalSensorId} (${sensor.direction})${calculationOffSuffix(sensor, t)}`}
                   checked={effectiveSelection.includes(sensor.id!)}
                   onChange={(_, d) => {
                     setSelectedSensorIds((prev) => {
@@ -252,7 +325,7 @@ function SensorAnalytics({ deviceId, start, end, multi }: { deviceId: number; st
               // Single Sensor: exactly one is chosen; picking another replaces it.
               <RadioGroup aria-label={t('Sensor')} value={String(effectiveSelection[0] ?? '')} onChange={(_, d) => setSelectedSensorIds([Number(d.value)])}>
                 {visibleSensors.map((sensor) => (
-                  <Radio key={sensor.id} value={String(sensor.id)} label={`${sensor.name || sensor.externalSensorId} (${sensor.direction})`} />
+                  <Radio key={sensor.id} value={String(sensor.id)} style={calculationOffStyle(sensor)} label={`${sensor.name || sensor.externalSensorId} (${sensor.direction})${calculationOffSuffix(sensor, t)}`} />
                 ))}
               </RadioGroup>
             )}
@@ -318,12 +391,35 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
   const [sensorIdB, setSensorIdB] = useState<number | undefined>();
   const [filterA, setFilterA] = useState('');
   const [filterB, setFilterB] = useState('');
+  // Linked (the default): choosing a Sensor on one side chooses the Sensor of the same name on the other side.
+  const [linked, setLinked] = useState(true);
 
   // Hidden Sensors (Device page, "Visible" switch) are not offered; a chosen Sensor that has been hidden since falls back to the first shown one.
   const shownA = useMemo(() => splitShownSensors(sensorsA.data).shown, [sensorsA.data]);
   const shownB = useMemo(() => splitShownSensors(sensorsB.data).shown, [sensorsB.data]);
   const effectiveSensorA = sensorIdA !== undefined && shownA.some((s) => s.id === sensorIdA) ? sensorIdA : shownA[0]?.id;
   const effectiveSensorB = sensorIdB !== undefined && shownB.some((s) => s.id === sensorIdB) ? sensorIdB : shownB[0]?.id;
+
+  // The same indicator on the other Device (same external id, else the same name). The link icon is light grey while there is none.
+  const counterpartInB = findSameSensor(shownB, shownA.find((s) => s.id === effectiveSensorA));
+  const counterpartInA = findSameSensor(shownA, shownB.find((s) => s.id === effectiveSensorB));
+  const linkAvailable = counterpartInB !== undefined;
+  const chooseA = (id: number) => {
+    setSensorIdA(id);
+    const other = linked ? findSameSensor(shownB, shownA.find((s) => s.id === id)) : undefined;
+    if (other?.id != null) setSensorIdB(other.id);
+  };
+  const chooseB = (id: number) => {
+    setSensorIdB(id);
+    const other = linked ? findSameSensor(shownA, shownB.find((s) => s.id === id)) : undefined;
+    if (other?.id != null) setSensorIdA(other.id);
+  };
+  const toggleLink = () => {
+    const on = !linked;
+    setLinked(on);
+    // Linking again lines the right side up with the left one when it has the same indicator.
+    if (on && counterpartInB?.id != null) setSensorIdB(counterpartInB.id);
+  };
 
   // The chosen Sensor stays in its list even when it does not match the filter, so the select never shows a value that is not an option.
   const optionsFor = (sensors: typeof sensorsA.data, filter: string, chosen: number | undefined) => {
@@ -368,21 +464,39 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
         <div className={styles.column}>
           <Text size={200}>{t('Device A Sensor')}</Text>
           <Input aria-label={t('Filter Device A Sensors')} placeholder={t('Filter Sensors by name…')} contentBefore={<Search24Regular />} value={filterA} onChange={(_, d) => setFilterA(d.value)} />
-          <Select aria-label={t('Device A Sensor')} value={effectiveSensorA !== undefined ? String(effectiveSensorA) : ''} onChange={(_, d) => setSensorIdA(Number(d.value))}>
+          <Select aria-label={t('Device A Sensor')} value={effectiveSensorA !== undefined ? String(effectiveSensorA) : ''} onChange={(_, d) => chooseA(Number(d.value))}>
             {optionsA.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name || s.externalSensorId}
+              <option key={s.id} value={s.id} style={calculationOffStyle(s)}>
+                {s.name || s.externalSensorId}{calculationOffSuffix(s, t)}
               </option>
             ))}
           </Select>
         </div>
         <div className={styles.column}>
+          <Button
+            appearance="subtle"
+            aria-label={linked ? t('Unlink the two Sensor lists') : t('Link the two Sensor lists (same indicator on both Devices)')}
+            aria-pressed={linked}
+            title={
+              !linkAvailable && !counterpartInA
+                ? t('The other Device has no Sensor with this name, so there is nothing to link')
+                : linked
+                  ? t('Linked: choosing a Sensor on one side chooses the one with the same name on the other side. Click to unlink.')
+                  : t('Not linked. Click to link: choosing a Sensor on one side chooses the one with the same name on the other side.')
+            }
+            icon={linked ? <Link24Regular /> : <LinkDismiss24Regular />}
+            onClick={toggleLink}
+            data-link-available={linkAvailable || counterpartInA ? 'true' : 'false'}
+            style={{ color: !linkAvailable && !counterpartInA ? tokens.colorNeutralForeground4 : linked ? tokens.colorBrandForeground1 : tokens.colorNeutralForeground2 }}
+          />
+        </div>
+        <div className={styles.column}>
           <Text size={200}>{t('Device B Sensor')}</Text>
           <Input aria-label={t('Filter Device B Sensors')} placeholder={t('Filter Sensors by name…')} contentBefore={<Search24Regular />} value={filterB} onChange={(_, d) => setFilterB(d.value)} />
-          <Select aria-label={t('Device B Sensor')} value={effectiveSensorB !== undefined ? String(effectiveSensorB) : ''} onChange={(_, d) => setSensorIdB(Number(d.value))}>
+          <Select aria-label={t('Device B Sensor')} value={effectiveSensorB !== undefined ? String(effectiveSensorB) : ''} onChange={(_, d) => chooseB(Number(d.value))}>
             {optionsB.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name || s.externalSensorId}
+              <option key={s.id} value={s.id} style={calculationOffStyle(s)}>
+                {s.name || s.externalSensorId}{calculationOffSuffix(s, t)}
               </option>
             ))}
           </Select>
@@ -417,16 +531,17 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
               title={t('{0} and {1}', labelA, labelB)}
               describedSensors={describedPair}
               series={[
-                { label: labelA, points: dataA.data ?? [], bidirectional: sensorA?.direction === 'bidirectional', unitLabel: sensorA?.unitLabel },
-                { label: labelB, points: dataB.data ?? [], bidirectional: sensorB?.direction === 'bidirectional', unitLabel: sensorB?.unitLabel },
+                { label: labelA, points: dataA.data ?? [], bidirectional: sensorA?.direction === 'bidirectional', direction: sensorA?.direction, unitLabel: sensorA?.unitLabel },
+                { label: labelB, points: dataB.data ?? [], bidirectional: sensorB?.direction === 'bidirectional', direction: sensorB?.direction, unitLabel: sensorB?.unitLabel },
               ]}
               mode="compare"
               averageLine
               showControlLimits
+              showSetpoint
               height={380}
             />
             <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-              {t('The dashed horizontal line of each Sensor is the average of the plotted readings. UCL3 / LCL3 are the control limits the platform calculated and stored for that Sensor; they appear only where the Sensor has them (calculation switched on - a setpoint is not needed).')}</Text>
+              {t('The dashed horizontal line of each Sensor is the average of the plotted readings. UCL3 / LCL3 are the control limits the platform calculated for that Sensor; Target and Tolerance are the Sensor\'s setpoint (the tolerance is the target compensated by the tolerance, on the side where a deviation is bad). Each line is drawn in its Sensor\'s colour and appears only where the platform has the value.')}</Text>
           </Card>
           {foundPair.length > 0 && (
             <Card className={styles.card} style={{ marginTop: tokens.spacingVerticalM }}>
@@ -461,9 +576,19 @@ export function SmartAnalyticsPage() {
 
   const devicesQuery = useDevices();
   const devices = devicesQuery.data ?? [];
+  // The aggregation chosen for the analysis ('' = the raw readings), picked right after the Device when it has any.
+  const [levelKey, setLevelKey] = useState('');
 
   // Device A is the Device chosen on any page (it stays chosen while moving between menu items).
   const [effectiveA, setDeviceIdA] = useDeviceSelection(devicesQuery.data);
+  const levelPoliciesQuery = useDeviceAggregationPolicies(effectiveA, mode !== 'compare');
+  const levelSensorsQuery = useSensors(effectiveA);
+  const toolbarLevels = useMemo(
+    () => levelsOfSensors(levelPoliciesQuery.data, splitShownSensors(levelSensorsQuery.data).shown.map((x) => x.id!)),
+    [levelPoliciesQuery.data, levelSensorsQuery.data],
+  );
+  // A level the (new) Device does not have falls back to the raw readings.
+  const effectiveLevelKey = toolbarLevels.some((l) => l.key === levelKey) ? levelKey : '';
 
   const validationMessage = range.start >= range.end ? 'Start must be before end.' : undefined;
 
@@ -495,6 +620,13 @@ export function SmartAnalyticsPage() {
           </Select>
         </div>
 
+        {mode !== 'compare' && toolbarLevels.length > 0 && (
+          <div className={styles.column}>
+            <Text size={200}>{t('Aggregation')}</Text>
+            <AggregationSelect levels={toolbarLevels} value={effectiveLevelKey} onChange={setLevelKey} />
+          </div>
+        )}
+
         {mode === 'compare' && (
           <div className={styles.column}>
             <Text size={200}>{t('Device B')}</Text>
@@ -521,7 +653,7 @@ export function SmartAnalyticsPage() {
       )}
 
       {effectiveA !== undefined && !validationMessage && mode !== 'compare' && (
-        <SensorAnalytics deviceId={effectiveA} start={range.start} end={range.end} multi={mode === 'multi'} />
+        <SensorAnalytics deviceId={effectiveA} start={range.start} end={range.end} multi={mode === 'multi'} levelKey={effectiveLevelKey} levelPolicies={levelPoliciesQuery.data} onLevelKeyChange={setLevelKey} />
       )}
 
       {effectiveA !== undefined && deviceIdB !== undefined && !validationMessage && mode === 'compare' && (

@@ -107,7 +107,7 @@ export const HU_ADMIN: Record<string, string> = {
   'Filter Device B Sensors': 'A B eszköz szenzorainak szűrése',
   'Not proven compatible': 'Nincs bizonyítva a kompatibilitás',
   'Different units': 'Eltérő mértékegységek',
-  'The dashed horizontal line of each Sensor is the average of the plotted readings. UCL3 / LCL3 are the control limits the platform calculated and stored for that Sensor; they appear only where the Sensor has them (calculation switched on - a setpoint is not needed).': 'Minden szenzor szaggatott vízszintes vonala az ábrázolt mérések átlaga. Az UCL3 / LCL3 a platform által a szenzorhoz kiszámolt és tárolt szabályozási határ; csak ott jelenik meg, ahol a szenzornak van ilyen (a számítás be van kapcsolva – célérték-beállítás nem kell).',
+  'The dashed horizontal line of each Sensor is the average of the plotted readings. UCL3 / LCL3 are the control limits the platform calculated for that Sensor; Target and Tolerance are the Sensor\'s setpoint (the tolerance is the target compensated by the tolerance, on the side where a deviation is bad). Each line is drawn in its Sensor\'s colour and appears only where the platform has the value.': 'Minden szenzor szaggatott vízszintes vonala az ábrázolt mérések átlaga. Az UCL3 / LCL3 a platform által a szenzorhoz kiszámolt szabályozási határ; a Target és a Tolerance a szenzor célérték-beállítása (a tolerancia a toleranciával korrigált célérték, azon az oldalon, ahol az eltérés rossz). Minden vonal a szenzora színével jelenik meg, és csak ott, ahol a platformnak megvan az értéke.',
   'Start knowledge sharing between these Devices': 'Tudásmegosztás indítása e két eszköz között',
   'This comparison view only visualizes data - it does not itself approve sharing, remap Sensors, or affect training.': 'Ez az összehasonlító nézet csak megjeleníti az adatokat – nem hagy jóvá megosztást, nem rendel át szenzort és nem érinti a tanítást.',
   'Loading devices…': 'Eszközök betöltése…',
@@ -131,4 +131,9 @@ export const HU_ADMIN: Record<string, string> = {
   'Every Issue on this category will be reassigned to the target, and the source category will be retired (kept for audit, not deleted).': 'A kategória minden problémája a célkategóriába kerül, a forráskategória pedig kivezetésre kerül (a követhetőség miatt megmarad, nem törlődik).',
   'Target category': 'Célkategória',
   'Choose…': 'Válassz…',
+  'Unlink the two Sensor lists': 'A két szenzorlista szétkapcsolása',
+  'Link the two Sensor lists (same indicator on both Devices)': 'A két szenzorlista összekapcsolása (azonos mutató mindkét eszközön)',
+  'The other Device has no Sensor with this name, so there is nothing to link': 'A másik eszköznek nincs ilyen nevű szenzora, ezért nincs mit összekapcsolni',
+  'Linked: choosing a Sensor on one side chooses the one with the same name on the other side. Click to unlink.': 'Összekapcsolva: ha az egyik oldalon szenzort választasz, a másik oldalon az azonos nevűt választja. Kattints a szétkapcsoláshoz.',
+  'Not linked. Click to link: choosing a Sensor on one side chooses the one with the same name on the other side.': 'Nincs összekapcsolva. Kattints az összekapcsoláshoz: ha az egyik oldalon szenzort választasz, a másik oldalon az azonos nevűt választja.',
 };

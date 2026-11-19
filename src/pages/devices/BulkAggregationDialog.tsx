@@ -284,6 +284,11 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
               </div>
             ) : (
               <div className={styles.body}>
+                <div>
+                  {/* What is in the system right now, as a sheet the import takes back - available in every mode. */}
+                  <Button icon={exporting ? <Spinner size="tiny" /> : <ArrowDownload24Regular />} onClick={() => void exportLevels()} disabled={exporting}>
+                    {t('Export current aggregations (CSV)')}</Button>
+                </div>
                 <RadioGroup layout="horizontal" aria-label={t('What to do')} value={mode} onChange={(_, d) => setMode(d.value as Mode)}>
                   <Radio value="create" label={t('Add the level')} />
                   <Radio value="deactivate" label={t('Deactivate the level')} />
@@ -299,8 +304,6 @@ export function BulkAggregationDialog({ deviceId, sensors, open, onClose }: { de
                     <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center', flexWrap: 'wrap' }}>
                       <Button icon={<ArrowDownload24Regular />} onClick={downloadTemplate}>
                         {t('Download sample (CSV)')}</Button>
-                      <Button icon={exporting ? <Spinner size="tiny" /> : <ArrowDownload24Regular />} onClick={() => void exportLevels()} disabled={exporting}>
-                        {t('Download current levels (CSV)')}</Button>
                       <input
                         ref={fileInput}
                         type="file"

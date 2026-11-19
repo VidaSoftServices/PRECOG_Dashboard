@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -101,6 +101,15 @@ describe('LiveMonitoringPage and hidden Sensors', { timeout: 30_000 }, () => {
     expect(screen.queryByRole('button', { name: 'Refresh RMS B (hidden)' })).not.toBeInTheDocument();
   });
 
+  it('marks a Sensor whose calculation is switched off (grey card plus the "Calculation off" text); a calculating Sensor is not marked', async () => {
+    mockApi([{ ...sensor(1, 'RMS A', true), processingEnabled: false }, sensor(2, 'RMS C', true)]);
+    const { container } = renderPage();
+
+    expect((await screen.findAllByText('RMS A')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Calculation off')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-calculation-off="true"]')).toHaveLength(1);
+  });
+
   it('the enlarged chart draws Target, Tolerance and UCL3 / UCL2 / LCL2 / LCL3 like the original app - the small card keeps its plain chart', async () => {
     mockApi([sensor(1, 'RMS A', true)]); // lower is better
     const user = userEvent.setup();
@@ -116,6 +125,24 @@ describe('LiveMonitoringPage and hidden Sensors', { timeout: 30_000 }, () => {
         'RMS A Target', 'RMS A Tolerance', 'RMS A', 'RMS A UCL3', 'RMS A UCL2', 'RMS A LCL2', 'RMS A LCL3',
       ]),
     );
+  });
+
+  it('in the large window the Down / Up arrow keys move to the next / previous Sensor of the page, and stop at the ends', async () => {
+    mockApi([sensor(1, 'RMS A', true), sensor(2, 'RMS B', true)]);
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Enlarge chart of RMS A' }));
+    const dialog = await screen.findByRole('dialog', { hidden: true });
+    expect(within(dialog).getByRole('heading', { name: 'RMS A', hidden: true })).toBeInTheDocument();
+
+    await user.keyboard('{ArrowDown}');
+    await waitFor(() => expect(within(screen.getByRole('dialog', { hidden: true })).getByRole('heading', { name: 'RMS B', hidden: true })).toBeInTheDocument());
+    await user.keyboard('{ArrowDown}'); // already the last one
+    expect(within(screen.getByRole('dialog', { hidden: true })).getByRole('heading', { name: 'RMS B', hidden: true })).toBeInTheDocument();
+
+    await user.keyboard('{ArrowUp}');
+    await waitFor(() => expect(within(screen.getByRole('dialog', { hidden: true })).getByRole('heading', { name: 'RMS A', hidden: true })).toBeInTheDocument());
+    expect(screen.getAllByRole('dialog', { hidden: true })).toHaveLength(1); // one window at a time
   });
 
   async function openEnlarged() {

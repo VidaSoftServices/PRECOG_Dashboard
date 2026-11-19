@@ -250,7 +250,7 @@ describe('BulkAggregationDialog: CSV import and export', { timeout: 30_000 }, ()
     renderDialog();
     await user.click(screen.getByRole('radio', { name: 'Import from CSV' }));
 
-    await user.click(screen.getByRole('button', { name: 'Download current levels (CSV)' }));
+    await user.click(screen.getByRole('button', { name: 'Export current aggregations (CSV)' }));
 
     await waitFor(() => expect(downloads).toHaveLength(1));
     expect(downloads[0]?.name).toBe('aggregation-device-4.csv');
@@ -269,7 +269,7 @@ describe('BulkAggregationDialog: sample download and upload button', { timeout: 
     renderDialog();
     await user.click(screen.getByRole('radio', { name: 'Import from CSV' }));
 
-    expect(screen.getByRole('button', { name: 'Download current levels (CSV)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Export current aggregations (CSV)' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Upload CSV…' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Download sample (CSV)' }));
 

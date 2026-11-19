@@ -28,7 +28,6 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SensorImportDialog } from './SensorImportDialog';
 import { SensorTypeInput } from '@/components/SensorTypeInput';
 import { ExportSensorMapButton } from './ExportSensorMapButton';
-import { ExportAllSensorsButton } from './ExportAllSensorsButton';
 import { ManageSetpointsDialog } from './ManageSetpointsDialog';
 import { DescriptionsDialog } from './DescriptionsDialog';
 import { DeleteDeviceDataDialog, DeleteDeviceDialog } from './DeleteDeviceDialog';
@@ -64,13 +63,6 @@ const useStyles = makeStyles({
     display: 'flex',
     flexDirection: 'column',
     gap: tokens.spacingVerticalS,
-  },
-  // "Import Sensors" with "Export all sensors" right under it.
-  actionStack: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.spacingVerticalXS,
-    alignItems: 'stretch',
   },
   sensorRow: {
     display: 'flex',
@@ -310,13 +302,13 @@ function recalcButtonTitle(sensor: SensorDto): string {
 
 /**
  * Switches one Sensor's calculation on or off (`Sensor.processingEnabled`).
- * Off: its data is still stored and still trains the model, but new values
- * trigger no analysis, Issue detection or summary. On: everything not
+ * Off: its data is still stored, but new values trigger no analysis, Issue detection or summary,
+ * and the Sensor is no longer part of the model (the API leaves it out of the training and retrains the Device). On: everything not
  * calculated yet (the values stored while it was off, or left over by a Recalc
  * with calculation off) is calculated in the background, one value at a time,
  * exactly as the live calculation would have done (the API's catch-up; its
- * progress is the Device's recalculation progress). The change never triggers
- * retraining. Confirmed because turning it off silences Issue detection for
+ * progress is the Device's recalculation progress). The change schedules retraining
+ * (the Sensor enters or leaves the model). Confirmed because turning it off silences Issue detection for
  * that Sensor.
  */
 function ProcessingDialog({
@@ -352,7 +344,7 @@ function ProcessingDialog({
     >
       <Text>
         {turningOff
-          ? t('New values for this Sensor will still be stored and still be used to train the model, but they will no longer trigger any calculation - no analysis and no Issues will be raised from this Sensor. Everything already calculated (analysis results, control limits) and every Issue that is already open is kept as it is; Recalc deletes them (and calculates nothing while calculation is off). Switching calculation on again calculates everything that was not calculated.')
+          ? t('New values for this Sensor will still be stored, but they will no longer trigger any calculation - no analysis and no Issues will be raised from this Sensor - and the Sensor leaves the model: it is no longer trained on, and the Device\'s model is retrained without it. Everything already calculated (analysis results, control limits) and every Issue that is already open is kept as it is; Recalc deletes them (and calculates nothing while calculation is off). Switching calculation on again calculates everything that was not calculated.')
           : t('Everything not calculated yet - the values that arrived while calculation was off, and whatever a Recalc deleted - is calculated now in the background, one value at a time in time order, exactly as if calculation had been on all along: control limits, anomalies and Issues. Issues a person has reviewed are kept and not duplicated. The progress is shown on this page; new values are calculated as usual when it has caught up. (A bidirectional Sensor or one in maintenance mode is calculated from now on only.)')}
       </Text>
       {updateSensor.isError && <ErrorState error={updateSensor.error} />}
@@ -604,11 +596,8 @@ export function DeviceDetailPage() {
                 {t('Add Sensor')}</Button>
             )}
             {isAdmin && (
-              <div className={styles.actionStack}>
-                <Button icon={<TableArrowUp24Regular />} onClick={() => setImportSensorsOpen(true)}>
-                  {t('Import Sensors')}</Button>
-                <ExportAllSensorsButton deviceId={id} sensors={sensorsQuery.data ?? []} />
-              </div>
+              <Button icon={<TableArrowUp24Regular />} onClick={() => setImportSensorsOpen(true)}>
+                {t('Import Sensors')}</Button>
             )}
             {isAdmin && (
               <Button icon={<TargetEdit24Regular />} onClick={() => setManageSetpointsOpen(true)}>
@@ -681,6 +670,10 @@ export function DeviceDetailPage() {
               <div className={styles.sensorRow}>
                 <div>
                   <Body1Strong>{sensor.name || sensor.externalSensorId}</Body1Strong>
+                  <br />
+                  <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+                    {t('External Sensor ID')}: {sensor.externalSensorId}
+                  </Text>
                   <br />
                   <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
                     {sensor.direction} {sensor.sensorType ? `· ${sensor.sensorType}` : ''}{' '}

@@ -382,6 +382,8 @@ interface DateRangeArgs {
   sensorId: number | undefined;
   startDate: string;
   endDate: string;
+  /** False = do not read (Smart Analytics shows aggregated buckets instead of the raw readings). Default true. */
+  enabled?: boolean;
   skip?: number;
   take?: number;
   /**
@@ -417,7 +419,7 @@ export async function readAllPages(
 }
 
 /** The primary read for Smart Analytics - a human-picked wall-clock time range, not period numbers. Server clamps the span (documented MaxQueryRangeDays); a 400 here surfaces as a normal ErrorState, not a special case. */
-export function useTelemetryDateRange({ family, deviceId, sensorId, startDate, endDate, skip, take, maxPoints, pageSize }: DateRangeArgs) {
+export function useTelemetryDateRange({ family, deviceId, sensorId, startDate, endDate, skip, take, maxPoints, pageSize, enabled = true }: DateRangeArgs) {
   return useQuery({
     queryKey: queryKeys.telemetryDateRange(family, deviceId ?? -1, sensorId ?? -1, startDate, endDate),
     queryFn: async ({ signal }): Promise<TelemetryPoint[]> => {
@@ -468,7 +470,7 @@ export function useTelemetryDateRange({ family, deviceId, sensorId, startDate, e
           );
       }
     },
-    enabled: deviceId !== undefined && sensorId !== undefined,
+    enabled: enabled && deviceId !== undefined && sensorId !== undefined,
   });
 }
 

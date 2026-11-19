@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { ExportAllSensorsButton } from './ExportAllSensorsButton';
 import {
   Body1Strong,
   Button,
@@ -246,6 +247,8 @@ export function SensorImportDialog({
                 onClick={() => catalog && downloadBinaryFile(DATA_SETS_FILE_NAME, buildDataSetsWorkbook(catalog), XLSX_MIME_TYPE)}
               >
                 {t('Download Data sets')}</Button>
+              {/* Every Sensor of the Device as a sheet this dialog takes back: edit it in Excel and import it to change many Sensors at once. */}
+              <ExportAllSensorsButton deviceId={deviceId} sensors={sensorsQuery.data ?? []} />
               <Button icon={<DocumentArrowUp24Regular />} onClick={() => fileRef.current?.click()} disabled={running}>
                 {t('Choose .csv file')}</Button>
               <input
