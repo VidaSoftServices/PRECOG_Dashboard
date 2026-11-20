@@ -449,9 +449,14 @@ export function IssueDetailPage() {
 
           <Card className={styles.card}>
             <Body1Strong>{t('Telemetry')}</Body1Strong>
-            {sourceLevel && (
-              <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-                {t('Raised by the aggregation level {0}: the chart shows the values of that level.', t(sourceLevel.label))}
+            {/* Always says which aggregation the chart shows: the level that raised the Issue, or the raw readings. */}
+            {/* Not before the level is known: while the policy list loads the chart is not the raw one yet. */}
+            {!chartQuery.isLoading && !(sourcePolicyId !== undefined && !sourceLevel && policiesQuery.isLoading) && (
+              <Text size={300} data-testid="issue-chart-level">
+                <Text weight="semibold">{t('Aggregation shown')}:</Text> {sourceLevel ? t(sourceLevel.label) : t('Raw readings')}
+                {sourceLevel && (
+                  <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>{' · '}{t('the level that raised this Issue; the chart shows the values of that level.')}</Text>
+                )}
               </Text>
             )}
             {chartQuery.isLoading && <LoadingState label="" />}
@@ -464,6 +469,8 @@ export function IssueDetailPage() {
                 series={[{ label: sourceLevel ? `${primarySensor?.name || 'Sensor'} · ${t(sourceLevel.label)}` : primarySensor?.name || 'Sensor', points: chartQuery.data, bidirectional: !sourceLevel && primarySensor?.direction === 'bidirectional', direction: primarySensor?.direction, unitLabel: primarySensor?.unitLabel }]}
                 mode="single"
                 showControlLimits
+                // The platform's full reference set, like Smart Analytics and the enlarged Live chart: Target, Tolerance, UCL3 / UCL2 / LCL2 / LCL3 and their bands.
+                detailedLimits
                 maintenances={markers}
                 height={280}
               />

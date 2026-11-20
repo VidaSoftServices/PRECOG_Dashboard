@@ -98,7 +98,8 @@ export const HU_MISC: Record<string, string> = {
   'Target and tolerance': 'Célérték és tűrés',
   'Hide the Target and Tolerance lines': 'A célérték- és tűrésvonalak elrejtése',
   'Show the Target and Tolerance lines': 'A célérték- és tűrésvonalak megjelenítése',
-  'Raised by the aggregation level {0}: the chart shows the values of that level.': 'Az aggregációs szint ({0}) jelezte: a diagram a szint értékeit mutatja.',
+  'Aggregation shown': 'Megjelenített aggregáció',
+  'the level that raised this Issue; the chart shows the values of that level.': 'ez a szint jelezte a problémát; a diagram a szint értékeit mutatja.',
   'Issue score': 'Probléma-pontszám',
   'sum of the anomaly values (1 warning, 2 critical) inside the Issue': 'az anomália-értékek összege (1 figyelmeztetés, 2 kritikus) a probléma időszakában',
 };

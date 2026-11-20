@@ -115,3 +115,11 @@ The Issue detail page writes the **Issue score** under its Telemetry chart (`iss
 ## An Issue of an aggregation level shows that level's values (2026-11-20)
 
 `IssueDto.sourceAggregationPolicyId` (API, added 2026-11-20) names the aggregation level that raised an Issue (null = the raw readings or created by hand). The Issue detail chart (`IssueDetailPage.tsx`) used to draw the raw readings of the Issue's period for every Issue, so a daily-level Issue showed something else than what triggered it. Now, when the policy is a level the Sensor still has (`levelsOfSensor` of the Device-wide policy list), the chart draws THAT level's buckets (`useAggregatedPoints`, from 30 buckets before the Issue to 7 after it, up to now - context around it), with the level in the series label, the level's warm-up on the maintenance markers and the note "Raised by the aggregation level ...". The raw read (`useTelemetryPeriodRange(enabled: false)`) is skipped. Anomalous buckets are marked yellow / red like raw readings (`bucketToPoint`). The Issue **score** of such an Issue is the sum of the anomaly values of the level's buckets in its range. If the level was deleted or switched off, the chart falls back to the raw readings. Tests: `IssueDetailPage.test.tsx`.
+
+## The Issue chart draws the full reference set (2026-11-20)
+
+The Telemetry chart of the Issue detail page (and its enlarged window) uses `detailedLimits`, like Smart Analytics and the enlarged Live chart: Target and Tolerance (where the API has a setpoint) plus UCL3 / UCL2 / LCL2 / LCL3 with the two shaded bands, for a raw Issue and for the buckets of a level's Issue alike. Before it drew only UCL3 / LCL3. Test: `IssueDetailPage.test.tsx`.
+
+## The Issue chart names the aggregation it shows (2026-11-20)
+
+Under "Telemetry" the Issue detail page always writes **Aggregation shown: ...** (test id `issue-chart-level`): the level that raised the Issue (e.g. "1 day · 95th percentile", with a note that the chart shows that level's values) or "Raw readings". It appears only once the level is known, so it never says "Raw readings" while the policy list is still loading. Test: `IssueDetailPage.test.tsx`.

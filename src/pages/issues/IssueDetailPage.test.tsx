@@ -100,8 +100,9 @@ describe('IssueDetailPage telemetry chart', { timeout: 20_000 }, () => {
     mockApi({ ...ISSUE, sourceAggregationPolicyId: 8 });
     renderPage();
 
-    expect(await screen.findByText(/Raised by the aggregation level 1 day · 95th percentile/, {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await screen.findByTestId('issue-chart-level', {}, { timeout: 10_000 })).toHaveTextContent('Aggregation shown: 1 day · 95th percentile');
     await waitFor(() => expect(drawn.labels.at(-1)).toContain('Vibration X · 1 day · 95th percentile'), { timeout: 10_000 });
+    expect(drawn.labels.at(-1)).toEqual(expect.arrayContaining(['Vibration X · 1 day · 95th percentile UCL2', 'Vibration X · 1 day · 95th percentile LCL2']));
     expect(requested).toContain('/api/Devices/1/Sensors/11/AggregationPolicies/8/Values');
     expect(requested).not.toContain('/api/Continuous/PeriodRange'); // the raw readings are not read for it
   });
@@ -111,8 +112,10 @@ describe('IssueDetailPage telemetry chart', { timeout: 20_000 }, () => {
     renderPage();
 
     await waitFor(() => expect(drawn.labels.at(-1)).toContain('Vibration X'), { timeout: 10_000 });
+    // the full reference set, like everywhere else: UCL3 / UCL2 / LCL2 / LCL3 (the Target and Tolerance lines are drawn where the API has a setpoint)
+    expect(drawn.labels.at(-1)).toEqual(expect.arrayContaining(['Vibration X UCL3', 'Vibration X UCL2', 'Vibration X LCL2', 'Vibration X LCL3']));
     expect(requested).toContain('/api/Continuous/PeriodRange');
     expect(requested.some((p) => p.endsWith('/Values'))).toBe(false);
-    expect(screen.queryByText(/Raised by the aggregation level/)).toBeNull();
+    expect(await screen.findByTestId('issue-chart-level')).toHaveTextContent('Aggregation shown: Raw readings');
   });
 });
