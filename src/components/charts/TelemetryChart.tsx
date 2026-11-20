@@ -225,6 +225,11 @@ export interface TelemetryChartProps {
    * comparison needs. Only where the API has the values; nothing is computed here but target +/- tolerance.
    */
   showSetpoint?: boolean;
+  /**
+   * False hides the Target and Tolerance lines (every kind: single, bidirectional Above / Below, the per-series ones of a comparison); the readings and the
+   * control limits (UCL / LCL) stay. Default true. The Smart Analytics toggle, which also governs its enlarged window.
+   */
+  showTargetTolerance?: boolean;
   /** Called when the chart is clicked anywhere except on its legend (which keeps toggling series); the pointer shows a zoom cursor. */
   onEnlarge?: () => void;
   /**
@@ -261,6 +266,7 @@ function detailedDatasets(
   aligned: (TelemetryPoint | null)[],
   actual: ChartData<'line'>['datasets'][number],
   emphasizeHover: boolean,
+  showTargetTolerance: boolean,
 ): ChartData<'line'>['datasets'] {
   const name = (suffix: string) => `${s.label} ${suffix}`;
   const plain = (suffix: string, data: (number | null)[], color: string, width: number, dash: number[], extra: object = {}) => ({
@@ -280,7 +286,9 @@ function detailedDatasets(
   const sum = (a: number | null | undefined, b: number | null | undefined, sign: 1 | -1) => (a != null && b != null ? a + sign * b : null);
   const out: ChartData<'line'>['datasets'] = [];
 
-  if (s.bidirectional) {
+  if (!showTargetTolerance) {
+    // Target and Tolerance are switched off: only the readings and the control limits are drawn.
+  } else if (s.bidirectional) {
     // Both sides have their own target and tolerance: the tolerance lies beyond the target on its own side.
     const lines: [string, (number | null)[], string][] = [
       ['Target Above', aligned.map((p) => p?.targetAbove ?? null), '#6FB1E8'],
@@ -388,6 +396,7 @@ export function TelemetryChart({
   plainTooltip = false,
   detailedLimits = false,
   showSetpoint = false,
+  showTargetTolerance = true,
   onEnlarge,
   maintenances,
 }: TelemetryChartProps) {
@@ -435,7 +444,7 @@ export function TelemetryChart({
       };
 
       if (detailedLimits && mode === 'single') {
-        datasets.push(...detailedDatasets(s, aligned, actualDataset, emphasizeHover));
+        datasets.push(...detailedDatasets(s, aligned, actualDataset, emphasizeHover, showTargetTolerance));
         return;
       }
 
@@ -462,7 +471,7 @@ export function TelemetryChart({
         }
       }
 
-      if (showSetpoint && mode === 'compare') {
+      if (showSetpoint && showTargetTolerance && mode === 'compare') {
         const own = (suffix: string, values: (number | null)[], lineDash: number[]) => {
           if (!values.some((v) => v !== null)) return;
           datasets.push({
@@ -505,7 +514,7 @@ export function TelemetryChart({
         }
       }
 
-      if (mode === 'single') {
+      if (mode === 'single' && showTargetTolerance) {
         const target = s.bidirectional
           ? aligned.map((p) => p?.targetAbove ?? null)
           : aligned.map((p) => p?.target ?? null);
@@ -608,7 +617,7 @@ export function TelemetryChart({
     };
 
     return { data: chartData, options: chartOptions };
-  }, [series, mode, showControlLimits, averageLine, plainTooltip, detailedLimits, title, timeAxis, compact, emphasizeHover, enlargeable, language, maintenances]);
+  }, [series, mode, showControlLimits, averageLine, plainTooltip, detailedLimits, showSetpoint, showTargetTolerance, title, timeAxis, compact, emphasizeHover, enlargeable, language, maintenances]);
 
   const labelsForSummary = (data.labels ?? []) as string[];
   const maintenanceSummary = maintenances ? summarizeMaintenances(maintenances, labelsForSummary) : '';

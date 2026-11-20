@@ -13,10 +13,11 @@ import {
   MessageBarBody,
   MessageBarTitle,
   Button,
+  ToggleButton,
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import { Link24Regular, LinkDismiss24Regular, Search24Regular, Share24Regular } from '@fluentui/react-icons';
+import { Eye20Regular, EyeOff20Regular, Link24Regular, LinkDismiss24Regular, Search24Regular, Share24Regular } from '@fluentui/react-icons';
 import { PageHeader } from '@/components/PageHeader';
 import { SensorDescriptionList } from '@/components/SensorDescription';
 import { useSensorDescriptions } from '@/lib/useSensorDescriptions';
@@ -144,6 +145,7 @@ function SensorAnalytics({
   onLevelKeyChange,
   selectedSensorIds,
   setSelectedSensorIds,
+  showTargetTolerance,
 }: {
   deviceId: number;
   start: Date;
@@ -156,6 +158,8 @@ function SensorAnalytics({
   levelKey: string;
   levelPolicies: readonly LevelPolicy[] | undefined;
   onLevelKeyChange: (key: string) => void;
+  /** The toolbar's Target / Tolerance toggle: false hides those lines on the chart and in its enlarged window. */
+  showTargetTolerance: boolean;
 }) {
   const t = useT();
   const styles = useStyles();
@@ -321,6 +325,7 @@ function SensorAnalytics({
               // One Sensor: the platform's full reference set as the API stored it (Target, Tolerance, UCL3/UCL2/LCL2/LCL3 and their bands),
               // like the enlarged Live Monitoring chart. Several Sensors stay a clean overlay without limits.
               detailedLimits={series.length === 1}
+              showTargetTolerance={showTargetTolerance}
               maintenances={markers}
               height={360}
             />
@@ -425,7 +430,7 @@ function parseChoice(value: string): { sensorId: number; levelKey: string } {
 }
 
 /** Two-Device comparison mode with compatibility-aware Sensor mapping (decision #17). */
-function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { deviceIdA: number; deviceIdB: number; start: Date; end: Date }) {
+function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end, showTargetTolerance }: { deviceIdA: number; deviceIdB: number; start: Date; end: Date; showTargetTolerance: boolean }) {
   const t = useT();
   const styles = useStyles();
   const { isAdmin } = useAuth();
@@ -629,6 +634,7 @@ function DeviceComparisonAnalytics({ deviceIdA, deviceIdB, start, end }: { devic
               averageLine
               showControlLimits
               showSetpoint
+              showTargetTolerance={showTargetTolerance}
               maintenances={pairMarkers}
               height={380}
             />
@@ -675,6 +681,8 @@ export function SmartAnalyticsPage() {
   const [mode, setMode] = useState<AnalyticsMode>('sensor');
   const [deviceIdB, setDeviceIdB] = useNumberSearchParam('compareDeviceId');
   const [range, setRange] = useState(lastFifteenMinutes);
+  // The Target / Tolerance lines of the charts (and their enlarged windows) can be switched off here; the readings and the control limits stay.
+  const [showTargetTolerance, setShowTargetTolerance] = useState(true);
 
   const devicesQuery = useDevices();
   const devices = devicesQuery.data ?? [];
@@ -758,6 +766,14 @@ export function SmartAnalyticsPage() {
         <Button onClick={() => setRange(lastFifteenMinutes())}>{t('Last 15 minutes')}</Button>
         <DateTimeField label={t('Start')} value={range.start} onChange={(d) => d && setRange((r) => ({ ...r, start: d }))} maxDate={range.end} />
         <DateTimeField label={t('End')} value={range.end} onChange={(d) => d && setRange((r) => ({ ...r, end: d }))} minDate={range.start} validationMessage={validationMessage} />
+        <ToggleButton
+          checked={showTargetTolerance}
+          icon={showTargetTolerance ? <Eye20Regular /> : <EyeOff20Regular />}
+          onClick={() => setShowTargetTolerance((on) => !on)}
+          title={showTargetTolerance ? t('Hide the Target and Tolerance lines') : t('Show the Target and Tolerance lines')}
+        >
+          {t('Target and tolerance')}
+        </ToggleButton>
       </div>
 
       {validationMessage && (
@@ -767,11 +783,11 @@ export function SmartAnalyticsPage() {
       )}
 
       {effectiveA !== undefined && !validationMessage && mode !== 'compare' && (
-        <SensorAnalytics deviceId={effectiveA} start={range.start} end={range.end} multi={mode === 'multi'} levelKey={effectiveLevelKey} levelPolicies={levelPoliciesQuery.data} onLevelKeyChange={setLevelKey} selectedSensorIds={selectedSensorIds} setSelectedSensorIds={setSelectedSensorIds} />
+        <SensorAnalytics deviceId={effectiveA} start={range.start} end={range.end} multi={mode === 'multi'} levelKey={effectiveLevelKey} levelPolicies={levelPoliciesQuery.data} onLevelKeyChange={setLevelKey} selectedSensorIds={selectedSensorIds} setSelectedSensorIds={setSelectedSensorIds} showTargetTolerance={showTargetTolerance} />
       )}
 
       {effectiveA !== undefined && deviceIdB !== undefined && !validationMessage && mode === 'compare' && (
-        <DeviceComparisonAnalytics deviceIdA={effectiveA} deviceIdB={deviceIdB} start={range.start} end={range.end} />
+        <DeviceComparisonAnalytics deviceIdA={effectiveA} deviceIdB={deviceIdB} start={range.start} end={range.end} showTargetTolerance={showTargetTolerance} />
       )}
 
       {mode === 'compare' && deviceIdB === undefined && <EmptyState title={t('Select a second Device to compare')} />}

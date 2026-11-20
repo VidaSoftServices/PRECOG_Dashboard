@@ -110,6 +110,27 @@ describe('TelemetryChart average line and control limits', () => {
     expect(radius[5]).toBeGreaterThan(0);
   });
 
+  it('showTargetTolerance=false hides every Target and Tolerance line (single, bidirectional and comparison) and keeps the readings and the control limits', () => {
+    const limits = { target: 5, tolerance: 1, upperControlLimit3S: 9, upperControlLimit2S: 8, lowerControlLimit2S: 2, lowerControlLimit3S: 1 };
+    const pts = [point(0, 1, limits), point(1, 2, limits)];
+    const names = ['Target', 'Tolerance'];
+
+    renderChart({ series: [{ label: 'Fan 1 · X', points: pts, direction: 'lowerisbetter' }], mode: 'single', detailedLimits: true, showTargetTolerance: false });
+    expect(labels().filter((l) => names.some((n) => String(l).endsWith(n)))).toEqual([]);
+    expect(labels()).toEqual(expect.arrayContaining(['Fan 1 · X', 'Fan 1 · X UCL3', 'Fan 1 · X LCL3']));
+
+    const bi = [point(0, 1, { targetAbove: 8, toleranceAbove: 1, targetBelow: 2, toleranceBelow: 1 }), point(1, 2, { targetAbove: 8, toleranceAbove: 1, targetBelow: 2, toleranceBelow: 1 })];
+    renderChart({ series: [{ label: 'Fan 2 · X', points: bi, bidirectional: true }], mode: 'single', detailedLimits: true, showTargetTolerance: false });
+    expect(labels().some((l) => /Target|Tolerance/.test(String(l)))).toBe(false);
+
+    renderChart({ series: [{ label: 'A', points: pts, direction: 'lowerisbetter' }, { label: 'B', points: pts, direction: 'lowerisbetter' }], mode: 'compare', showControlLimits: true, showSetpoint: true, showTargetTolerance: false });
+    expect(labels().some((l) => /Target|Tolerance/.test(String(l)))).toBe(false);
+    expect(labels()).toEqual(expect.arrayContaining(['A UCL3', 'B UCL3']));
+
+    renderChart({ series: [{ label: 'A', points: pts, direction: 'lowerisbetter' }], mode: 'single', showControlLimits: true });
+    expect(labels()).toContain('A Target'); // and by default they are drawn
+  });
+
   it('says the average (and how many readings it is made of) in the text summary, with the series\' unit', () => {
     renderChart({ series: [{ label: 'Fan 1 · X', points: A, unitLabel: 'mm/s' }], mode: 'compare', averageLine: true });
 

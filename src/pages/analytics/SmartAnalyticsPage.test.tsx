@@ -275,6 +275,31 @@ describe('SmartAnalyticsPage and hidden Sensors', { timeout: 40_000 }, () => {
     expect(await screen.findByText(/RMS B has no 1 hour · Average level - its 1 day · 95th percentile level is shown instead./)).toBeInTheDocument();
   });
 
+  it('the Target and tolerance button, after the dates, hides those lines on the chart and in its enlarged window, and shows them again', async () => {
+    aggregation = {
+      policies: [{ id: 8, sensorId: 1, sourceDataKey: 'Actual', timeScale: 'Days', aggregationFunction: 'AVG', enabled: true }],
+      values: [{ bucketStart: '2026-10-20T22:00:00Z', bucketEnd: '2026-10-21T22:00:00Z', value: 3.5, sampleCount: 100, calculatedAt: '2026-10-21T10:00:00Z', target: 4, tolerance: 0.5, upperControlLimit3S: 6, upperControlLimit2S: 5, lowerControlLimit2S: 2, lowerControlLimit3S: 1 }],
+    };
+    mockApi({ 4: [sensor(1, 'RMS A', true), sensor(2, 'RMS B', true)] });
+    const user = userEvent.setup();
+    renderPage('/analytics?deviceId=4');
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Aggregation' }), '1 day · Average');
+    const L = 'RMS A · 1 day · Average';
+    await waitFor(() => expect(lastDrawn()).toContain(`${L} Target`));
+
+    const toggle = screen.getByRole('button', { name: 'Target and tolerance' });
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await waitFor(() => expect(lastDrawn()).toEqual([L, `${L} UCL3`, `${L} UCL2`, `${L} LCL2`, `${L} LCL3`]));
+
+    // The enlarged window draws the same chart: still without Target and Tolerance.
+    await user.click(screen.getByRole('button', { name: /Enlarge chart/ }));
+    await screen.findByRole('dialog', { hidden: true }, { timeout: 8000 });
+    await waitFor(() => expect(lastDrawn()).not.toContain(`${L} Target`));
+    expect(lastDrawn()).toContain(`${L} UCL3`);
+  });
+
   it('offers the aggregation levels of the Device right after the Device name; picking one draws the aggregated buckets of the chosen Sensor', async () => {
     aggregation = {
       policies: [
