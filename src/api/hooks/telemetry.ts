@@ -321,9 +321,11 @@ interface PeriodRangeArgs {
   periodTo: number;
   skip?: number;
   take?: number;
+  /** False = do not read (the Issue page draws an aggregation level's buckets instead of the raw readings). Default true. */
+  enabled?: boolean;
 }
 
-export function useTelemetryPeriodRange({ family, deviceId, sensorId, periodFrom, periodTo, skip, take }: PeriodRangeArgs) {
+export function useTelemetryPeriodRange({ family, deviceId, sensorId, periodFrom, periodTo, skip, take, enabled = true }: PeriodRangeArgs) {
   return useQuery({
     queryKey: queryKeys.telemetryPeriodRange(family, deviceId ?? -1, sensorId ?? -1, periodFrom, periodTo),
     queryFn: async ({ signal }): Promise<TelemetryPoint[]> => {
@@ -372,7 +374,7 @@ export function useTelemetryPeriodRange({ family, deviceId, sensorId, periodFrom
           );
       }
     },
-    enabled: deviceId !== undefined && sensorId !== undefined,
+    enabled: enabled && deviceId !== undefined && sensorId !== undefined,
   });
 }
 

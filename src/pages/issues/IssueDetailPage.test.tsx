@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -11,19 +11,34 @@ import * as authStore from '@/auth/authStore';
 import { fetchMock } from '@/test/mockFetch';
 
 // jsdom has no canvas: the chart's drawing is replaced by a stub.
-vi.mock('react-chartjs-2', () => ({ Line: () => <canvas data-testid="chart-canvas" /> }));
+const drawn = vi.hoisted(() => ({ labels: [] as string[][] }));
+vi.mock('react-chartjs-2', () => ({
+  Line: (props: { data: { datasets: { label?: string }[] } }) => {
+    drawn.labels.push(props.data.datasets.map((d) => d.label ?? ''));
+    return <canvas data-testid="chart-canvas" />;
+  },
+}));
 
 const ISSUE = {
   id: 5, deviceId: 1, issueKey: 1, primarySensorId: 11, sensorIds: [11], isCanonical: true, reviewState: 'PendingReview',
   periodFrom: 100, periodTo: 200, score: 7, measuredAtFrom: '2026-11-19T10:00:00Z', measuredAtTo: '2026-11-19T10:05:00Z', message: 'Vibration rose',
 };
 
-function mockApi() {
+const requested: string[] = [];
+
+function mockApi(issue: Record<string, unknown> = ISSUE) {
   fetchMock().mockImplementation(async (input: RequestInfo | URL) => {
     const path = new URL((input as Request).url).pathname;
+    requested.push(path);
     let body: unknown = [];
-    if (path === '/api/Issue/5') body = ISSUE;
-    else if (path === '/api/Issue/5/Group') body = { canonical: ISSUE, members: [] };
+    if (path === '/api/Issue/5') body = issue;
+    else if (path === '/api/Issue/5/Group') body = { canonical: issue, members: [] };
+    else if (path === '/api/Devices/1/AggregationPolicies') body = [{ id: 8, sensorId: 11, sourceDataKey: 'Actual', timeScale: 'Days', aggregationFunction: 'P95', enabled: true }];
+    else if (path === '/api/Devices/1/Sensors/11/AggregationPolicies/8/Values')
+      body = [
+        { bucketStart: '2026-11-17T23:00:00Z', bucketEnd: '2026-11-18T23:00:00Z', value: 3.2, sampleCount: 10, calculatedAt: '2026-11-19T00:00:00Z', anomaly: 1 },
+        { bucketStart: '2026-11-18T23:00:00Z', bucketEnd: '2026-11-19T23:00:00Z', value: 6.4, sampleCount: 10, calculatedAt: '2026-11-20T00:00:00Z', anomaly: 2 },
+      ];
     else if (path === '/api/Issue/5/CategorySuggestion') body = null;
     else if (path === '/api/Devices/1') body = { id: 1, deviceName: 'Fan 1', applicationMode: 'continuous' };
     else if (path === '/api/Devices/1/Sensors') body = [{ id: 11, name: 'Vibration X', externalSensorId: 'vx', direction: 'lowerisbetter', enabled: true }];
@@ -56,6 +71,8 @@ function renderPage() {
 describe('IssueDetailPage telemetry chart', { timeout: 20_000 }, () => {
   beforeEach(() => {
     authStore.clearSession();
+    drawn.labels = [];
+    requested.length = 0;
     window.matchMedia = ((query: string) => ({
       matches: false, media: query, onchange: null, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false,
     })) as unknown as typeof window.matchMedia;
@@ -77,5 +94,25 @@ describe('IssueDetailPage telemetry chart', { timeout: 20_000 }, () => {
     renderPage();
     const score = await screen.findByTestId('issue-score', {}, { timeout: 10_000 });
     expect(score).toHaveTextContent('Issue score: 7');
+  });
+
+  it('an Issue raised by a daily level draws the buckets of that level (not the raw readings), says so, and marks the level on the series', async () => {
+    mockApi({ ...ISSUE, sourceAggregationPolicyId: 8 });
+    renderPage();
+
+    expect(await screen.findByText(/Raised by the aggregation level 1 day · 95th percentile/, {}, { timeout: 10_000 })).toBeInTheDocument();
+    await waitFor(() => expect(drawn.labels.at(-1)).toContain('Vibration X · 1 day · 95th percentile'), { timeout: 10_000 });
+    expect(requested).toContain('/api/Devices/1/Sensors/11/AggregationPolicies/8/Values');
+    expect(requested).not.toContain('/api/Continuous/PeriodRange'); // the raw readings are not read for it
+  });
+
+  it('an Issue of the raw level still draws the raw readings of its period', async () => {
+    mockApi();
+    renderPage();
+
+    await waitFor(() => expect(drawn.labels.at(-1)).toContain('Vibration X'), { timeout: 10_000 });
+    expect(requested).toContain('/api/Continuous/PeriodRange');
+    expect(requested.some((p) => p.endsWith('/Values'))).toBe(false);
+    expect(screen.queryByText(/Raised by the aggregation level/)).toBeNull();
   });
 });

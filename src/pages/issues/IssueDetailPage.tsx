@@ -42,6 +42,9 @@ import { useIssueCategorySuggestion, useRequestCategorySuggestion, useDecideCate
 import { useDevice } from '@/api/hooks/devices';
 import { useSensors } from '@/api/hooks/sensors';
 import { useTelemetryPeriodRange, familyFor } from '@/api/hooks/telemetry';
+import { useAggregatedPoints } from '@/api/hooks/aggregatedPoints';
+import { useDeviceAggregationPolicies } from '@/api/hooks/deviceConfiguration';
+import { levelsOfSensor } from '@/lib/aggregationLevels';
 import { useSubmitOllamaSummaryJob, useOllamaJob } from '@/api/hooks/ollama';
 import { JobStatusPill } from '@/components/StatusPill';
 import { formatDateTime } from '@/lib/dateTime';
@@ -50,6 +53,10 @@ import { activateProps } from '@/lib/useActivateProps';
 import type { IssueReviewState } from '@/api/domainTypes';
 import { useLanguage, useT } from '@/lib/language';
 import { localizedIssueMessage, type IssueMessages } from '@/lib/issueMessage';
+
+/** How many buckets of the Issue's level are drawn before and after the Issue itself, for context. */
+const CONTEXT_BUCKETS_BEFORE = 30;
+const CONTEXT_BUCKETS_AFTER = 7;
 
 const useStyles = makeStyles({
   layout: {
@@ -289,18 +296,41 @@ export function IssueDetailPage() {
   const primarySensorId = issueQuery.data?.primarySensorId ?? issueQuery.data?.sensorIds?.[0];
   const primarySensor = sensorsQuery.data?.find((s) => s.id === primarySensorId);
   const family = familyFor((deviceQuery.data?.applicationMode as 'continuous' | 'periodic') ?? 'continuous', primarySensor?.direction);
+  // An Issue raised by an aggregation level (a daily one, say) is evidenced by THAT level's buckets: the chart draws them (with the context before the Issue), not the raw readings.
+  const sourcePolicyId = issueQuery.data?.sourceAggregationPolicyId ?? undefined;
+  const policiesQuery = useDeviceAggregationPolicies(issueQuery.data?.deviceId, sourcePolicyId !== undefined);
+  const sourceLevel = useMemo(
+    () => (sourcePolicyId === undefined ? undefined : levelsOfSensor(policiesQuery.data, primarySensorId).find((l) => l.policyId === sourcePolicyId)),
+    [policiesQuery.data, primarySensorId, sourcePolicyId],
+  );
+  const bucketRange = useMemo(() => {
+    if (!sourceLevel || !issueQuery.data?.measuredAtFrom || !issueQuery.data.measuredAtTo) return undefined;
+    const from = new Date(issueQuery.data.measuredAtFrom).getTime() - CONTEXT_BUCKETS_BEFORE * sourceLevel.bucketMs;
+    const to = Math.min(new Date(issueQuery.data.measuredAtTo).getTime() + CONTEXT_BUCKETS_AFTER * sourceLevel.bucketMs, Date.now());
+    return { startDate: new Date(from).toISOString(), endDate: new Date(to).toISOString() };
+  }, [sourceLevel, issueQuery.data?.measuredAtFrom, issueQuery.data?.measuredAtTo]);
+  const aggregatedChart = useAggregatedPoints({
+    deviceId: issueQuery.data?.deviceId,
+    sensorId: primarySensorId,
+    policyId: sourceLevel?.policyId,
+    range: bucketRange,
+    enabled: sourceLevel !== undefined && bucketRange !== undefined,
+  });
+  const levelChart = sourcePolicyId !== undefined && (sourceLevel !== undefined || policiesQuery.isLoading);
   const periodChart = useTelemetryPeriodRange({
     family,
     deviceId: issueQuery.data?.deviceId,
     sensorId: primarySensorId,
     periodFrom: issueQuery.data?.periodFrom ?? 0,
     periodTo: issueQuery.data?.periodTo ?? 0,
+    enabled: !levelChart,
   });
-  // Maintenances of the Issue's Sensor inside the plotted span (blue dashed lines).
+  const chartQuery = levelChart ? aggregatedChart : periodChart;
+  // Maintenances of the Issue's Sensor inside the plotted span (blue dashed lines); on a level's chart with the warm-up of that level.
   const maintenanceQuery = useMaintenanceHistory(issueQuery.data?.deviceId);
   const markers = useMemo(
-    () => maintenanceMarkers(maintenanceQuery.data?.items, primarySensorId === undefined ? [] : [primarySensorId]),
-    [maintenanceQuery.data, primarySensorId],
+    () => maintenanceMarkers(maintenanceQuery.data?.items, primarySensorId === undefined ? [] : [primarySensorId], sourceLevel?.policyId),
+    [maintenanceQuery.data, primarySensorId, sourceLevel?.policyId],
   );
 
   if (issueQuery.isLoading) return <LoadingState label={t('Loading issue…')} />;
@@ -419,14 +449,19 @@ export function IssueDetailPage() {
 
           <Card className={styles.card}>
             <Body1Strong>{t('Telemetry')}</Body1Strong>
-            {periodChart.isLoading && <LoadingState label="" />}
-            {periodChart.isError && <ErrorState error={periodChart.error} />}
-            {periodChart.data && (
+            {sourceLevel && (
+              <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+                {t('Raised by the aggregation level {0}: the chart shows the values of that level.', t(sourceLevel.label))}
+              </Text>
+            )}
+            {chartQuery.isLoading && <LoadingState label="" />}
+            {chartQuery.isError && <ErrorState error={chartQuery.error} />}
+            {chartQuery.data && (
               // Clicking the chart (or its Enlarge button) opens it large in a modal window, like on Smart Analytics.
               <EnlargeableTelemetryChart
                 title={primarySensor?.name || primarySensor?.externalSensorId || t('Telemetry')}
                 describedSensors={[{ deviceId: issueQuery.data?.deviceId, sensorId: primarySensorId ?? undefined, sensorName: primarySensor?.externalSensorId }]}
-                series={[{ label: primarySensor?.name || 'Sensor', points: periodChart.data, bidirectional: primarySensor?.direction === 'bidirectional', direction: primarySensor?.direction, unitLabel: primarySensor?.unitLabel }]}
+                series={[{ label: sourceLevel ? `${primarySensor?.name || 'Sensor'} · ${t(sourceLevel.label)}` : primarySensor?.name || 'Sensor', points: chartQuery.data, bidirectional: !sourceLevel && primarySensor?.direction === 'bidirectional', direction: primarySensor?.direction, unitLabel: primarySensor?.unitLabel }]}
                 mode="single"
                 showControlLimits
                 maintenances={markers}
