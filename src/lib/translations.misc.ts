@@ -94,4 +94,6 @@ export const HU_MISC: Record<string, string> = {
   'You may not have been granted access, or it may not exist. Contact an Admin if you believe this is a mistake.': 'Lehet, hogy nem kaptál hozzáférést, vagy nem létezik. Ha szerinted ez tévedés, fordulj egy adminhoz.',
   'Your session has expired': 'Lejárt a munkameneted',
   'For your security the access expires after a while. Sign in again to continue exactly where you are - nothing on this page is lost. If an action did not go through, repeat it after signing in.': 'A biztonságod érdekében a hozzáférés egy idő után lejár. Jelentkezz be újra, és pontosan ott folytathatod, ahol tartasz – az oldalon semmi nem vész el. Ha egy művelet nem ment végbe, a bejelentkezés után ismételd meg.',
+  'Issue score': 'Probléma-pontszám',
+  'sum of the anomaly values (1 warning, 2 critical) inside the Issue': 'az anomália-értékek összege (1 figyelmeztetés, 2 kritikus) a probléma időszakában',
 };

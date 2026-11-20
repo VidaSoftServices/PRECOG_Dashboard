@@ -23,7 +23,7 @@ import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
 import { EmailSentPill, ReviewStatePill } from '@/components/StatusPill';
 import { emailSentText } from '@/lib/issueEmail';
-import { TelemetryChart } from '@/components/charts/TelemetryChart';
+import { EnlargeableTelemetryChart } from '@/components/charts/EnlargeableTelemetryChart';
 import { MoveToCanonicalDialog } from '@/components/MoveToCanonicalDialog';
 import { useAppToast } from '@/components/ToastProvider';
 import {
@@ -422,13 +422,23 @@ export function IssueDetailPage() {
             {periodChart.isLoading && <LoadingState label="" />}
             {periodChart.isError && <ErrorState error={periodChart.error} />}
             {periodChart.data && (
-              <TelemetryChart
-                series={[{ label: primarySensor?.name || 'Sensor', points: periodChart.data, bidirectional: primarySensor?.direction === 'bidirectional', unitLabel: primarySensor?.unitLabel }]}
+              // Clicking the chart (or its Enlarge button) opens it large in a modal window, like on Smart Analytics.
+              <EnlargeableTelemetryChart
+                title={primarySensor?.name || primarySensor?.externalSensorId || t('Telemetry')}
+                describedSensors={[{ deviceId: issueQuery.data?.deviceId, sensorId: primarySensorId ?? undefined, sensorName: primarySensor?.externalSensorId }]}
+                series={[{ label: primarySensor?.name || 'Sensor', points: periodChart.data, bidirectional: primarySensor?.direction === 'bidirectional', direction: primarySensor?.direction, unitLabel: primarySensor?.unitLabel }]}
                 mode="single"
                 showControlLimits
                 maintenances={markers}
                 height={280}
               />
+            )}
+            {/* The API's own number: the sum of the stored anomaly values (1 warning, 2 critical) inside the Issue's range - what the Sensor's Min issue score is compared with. */}
+            {issue.score != null && (
+              <Text size={300} data-testid="issue-score">
+                <Text weight="semibold">{t('Issue score')}:</Text> {issue.score}
+                <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>{' · '}{t('sum of the anomaly values (1 warning, 2 critical) inside the Issue')}</Text>
+              </Text>
             )}
           </Card>
 
