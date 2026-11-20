@@ -103,3 +103,13 @@ Next to "Import Sensors" (Admin only) the Sensor list header has **Export sensor
 > One bullet of this CLAUDE.md section; the others are in `aggregation.md`, `live-monitoring.md`, `calculation-switch.md` and `smart-analytics.md`.
 
 - **Device page**: each Sensor row shows its **External Sensor ID**; **Export all sensors** is inside the Import Sensors dialog; **Bulk aggregation** has an always-visible **Export current aggregations (CSV)** button.
+
+## Faster import (2026-11-20)
+
+`importSensors` (`src/api/hooks/sensors.ts`) no longer does everything one request after another:
+- **Creations stay strictly sequential** (the API's next Device-scoped id must follow the sheet order, which the firmware mapping relies on).
+- **Updates of existing Sensors run side by side**, at most 6 at a time (`UPDATE_CONCURRENCY`); the outcomes are still returned in sheet order and the progress count rises as rows finish.
+- **Whole-Device reads:** with at least 5 existing rows (`BULK_READ_MIN_ROWS`) their raw policies come from one `GET /api/Devices/{deviceId}/AggregationPolicies` and their current setpoints from one `GET /api/Devices/{deviceId}/Setpoints/Effective`, instead of 2 reads per Sensor (only the part a row needs is read; a failed read falls back to the per-Sensor read). With fewer rows the per-Sensor reads are cheaper and stay.
+- **A new Sensor's first setpoint** is saved in the background while the next Sensor is created.
+- **429:** the requests share one gate (`RateGate` in `src/api/rateLimited.ts`): one rate-limited request makes all the others wait for its Retry-After too; retries are unchanged (4 times, at most 60 s). 401/403 and the Stop button stop everything.
+Tests: `sensors.import.test.ts` (one read per Device, per-Sensor reads for few rows, concurrency <= 6 and sheet order, sequential creation with side setpoints, shared 429 wait), `SensorImportDialog.test.tsx`, `sensorExport.test.ts`.

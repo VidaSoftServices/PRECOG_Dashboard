@@ -14,6 +14,12 @@ export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 
 export const MAX_RATE_LIMIT_RETRIES = 4;
 
+/** Shared by the requests of one bulk operation that run side by side: when one of them is rate limited, all of them wait. */
+export interface RateGate {
+  /** Epoch ms before which no request of the operation starts. */
+  until: number;
+}
+
 export type Failed = { ok: false; message: string; status: number; stop: boolean };
 export type Attempt<T> = { ok: true; value: T } | Failed;
 
@@ -22,16 +28,19 @@ export type Attempt<T> = { ok: true; value: T } | Failed;
  * (default 5 s, at most 60 s) on 429 and retries it, at most 4 times, and never throws - the outcome is returned.
  * `stop`: the whole operation must end (401/403, or the user pressed Stop).
  */
-export async function attempt<T>(call: () => Promise<T>, signal?: AbortSignal): Promise<Attempt<T>> {
+export async function attempt<T>(call: () => Promise<T>, signal?: AbortSignal, gate?: RateGate): Promise<Attempt<T>> {
   for (let tries = 0; ; tries += 1) {
     try {
+      if (gate && gate.until > Date.now()) await sleep(gate.until - Date.now(), signal);
       return { ok: true, value: await call() };
     } catch (error) {
       if (signal?.aborted) return { ok: false, message: 'The operation was stopped.', status: 0, stop: true };
       const status = error instanceof ApiError ? error.status : 0;
       if (status === 429 && tries < MAX_RATE_LIMIT_RETRIES) {
         try {
-          await sleep(Math.min((error as ApiError).retryAfterSeconds ?? 5, 60) * 1000, signal);
+          const waitMs = Math.min((error as ApiError).retryAfterSeconds ?? 5, 60) * 1000;
+          if (gate) gate.until = Math.max(gate.until, Date.now() + waitMs);
+          await sleep(waitMs, signal);
         } catch {
           return { ok: false, message: 'The operation was stopped.', status: 0, stop: true };
         }

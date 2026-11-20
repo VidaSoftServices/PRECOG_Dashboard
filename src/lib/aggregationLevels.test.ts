@@ -56,6 +56,19 @@ describe('pickLevel and aggregatedRange', () => {
     expect(pickLevel([], { key: 'days|avg', bucketMs: 86_400_000 })).toBeUndefined();
   });
 
+  it('an hourly level honours the range the user chose (a day = 25 buckets read), and widens only a range shorter than one bucket', () => {
+    const hour = 3_600_000;
+    const end = new Date('2026-11-19T12:00:00Z');
+    const aDay = aggregatedRange(new Date(end.getTime() - 24 * hour), end, hour);
+    expect(aDay.widened).toBe(false);
+    expect(new Date(aDay.endDate).getTime() - new Date(aDay.startDate).getTime()).toBe(25 * hour);
+    const sixHours = aggregatedRange(new Date(end.getTime() - 6 * hour), end, hour);
+    expect(new Date(sixHours.endDate).getTime() - new Date(sixHours.startDate).getTime()).toBe(7 * hour); // not stretched to 60 hours any more
+    const quarter = aggregatedRange(new Date(end.getTime() - 15 * 60_000), end, hour);
+    expect(quarter.widened).toBe(true);
+    expect(new Date(quarter.endDate).getTime() - new Date(quarter.startDate).getTime()).toBe(MIN_AGGREGATED_BUCKETS * hour);
+  });
+
   it('widens a short range back to at least 60 buckets, and keeps a long range (one bucket earlier, so the bucket containing the start is read)', () => {
     const day = 86_400_000;
     const end = new Date('2026-11-19T12:00:00Z');

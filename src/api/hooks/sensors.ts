@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, apiClient, unwrap } from '@/api/client';
-import { attempt, type Attempt, type Failed } from '@/api/rateLimited';
+import { attempt, type Attempt, type Failed, type RateGate } from '@/api/rateLimited';
 import { isRawPolicy } from '@/lib/policies';
 import { SETPOINT_COLUMNS, mergeSetpoint, type ParsedSensorRow, type SetpointColumn } from '@/lib/sensorImport';
 import { queryKeys } from '@/api/queryKeys';
@@ -111,15 +111,16 @@ interface ImportSensorsArgs {
 }
 
 /** Records a Setpoint (a new open-ended interval; the API ends the Sensor's previous open one where it begins). */
-function saveSetpoint(deviceId: number, sensorId: number, body: CreateSetpointRequest, signal?: AbortSignal) {
+function saveSetpoint(deviceId: number, sensorId: number, body: CreateSetpointRequest, signal?: AbortSignal, gate?: RateGate) {
   return attempt(
     async () => unwrap(await apiClient.POST('/api/Devices/{deviceId}/Sensors/{sensorId}/Setpoints', { params: { path: { deviceId, sensorId } }, body, signal })),
     signal,
+    gate,
   );
 }
 
 /** The Setpoint effective now, `undefined` when there is none (the API's 404). */
-function currentSetpoint(deviceId: number, sensorId: number, signal?: AbortSignal): Promise<Attempt<SetpointDto | undefined>> {
+function currentSetpoint(deviceId: number, sensorId: number, signal?: AbortSignal, gate?: RateGate): Promise<Attempt<SetpointDto | undefined>> {
   return attempt(async () => {
     try {
       return unwrap(await apiClient.GET('/api/Devices/{deviceId}/Sensors/{sensorId}/Setpoints/Effective', { params: { path: { deviceId, sensorId } }, signal }));
@@ -127,7 +128,72 @@ function currentSetpoint(deviceId: number, sensorId: number, signal?: AbortSigna
       if (error instanceof ApiError && error.status === 404) return undefined;
       throw error;
     }
-  }, signal);
+  }, signal, gate);
+}
+
+/**
+ * What one read of the whole Device gives, so an import of many existing Sensors does not read each Sensor's raw policy and effective setpoint one by one
+ * (2 requests per Sensor): the raw / base policies and the setpoints effective now, by Sensor id. A part that was not needed or failed to load is
+ * absent - the update then reads it per Sensor, as before.
+ */
+interface DeviceReads {
+  policies?: Map<number, SensorAggregationPolicyDto[]>;
+  setpoints?: Map<number, SetpointDto>;
+}
+
+/** Below this many existing rows the two Device-wide reads (which cover every Sensor of the Device) cost more than reading the few Sensors one by one. */
+const BULK_READ_MIN_ROWS = 5;
+/** Updates of existing Sensors are independent of each other and run this many at a time; creations stay one at a time (their ids follow the sheet order). */
+const UPDATE_CONCURRENCY = 6;
+
+async function readDevice(deviceId: number, rows: ParsedSensorRow[], signal: AbortSignal | undefined, gate: RateGate): Promise<DeviceReads> {
+  const needPolicies = rows.some((r) => r.provided.rawScale || r.provided.rawLookback || r.provided.rawMinIssueScore);
+  const needSetpoints = rows.some((r) => r.setpoint);
+  const [policies, setpoints] = await Promise.all([
+    needPolicies
+      ? attempt(async () => unwrap(await apiClient.GET('/api/Devices/{deviceId}/AggregationPolicies', { params: { path: { deviceId } }, signal })), signal, gate)
+      : undefined,
+    needSetpoints
+      ? attempt(async () => unwrap(await apiClient.GET('/api/Devices/{deviceId}/Setpoints/Effective', { params: { path: { deviceId } }, signal })), signal, gate)
+      : undefined,
+  ]);
+  const reads: DeviceReads = {};
+  if (policies?.ok) {
+    reads.policies = new Map();
+    for (const p of policies.value) {
+      if (p.sensorId === undefined) continue;
+      const list = reads.policies.get(p.sensorId) ?? [];
+      list.push(p);
+      reads.policies.set(p.sensorId, list);
+    }
+  }
+  if (setpoints?.ok) {
+    reads.setpoints = new Map();
+    // Only the columns of a setpoint are used (mergeSetpoint); a Sensor without a row has no setpoint, like the single read's 404.
+    for (const s of setpoints.value.setpoints ?? []) if (s.sensorId !== undefined) reads.setpoints.set(s.sensorId, s as SetpointDto);
+  }
+  return reads;
+}
+
+/** Runs the given tasks at most `limit` at a time; `run` returns when its own task has finished. */
+function createLimiter(limit: number) {
+  let active = 0;
+  const queue: (() => void)[] = [];
+  const next = () => {
+    if (active >= limit) return;
+    queue.shift()?.();
+  };
+  return <T>(task: () => Promise<T>): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+      queue.push(() => {
+        active += 1;
+        task().then(resolve, reject).finally(() => {
+          active -= 1;
+          next();
+        });
+      });
+      next();
+    });
 }
 
 const same = (a: string | null | undefined, b: string) => (a ?? '').toLowerCase() === b.toLowerCase();
@@ -142,7 +208,9 @@ async function updateExisting(
   sensor: SensorDto,
   row: ParsedSensorRow,
   validFrom: string,
-  signal?: AbortSignal,
+  signal: AbortSignal | undefined,
+  gate: RateGate,
+  reads: DeviceReads | undefined,
 ): Promise<{ outcome: SensorImportOutcome; stop: boolean }> {
   const sensorId = sensor.id!;
   const outcome: SensorImportOutcome = { line: row.line, externalSensorId: row.externalSensorId, status: 'unchanged', sensorId };
@@ -196,6 +264,7 @@ async function updateExisting(
     const r = await attempt(
       async () => unwrap(await apiClient.PUT('/api/Devices/{deviceId}/Sensors/{sensorId}', { params: { path: { deviceId, sensorId } }, body: sensorBody, signal })),
       signal,
+      gate,
     );
     if (r.ok) changes.push(...sensorChanges);
     else fail('Sensor', r);
@@ -204,10 +273,14 @@ async function updateExisting(
 
   // 2. The raw/base aggregation policy.
   if (p.rawScale || p.rawLookback || p.rawMinIssueScore) {
-    const list = await attempt(
-      async () => unwrap(await apiClient.GET('/api/Devices/{deviceId}/Sensors/{sensorId}/AggregationPolicies', { params: { path: { deviceId, sensorId } }, signal })),
-      signal,
-    );
+    // From the one read of the whole Device when there is one, else this Sensor's own read.
+    const list: Attempt<SensorAggregationPolicyDto[]> = reads?.policies
+      ? { ok: true, value: reads.policies.get(sensorId) ?? [] }
+      : await attempt(
+          async () => unwrap(await apiClient.GET('/api/Devices/{deviceId}/Sensors/{sensorId}/AggregationPolicies', { params: { path: { deviceId, sensorId } }, signal })),
+          signal,
+          gate,
+        );
     if (!list.ok) {
       fail('Policy', list);
     } else {
@@ -233,6 +306,7 @@ async function updateExisting(
           const r = await attempt(
             async () => unwrap(await apiClient.PUT('/api/Devices/{deviceId}/Sensors/{sensorId}/AggregationPolicies/{policyId}', { params: { path: { deviceId, sensorId, policyId: raw.id! } }, body, signal })),
             signal,
+            gate,
           );
           if (r.ok) changes.push(...policyChanges);
           else fail('Policy', r);
@@ -245,7 +319,9 @@ async function updateExisting(
   // 3. The setpoint: a new interval from now carrying the merged values.
   const wanted = row.setpoint;
   if (wanted) {
-    const effective = await currentSetpoint(deviceId, sensorId, signal);
+    const effective: Attempt<SetpointDto | undefined> = reads?.setpoints
+      ? { ok: true, value: reads.setpoints.get(sensorId) }
+      : await currentSetpoint(deviceId, sensorId, signal, gate);
     if (!effective.ok) {
       outcome.setpoint = 'failed';
       outcome.setpointMessage = effective.message;
@@ -262,7 +338,7 @@ async function updateExisting(
         outcome.setpointMessage = merge.message;
         failures.push(`Setpoint: ${merge.message}`);
       } else {
-        const saved = await saveSetpoint(deviceId, sensorId, { validFrom, ...merge.values }, signal);
+        const saved = await saveSetpoint(deviceId, sensorId, { validFrom, ...merge.values }, signal, gate);
         if (saved.ok) {
           outcome.setpoint = 'created';
           const changed = SETPOINT_COLUMNS.filter((c: SetpointColumn) => wanted[c] !== undefined && wanted[c] !== (current?.[c] ?? undefined));
@@ -280,17 +356,20 @@ async function updateExisting(
 }
 
 /**
- * Applies the sheet to the Device, one row after another, in sheet order: a Sensor that does not exist yet is created, one
+ * Applies the sheet to the Device, in sheet order: a Sensor that does not exist yet is created, one
  * that already exists (see `existing`) is updated with only the cells the sheet filled.
  *
- * Strictly sequential on purpose: the API assigns each new Sensor the next
+ * Creations are strictly sequential on purpose: the API assigns each new Sensor the next
  * Device-scoped id, so creating them one at a time makes the numeric ids follow
  * the sheet's row order - which is what a Device's firmware mapping relies on.
- * It also keeps the request rate trivially low (one request in flight) and a
- * failure on one row never prevents the rest.
+ * Everything else is independent and runs side by side:
+ * - the updates of existing Sensors (up to 6 at a time; when there are at least 5 of them, their raw policies and
+ *   current setpoints come from ONE read of the whole Device each instead of 2 reads per Sensor);
+ * - the first setpoint of a Sensor just created is saved in the background while the next Sensor is created.
+ * A failure on one row never prevents the rest. The outcomes are returned in sheet order.
  *
  * - 429: waits the server's Retry-After (default 5 s, at most 60 s) and retries
- *   the same request, at most 4 times.
+ *   the same request, at most 4 times; one rate-limited request holds back all the others (shared gate).
  * - 409 "already exists" on create: reported as `skipped` (the Sensor appeared
  *   meanwhile), so re-running the same sheet is harmless.
  * - 401/403: stops the whole import - every following row would fail the same way.
@@ -298,23 +377,39 @@ async function updateExisting(
  *   done stays done.
  */
 export async function importSensors({ deviceId, rows, existing, isCurve, setpointValidFrom, signal, onProgress }: ImportSensorsArgs): Promise<SensorImportOutcome[]> {
-  const outcomes: SensorImportOutcome[] = [];
+  const slots: (SensorImportOutcome | undefined)[] = new Array(rows.length).fill(undefined);
   // One instant for the whole run: every imported Setpoint is effective from the moment of the import.
   const validFrom = setpointValidFrom ?? new Date().toISOString();
+  const gate: RateGate = { until: 0 };
+  const limit = createLimiter(UPDATE_CONCURRENCY);
+  const background: Promise<unknown>[] = [];
+  let done = 0;
+  let stopped = false;
 
-  const report = (outcome: SensorImportOutcome) => {
-    outcomes.push(outcome);
-    onProgress?.(outcomes.length, rows.length, outcome);
+  const report = (index: number, outcome: SensorImportOutcome) => {
+    slots[index] = outcome;
+    done += 1;
+    onProgress?.(done, rows.length, outcome);
   };
+  const halted = () => stopped || signal?.aborted === true;
+  const sensorOf = (row: ParsedSensorRow) => (row.exists ? existing?.get(row.externalSensorId.toLowerCase()) : undefined);
 
-  for (const row of rows) {
-    if (signal?.aborted) break;
+  const updating = rows.filter((row) => sensorOf(row)?.id !== undefined);
+  const reads = updating.length >= BULK_READ_MIN_ROWS ? await readDevice(deviceId, updating, signal, gate) : undefined;
 
-    const sensor = row.exists ? existing?.get(row.externalSensorId.toLowerCase()) : undefined;
+  for (const [index, row] of rows.entries()) {
+    if (halted()) break;
+
+    const sensor = sensorOf(row);
     if (sensor?.id !== undefined) {
-      const { outcome, stop } = await updateExisting(deviceId, sensor, row, validFrom, signal);
-      report(outcome);
-      if (stop) return outcomes;
+      background.push(
+        limit(async () => {
+          if (halted()) return;
+          const { outcome, stop } = await updateExisting(deviceId, sensor, row, validFrom, signal, gate, reads);
+          report(index, outcome);
+          if (stop) stopped = true;
+        }),
+      );
       continue;
     }
 
@@ -340,36 +435,44 @@ export async function importSensors({ deviceId, rows, existing, isCurve, setpoin
           }),
         ),
       signal,
+      gate,
     );
 
     if (!created.ok) {
-      if (signal?.aborted) return outcomes;
+      if (signal?.aborted) break;
       if (created.status === 409 && /already exists/i.test(created.message)) {
-        report({ line: row.line, externalSensorId: row.externalSensorId, status: 'skipped', message: created.message });
+        report(index, { line: row.line, externalSensorId: row.externalSensorId, status: 'skipped', message: created.message });
         continue;
       }
-      report({ line: row.line, externalSensorId: row.externalSensorId, status: 'failed', message: created.message });
-      if (created.stop) return outcomes;
+      report(index, { line: row.line, externalSensorId: row.externalSensorId, status: 'failed', message: created.message });
+      if (created.stop) break;
       continue;
     }
 
     const outcome: SensorImportOutcome = { line: row.line, externalSensorId: row.externalSensorId, status: 'created', sensorId: created.value.id };
 
-    // The row's target/tolerance become the new Sensor's first Setpoint, effective from the import.
-    let stop = false;
+    // The row's target/tolerance become the new Sensor's first Setpoint, effective from the import - saved in the background while the next Sensor is created.
     if (outcome.sensorId !== undefined && row.setpoint) {
-      const saved = await saveSetpoint(deviceId, outcome.sensorId, { validFrom, ...row.setpoint }, signal);
-      outcome.setpoint = saved.ok ? 'created' : 'failed';
-      if (!saved.ok) {
-        outcome.setpointMessage = saved.message;
-        stop = saved.stop;
-      }
+      const sensorId = outcome.sensorId;
+      const setpoint = row.setpoint;
+      background.push(
+        limit(async () => {
+          const saved = await saveSetpoint(deviceId, sensorId, { validFrom, ...setpoint }, signal, gate);
+          outcome.setpoint = saved.ok ? 'created' : 'failed';
+          if (!saved.ok) {
+            outcome.setpointMessage = saved.message;
+            if (saved.stop) stopped = true;
+          }
+          report(index, outcome);
+        }),
+      );
+    } else {
+      report(index, outcome);
     }
-    report(outcome);
-    if (stop) return outcomes;
   }
 
-  return outcomes;
+  await Promise.all(background);
+  return slots.filter((outcome): outcome is SensorImportOutcome => outcome !== undefined);
 }
 
 /** Runs {@link importSensors} and refreshes the Device's Sensor list afterwards - also after a partial or cancelled run, since some Sensors may exist now. */

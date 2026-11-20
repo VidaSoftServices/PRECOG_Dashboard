@@ -234,6 +234,47 @@ describe('SmartAnalyticsPage and hidden Sensors', { timeout: 40_000 }, () => {
     await user.click(await screen.findByRole('radio', { name: 'Compare Devices' }));
   }
 
+  it('offers only the aggregation levels the chosen Sensor has: a Sensor with just daily and weekly levels has no hourly one in the list', async () => {
+    aggregation = {
+      policies: [
+        { id: 7, sensorId: 1, sourceDataKey: 'Actual', timeScale: 'Hours', aggregationFunction: 'AVG', enabled: true },
+        { id: 8, sensorId: 2, sourceDataKey: 'Actual', timeScale: 'Days', aggregationFunction: 'P95', enabled: true },
+        { id: 9, sensorId: 2, sourceDataKey: 'Actual', timeScale: 'Weeks', aggregationFunction: 'P95', enabled: true },
+      ],
+      values: [{ bucketStart: '2026-10-20T22:00:00Z', bucketEnd: '2026-10-21T22:00:00Z', value: 3.5, sampleCount: 100, calculatedAt: '2026-10-21T10:00:00Z' }],
+    };
+    mockApi({ 4: [sensor(1, 'RMS A', true), sensor(2, 'RMS B', true)] });
+    const user = userEvent.setup();
+    renderPage('/analytics?deviceId=4');
+
+    const levels = async () => within(await screen.findByRole('combobox', { name: 'Aggregation' })).getAllByRole('option').map((o) => o.textContent);
+    expect(await levels()).toEqual(['Raw readings', '1 hour · Average']); // Sensor A (the first one)
+    await user.click(screen.getByRole('radio', { name: /RMS B/ }));
+    await waitFor(async () => expect(await levels()).toEqual(['Raw readings', '1 day · 95th percentile', '1 week · 95th percentile']));
+  });
+
+  it('Multi Sensor: the list offers the levels of the chosen Sensors, and one that lacks the chosen level is drawn with its closest and the page says so', async () => {
+    aggregation = {
+      policies: [
+        { id: 7, sensorId: 1, sourceDataKey: 'Actual', timeScale: 'Hours', aggregationFunction: 'AVG', enabled: true },
+        { id: 8, sensorId: 2, sourceDataKey: 'Actual', timeScale: 'Days', aggregationFunction: 'P95', enabled: true },
+        { id: 9, sensorId: 2, sourceDataKey: 'Actual', timeScale: 'Weeks', aggregationFunction: 'P95', enabled: true },
+      ],
+      values: [{ bucketStart: '2026-10-20T22:00:00Z', bucketEnd: '2026-10-21T22:00:00Z', value: 3.5, sampleCount: 100, calculatedAt: '2026-10-21T10:00:00Z' }],
+    };
+    mockApi({ 4: [sensor(1, 'RMS A', true), sensor(2, 'RMS B', true)] });
+    const user = userEvent.setup();
+    renderPage('/analytics?deviceId=4');
+
+    await user.click(await screen.findByRole('radio', { name: 'Multi Sensor' }));
+    await user.click(await screen.findByRole('checkbox', { name: /RMS B/ })); // A and B are chosen
+    const select = await screen.findByRole('combobox', { name: 'Aggregation' });
+    await waitFor(() => expect(within(select).getAllByRole('option').map((o) => o.textContent)).toContain('1 hour · Average'));
+    await user.selectOptions(select, '1 hour · Average');
+
+    expect(await screen.findByText(/RMS B has no 1 hour · Average level - its 1 day · 95th percentile level is shown instead./)).toBeInTheDocument();
+  });
+
   it('offers the aggregation levels of the Device right after the Device name; picking one draws the aggregated buckets of the chosen Sensor', async () => {
     aggregation = {
       policies: [

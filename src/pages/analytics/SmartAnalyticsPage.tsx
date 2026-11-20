@@ -123,6 +123,12 @@ function calculationOffSuffix(sensor: { processingEnabled?: boolean | null }, t:
 /** Most Sensors one overlay chart draws (Multi Sensor mode); Single Sensor mode draws exactly one. */
 const MAX_OVERLAY_SENSORS = 4;
 
+/** The Sensors the analysis shows: the picked ones that are on offer, else the first one - at most one (Single Sensor) or MAX_OVERLAY_SENSORS (Multi Sensor). */
+function chooseSensors(offered: readonly { id?: number }[], picked: readonly number[], multi: boolean): number[] {
+  const ids = picked.filter((id) => offered.some((s) => s.id === id));
+  return (ids.length > 0 ? ids : offered.slice(0, 1).map((s) => s.id!)).slice(0, multi ? MAX_OVERLAY_SENSORS : 1);
+}
+
 /**
  * One Device's telemetry. "Single Sensor" (the default): exactly ONE Sensor of the Device is chosen (a radio list) and drawn with its full
  * reference set. "Multi Sensor": up to 4 Sensors are overlaid (a checkbox list, decision #16). The chosen Sensors are kept when switching
@@ -136,11 +142,16 @@ function SensorAnalytics({
   levelKey,
   levelPolicies,
   onLevelKeyChange,
+  selectedSensorIds,
+  setSelectedSensorIds,
 }: {
   deviceId: number;
   start: Date;
   end: Date;
   multi: boolean;
+  /** The chosen Sensors live in the page (the aggregation select of the toolbar offers the levels of exactly these). */
+  selectedSensorIds: number[];
+  setSelectedSensorIds: (update: number[] | ((previous: number[]) => number[])) => void;
   /** The aggregation chosen in the toolbar ('' = the raw readings). */
   levelKey: string;
   levelPolicies: readonly LevelPolicy[] | undefined;
@@ -151,7 +162,6 @@ function SensorAnalytics({
   const breakpoint = useBreakpoint();
   const deviceQuery = useDevice(deviceId);
   const sensorsQuery = useSensors(deviceId);
-  const [selectedSensorIds, setSelectedSensorIds] = useState<number[]>([]);
   const [sensorFilter, setSensorFilter] = useState('');
   // The large chart window stays open while the next / previous Sensor loads (Up / Down arrow).
   const [enlarged, setEnlarged] = useState(false);
@@ -160,8 +170,7 @@ function SensorAnalytics({
   const { shown: sensors, hiddenCount } = useMemo(() => splitShownSensors(sensorsQuery.data), [sensorsQuery.data]);
   // The filter searches what a row shows (name, direction, "Calculation off") and the external id, every word of it.
   const visibleSensors = filterByLabel(sensors, sensorFilter, (s) => `${s.name || s.externalSensorId} (${s.direction})${calculationOffSuffix(s, t)} ${s.name ?? ''} ${s.externalSensorId ?? ''}`);
-  const pickedIds = selectedSensorIds.filter((id) => sensors.some((s) => s.id === id));
-  const effectiveSelection = (pickedIds.length > 0 ? pickedIds : sensors.slice(0, 1).map((s) => s.id!)).slice(0, multi ? MAX_OVERLAY_SENSORS : 1);
+  const effectiveSelection = chooseSensors(sensors, selectedSensorIds, multi);
   const primarySensor = sensors.find((s) => s.id === effectiveSelection[0]);
   // The imported descriptions of the chosen Sensors (none imported = empty, and neither the side card nor the modal text appears).
   const describedSensors = effectiveSelection.map((id) => {
@@ -191,9 +200,9 @@ function SensorAnalytics({
       enabled: levelKey === '',
     });
   });
-  // The aggregated buckets of the same Sensors for the chosen level (a Sensor without that level has none).
-  // A Sensor that lacks the chosen level gets the closest one (by bucket length); a Sensor with no level at all has none.
-  const levelsAvailable = levelsOfSensors(levelPolicies, sensors.map((x) => x.id!));
+  // The aggregated buckets of the same Sensors for the chosen level. Only the levels the CHOSEN Sensors have are offered; with several Sensors one that lacks
+  // the chosen level gets the closest one (by bucket length, and the page says so); a Sensor with no level at all has none.
+  const levelsAvailable = levelsOfSensors(levelPolicies, effectiveSelection);
   const preference = levelKey === '' ? undefined : levelsAvailable.find((l) => l.key === levelKey);
   const aggregatedLevels = effectiveSelection.map((sensorId) => pickLevel(levelsOfSensor(levelPolicies, sensorId), preference));
   // The maintenances of the chosen Sensors: blue dashed lines, and the warm-up of the level the chart shows after a replacement.
@@ -259,6 +268,14 @@ function SensorAnalytics({
   // Sensors of the selection that do not have the chosen level: nothing to draw for them.
   const withoutLevel = levelKey === '' ? [] : effectiveSelection.filter((_, i) => aggregatedLevels[i] === undefined).map((id) => sensors.find((x) => x.id === id)?.name || sensors.find((x) => x.id === id)?.externalSensorId || `Sensor ${id}`);
 
+  // A Sensor that lacks the chosen level is drawn with the closest one (pickLevel): said out loud, so a chart of another bucket length is never taken for the chosen one.
+  const substituted = levelKey === '' || !preference ? [] : effectiveSelection.flatMap((id, i) => {
+    const used = aggregatedLevels[i];
+    if (!used || used.key === preference.key) return [];
+    const sensor = sensors.find((x) => x.id === id);
+    return [t('{0} has no {1} level - its {2} level is shown instead.', sensor?.name || sensor?.externalSensorId || `Sensor ${id}`, t(preference.label), t(used.label))];
+  });
+
   const issuesInRange = (issuesQuery.data ?? []).filter((issue) => {
     const at = parseApiDate(issue.measuredAtTo ?? issue.measuredAtFrom);
     return at && at >= start && at <= end;
@@ -274,6 +291,11 @@ function SensorAnalytics({
           {levelKey !== '' && widenedRange.widened && (
             <Text size={200} style={{ display: 'block', color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalXS }}>
               {t('The chosen range holds too few buckets of this aggregation, so the chart starts earlier (at least {0} buckets are shown).', MIN_BUCKETS_SHOWN)}</Text>
+          )}
+          {substituted.length > 0 && (
+            <MessageBar intent="warning" style={{ marginBottom: tokens.spacingVerticalM }}>
+              <MessageBarBody>{substituted.join(' ')}</MessageBarBody>
+            </MessageBar>
           )}
           {withoutLevel.length > 0 && (
             <MessageBar intent="info" style={{ marginBottom: tokens.spacingVerticalM }}>
@@ -663,9 +685,21 @@ export function SmartAnalyticsPage() {
   const [effectiveA, setDeviceIdA] = useDeviceSelection(devicesQuery.data);
   const levelPoliciesQuery = useDeviceAggregationPolicies(effectiveA, mode !== 'compare');
   const levelSensorsQuery = useSensors(effectiveA);
+  // The chosen Sensors are kept here (not in the analysis below) so the aggregation select offers exactly the levels THEY have; ids are Device-scoped, so a new Device starts empty.
+  const [selection, setSelection] = useState<{ deviceId: number | undefined; ids: number[] }>({ deviceId: undefined, ids: [] });
+  const selectedSensorIds = selection.deviceId === effectiveA ? selection.ids : [];
+  const setSelectedSensorIds = (update: number[] | ((previous: number[]) => number[])) =>
+    setSelection((previous) => {
+      const current = previous.deviceId === effectiveA ? previous.ids : [];
+      return { deviceId: effectiveA, ids: typeof update === 'function' ? update(current) : update };
+    });
+  const shownSensors = useMemo(() => splitShownSensors(levelSensorsQuery.data).shown, [levelSensorsQuery.data]);
+  const toolbarSelection = chooseSensors(shownSensors, selectedSensorIds, mode === 'multi');
+  const toolbarSelectionKey = toolbarSelection.join(',');
   const toolbarLevels = useMemo(
-    () => levelsOfSensors(levelPoliciesQuery.data, splitShownSensors(levelSensorsQuery.data).shown.map((x) => x.id!)),
-    [levelPoliciesQuery.data, levelSensorsQuery.data],
+    () => levelsOfSensors(levelPoliciesQuery.data, toolbarSelection),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toolbarSelectionKey stands for the chosen Sensors
+    [levelPoliciesQuery.data, toolbarSelectionKey],
   );
   // A level the (new) Device does not have falls back to the raw readings.
   const effectiveLevelKey = toolbarLevels.some((l) => l.key === levelKey) ? levelKey : '';
@@ -733,7 +767,7 @@ export function SmartAnalyticsPage() {
       )}
 
       {effectiveA !== undefined && !validationMessage && mode !== 'compare' && (
-        <SensorAnalytics deviceId={effectiveA} start={range.start} end={range.end} multi={mode === 'multi'} levelKey={effectiveLevelKey} levelPolicies={levelPoliciesQuery.data} onLevelKeyChange={setLevelKey} />
+        <SensorAnalytics deviceId={effectiveA} start={range.start} end={range.end} multi={mode === 'multi'} levelKey={effectiveLevelKey} levelPolicies={levelPoliciesQuery.data} onLevelKeyChange={setLevelKey} selectedSensorIds={selectedSensorIds} setSelectedSensorIds={setSelectedSensorIds} />
       )}
 
       {effectiveA !== undefined && deviceIdB !== undefined && !validationMessage && mode === 'compare' && (

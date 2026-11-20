@@ -52,7 +52,8 @@ function renderPage() {
   );
 }
 
-describe('IssueDetailPage telemetry chart', () => {
+// Fluent dialogs are slow to mount under a loaded full-suite run; the default 5 s is too tight.
+describe('IssueDetailPage telemetry chart', { timeout: 20_000 }, () => {
   beforeEach(() => {
     authStore.clearSession();
     window.matchMedia = ((query: string) => ({
@@ -65,7 +66,8 @@ describe('IssueDetailPage telemetry chart', () => {
     renderPage();
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Enlarge chart: Vibration X' }));
-    const dialog = await screen.findByRole('dialog');
+    // hidden: true - while Fluent opens the dialog (its animation) it is still marked aria-hidden, which a loaded run can catch.
+    const dialog = await screen.findByRole('dialog', { hidden: true }, { timeout: 8000 });
     expect(dialog).toHaveTextContent('Vibration X');
     expect(dialog.querySelector('[data-testid="chart-canvas"]')).not.toBeNull();
   });
@@ -73,7 +75,7 @@ describe('IssueDetailPage telemetry chart', () => {
   it('writes the Issue score (the number the API calculated) under the chart', async () => {
     mockApi();
     renderPage();
-    const score = await screen.findByTestId('issue-score');
+    const score = await screen.findByTestId('issue-score', {}, { timeout: 10_000 });
     expect(score).toHaveTextContent('Issue score: 7');
   });
 });

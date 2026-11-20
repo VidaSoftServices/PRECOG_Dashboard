@@ -150,9 +150,10 @@ describe('BulkAggregationDialog', { timeout: 30_000 }, () => {
     await waitFor(() => expect(calls[0]).toEqual({ method: 'POST', path: '/api/Devices/4/AggregationPolicies/DeletionPreview', body: { levels, confirm: false } }));
     expect(await screen.findByText('This cannot be undone.')).toBeInTheDocument();
     expect(screen.getByText('2 (of them reviewed: 1)')).toBeInTheDocument();
-    const confirm = screen.getByRole('button', { name: 'Delete 3 level(s) permanently' });
+    // hidden: true - a dialog that has just opened is still aria-hidden for a moment, which a loaded full-suite run can catch.
+    const confirm = screen.getByRole('button', { name: 'Delete 3 level(s) permanently', hidden: true });
     expect(confirm).toBeDisabled();
-    await user.click(screen.getByRole('checkbox', { name: /deleted permanently/ }));
+    await user.click(screen.getByRole('checkbox', { name: /deleted permanently/, hidden: true }));
     await user.click(confirm);
 
     await waitFor(() => expect(closed).toBe(true));

@@ -119,14 +119,16 @@ export function pickLevel(sensorLevels: readonly AggregationLevel[], preference:
   return [...sensorLevels].sort((a, b) => distance(a) - distance(b) || Number(b.key.split('|')[1] === fn) - Number(a.key.split('|')[1] === fn))[0];
 }
 
-/** Fewest buckets an aggregated chart shows: a short wall-clock range (the default 15 minutes) holds no day at all, so the window is widened back to this many buckets. */
+/** Fewest buckets an aggregated chart shows when the chosen range is shorter than ONE bucket (the default 15 minutes holds no day at all): the window is widened back to this many buckets. */
 export const MIN_AGGREGATED_BUCKETS = 60;
 
 /**
- * The range to read buckets for: the buckets that START inside [start, end) plus the one that contains `start` (so a 15-minute range of a daily level still shows
- * today), and at least MIN_AGGREGATED_BUCKETS buckets ending at `end`.
+ * The range to read buckets for: the buckets that START inside [start, end) plus the one that contains `start` - exactly the range the user chose, so changing the
+ * Start or End always changes the chart. Only a range shorter than one bucket (the default 15 minutes of a daily or hourly level holds none) is widened back to
+ * MIN_AGGREGATED_BUCKETS buckets ending at `end`, so something is shown at all.
  */
 export function aggregatedRange(start: Date, end: Date, bucketMs: number): { startDate: string; endDate: string; widened: boolean } {
-  const wanted = Math.min(start.getTime() - bucketMs, end.getTime() - MIN_AGGREGATED_BUCKETS * bucketMs);
-  return { startDate: new Date(wanted).toISOString(), endDate: end.toISOString(), widened: wanted < start.getTime() - bucketMs };
+  const tooShort = end.getTime() - start.getTime() < bucketMs;
+  const wanted = tooShort ? Math.min(start.getTime() - bucketMs, end.getTime() - MIN_AGGREGATED_BUCKETS * bucketMs) : start.getTime() - bucketMs;
+  return { startDate: new Date(wanted).toISOString(), endDate: end.toISOString(), widened: tooShort };
 }
