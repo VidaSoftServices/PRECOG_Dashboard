@@ -122,6 +122,34 @@ describe('RecalculateDialog', { timeout: 20_000 }, () => {
     expect(calls).toEqual([{ method: 'POST', path: '/api/Devices/4/Recalculate' }]);
   });
 
+  it('a pasted list limits the Device-wide Recalc to those Sensors: the count follows the list, an unknown name blocks it, and the POST carries the ids', async () => {
+    const calls: { path: string; body: unknown }[] = [];
+    fetchMock().mockImplementation(async (input: RequestInfo | URL) => {
+      const request = input as Request;
+      calls.push({ path: new URL(request.url).pathname, body: await request.clone().json().catch(() => undefined) });
+      return accepted({ deviceId: 4, jobId: 'j1', sensorIds: [1, 3], skipped: [] });
+    });
+    const user = userEvent.setup();
+    renderDialog([sensor(1), sensor(2), sensor(3), sensor(4)]);
+
+    const textarea = screen.getByRole('textbox', { name: /Only these Sensors/ });
+    await user.click(textarea);
+    await user.paste('s3\nnope\n');
+    expect(await screen.findByText(/Not a Sensor of this Device: nope/)).toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: /calculated values and the unreviewed Issues of these Sensors are deleted/ }));
+    expect(screen.getByRole('button', { name: 'Recalculate 1 Sensor(s)' })).toBeDisabled(); // an unknown name blocks it
+
+    await user.clear(textarea);
+    await user.click(textarea);
+    await user.paste('SensorName\ns3\ns1\n');
+    expect(await screen.findByText(/2 Sensor\(s\) listed/)).toBeInTheDocument();
+    expect(screen.getByText(/The other Sensors of this Device are not touched/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Recalculate 2 Sensor(s)' }));
+
+    await waitFor(() => expect(calls.length).toBe(1));
+    expect(calls[0]).toEqual({ path: '/api/Devices/4/Recalculate', body: { sensorIds: [3, 1] } });
+  });
+
   it('shows the server refusal (a recalculation already runs) and stays open', async () => {
     fetchMock().mockImplementation(
       async () => new Response('A recalculation is already running for this Device.', { status: 409, headers: { 'content-type': 'application/json' } }),

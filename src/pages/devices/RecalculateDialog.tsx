@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { Checkbox, MessageBar, MessageBarBody, Text, makeStyles, tokens } from '@fluentui/react-components';
+import { useMemo, useState } from 'react';
+import { Checkbox, Field, MessageBar, MessageBarBody, Text, Textarea, makeStyles, tokens } from '@fluentui/react-components';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ErrorState } from '@/components/states/ErrorState';
 import { useAppToast } from '@/components/ToastProvider';
 import { useStartRecalculation } from '@/api/hooks/recalculation';
-import { isDeleteOnly, isRecalculable } from '@/lib/recalculation';
+import { isDeleteOnly, isRecalculable, parseSensorNameList } from '@/lib/recalculation';
 import type { SensorDto } from '@/api/hooks/sensors';
 import { useT } from '@/lib/language';
 
@@ -40,10 +40,15 @@ export function RecalculateDialog({
   const toast = useAppToast();
   const start = useStartRecalculation(deviceId);
   const [acknowledged, setAcknowledged] = useState(false);
+  const [listText, setListText] = useState('');
 
   const single = sensor !== undefined;
   const label = sensor ? sensor.name || sensor.externalSensorId : '';
-  const eligible = sensors.filter(isRecalculable);
+  // A Device-wide run can be limited to a pasted list of Sensors (names one per line, or a sheet with a SensorName column).
+  const list = useMemo(() => parseSensorNameList(listText, sensors), [listText, sensors]);
+  const listed = !single && listText.trim() !== '';
+  const listProblem = listed && (list.ids.length === 0 || list.unknown.length > 0);
+  const eligible = (listed ? sensors.filter((s) => s.id != null && list.ids.includes(s.id)) : sensors).filter(isRecalculable);
   const deleteOnly = eligible.filter(isDeleteOnly).length;
   const recalculated = eligible.length - deleteOnly;
   const left = sensors.length - eligible.length;
@@ -52,12 +57,13 @@ export function RecalculateDialog({
   const close = () => {
     if (start.isPending) return;
     setAcknowledged(false);
+    setListText('');
     start.reset();
     onClose();
   };
 
   const confirm = async () => {
-    const started = await start.mutateAsync(sensor?.id ?? undefined);
+    const started = await start.mutateAsync(listed ? { sensorIds: list.ids } : (sensor?.id ?? undefined));
     const skipped = started.skipped?.length ?? 0;
     const onlyDeleted = started.deleteOnlySensorIds?.length ?? 0;
     let message = t('Recalculation started on {0} Sensor(s){1}{2}.', started.sensorIds?.length ?? 0, onlyDeleted > 0 ? ` (${onlyDeleted} only deleted)` : '', skipped > 0 ? `; ${skipped} left out` : '');
@@ -65,6 +71,7 @@ export function RecalculateDialog({
     else if (single) message = t('Recalculation started: {0}', label);
     toast.success(message);
     setAcknowledged(false);
+    setListText('');
     onClose();
   };
 
@@ -72,11 +79,13 @@ export function RecalculateDialog({
   if (singleDeleteOnly) confirmLabel = t('Delete');
   else if (single) confirmLabel = t('Recalculate');
 
-  let title = t('Recalculate all Sensors from the start?');
+  let title = listed ? t('Recalculate the listed Sensors from the start?') : t('Recalculate all Sensors from the start?');
   if (singleDeleteOnly) title = t('Delete the calculated values of {0}?', label);
   else if (single) title = t('Recalculate {0} from the start?', label);
 
-  let intro = t('Everything calculated for {0} Sensor(s) of this Device is deleted. Sensors with calculation on are calculated again, starting from each Sensor’s first stored value.', eligible.length);
+  let intro = listed
+    ? t('Everything calculated for the {0} listed Sensor(s) is deleted. Sensors with calculation on are calculated again, starting from each Sensor’s first stored value. The other Sensors of this Device are not touched.', eligible.length)
+    : t('Everything calculated for {0} Sensor(s) of this Device is deleted. Sensors with calculation on are calculated again, starting from each Sensor’s first stored value.', eligible.length);
   if (singleDeleteOnly)
     intro =
       t('Calculation is switched off for this Sensor, so its calculated values and unreviewed Issues are only deleted - nothing is calculated (this frees their space). Switching calculation on later calculates everything again.');
@@ -88,7 +97,7 @@ export function RecalculateDialog({
       title={title}
       intent="destructive"
       confirmLabel={confirmLabel}
-      confirmDisabled={!single && (!acknowledged || eligible.length === 0)}
+      confirmDisabled={!single && (!acknowledged || eligible.length === 0 || listProblem)}
       busy={start.isPending}
       onConfirm={() => void confirm().catch(() => undefined)}
       onCancel={close}
@@ -136,6 +145,24 @@ export function RecalculateDialog({
             <MessageBarBody>
               {left} {t('Sensor(s) are left out because they are in maintenance mode. Sensors that are not continuous and unidirectional are left out too; the result lists them.')}</MessageBarBody>
           </MessageBar>
+        )}
+        {!single && (
+          <Field
+            label={t('Only these Sensors (optional)')}
+            hint={t('Paste Sensor names, one per line, or a sheet with a SensorName column (for example a Sensor import or export sheet). Empty = every Sensor of the Device.')}
+            validationState={listProblem ? 'error' : 'none'}
+            validationMessage={
+              listProblem
+                ? list.unknown.length > 0
+                  ? t('Not a Sensor of this Device: {0}', list.unknown.slice(0, 5).join(', ') + (list.unknown.length > 5 ? ` (+${list.unknown.length - 5})` : ''))
+                  : t('The list names no Sensor.')
+                : listed
+                  ? t('{0} Sensor(s) listed{1}', list.ids.length, list.duplicates.length > 0 ? t(' ({0} repeated name(s) counted once)', list.duplicates.length) : '')
+                  : undefined
+            }
+          >
+            <Textarea rows={3} resize="vertical" value={listText} onChange={(_, d) => setListText(d.value)} />
+          </Field>
         )}
         {!single && (
           <Checkbox

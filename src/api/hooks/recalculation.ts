@@ -56,7 +56,9 @@ export function useCalculatedUpTo(deviceId: number | undefined) {
 }
 
 /**
- * Starts the recalculation of ONE Sensor (`sensorId` given) or of every Sensor of the Device (`sensorId` omitted). Company Admin only on
+ * Starts the recalculation of ONE Sensor (`sensorId` given), of the listed Sensors (`sensorIds`; since 2026-11-20, the API takes the list in the
+ * body of the Device-wide POST: 400 for an empty list, a duplicate or an id that is not a Sensor of the Device) or of every Sensor of the Device
+ * (neither given). Company Admin only on
  * the server; the controls that call this are shown to an Admin only, which is a UX convenience, never the security boundary. 202 on
  * success; 409 when a recalculation already runs for the Device, an Ollama job is processing, or the Sensor cannot be recalculated
  * (maintenance, not a continuous unidirectional Sensor) - shown inline by the dialog. A Sensor whose calculation is off is only deleted
@@ -65,12 +67,18 @@ export function useCalculatedUpTo(deviceId: number | undefined) {
 export function useStartRecalculation(deviceId: number) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (sensorId?: number) =>
-      sensorId === undefined
-        ? unwrap(await apiClient.POST('/api/Devices/{deviceId}/Recalculate', { params: { path: { deviceId } } }))
+    mutationFn: async (target?: number | { sensorIds: number[] }) =>
+      target === undefined || typeof target === 'object'
+        ? unwrap(
+            await apiClient.POST('/api/Devices/{deviceId}/Recalculate', {
+              params: { path: { deviceId } },
+              // The generated schema has no request body for this operation until `npm run gen:api` is run against the API that accepts it.
+              ...(target ? ({ body: { sensorIds: target.sensorIds } } as unknown as Record<string, never>) : {}),
+            }),
+          )
         : unwrap(
             await apiClient.POST('/api/Devices/{deviceId}/Sensors/{sensorId}/Recalculate', {
-              params: { path: { deviceId, sensorId } },
+              params: { path: { deviceId, sensorId: target } },
             }),
           ),
     onSuccess: () => {
