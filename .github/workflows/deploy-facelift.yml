@@ -68,8 +68,7 @@ jobs:
             $sourcePath `
             $deployPath `
             /MIR `
-            /XD ".git" ".github" "node_modules" `
-            /XF ".env" ".env.*"
+            /XD ".git" ".github" "node_modules"
 
           $robocopyExitCode = $LASTEXITCODE
 
@@ -81,13 +80,13 @@ jobs:
 
           $global:LASTEXITCODE = 0
 
-      - name: Create Vite production environment file
+      - name: Create Vite environment file (.env)
         shell: powershell
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
         run: |
           $deployPath = "C:\Docker\Dashboard\PRECOG_Dashboard"
-          $envFile = Join-Path $deployPath ".env.production.local"
+          $envFile = Join-Path $deployPath ".env"
 
           if ([string]::IsNullOrWhiteSpace($env:VITE_API_BASE_URL)) {
               throw "GitHub repository variable VITE_API_BASE_URL is not configured."
@@ -98,7 +97,7 @@ jobs:
               -Path $envFile `
               -Encoding UTF8
 
-          Write-Host "Created Vite production environment file:"
+          Write-Host "Created Vite environment file:"
           Write-Host $envFile
 
       - name: Validate deployment files
@@ -110,7 +109,7 @@ jobs:
               "docker-compose.yml",
               "Dockerfile",
               "package.json",
-              ".env.production.local"
+              ".env"
           )
 
           foreach ($requiredFile in $requiredFiles) {

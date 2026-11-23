@@ -97,7 +97,7 @@ provide.
   backend's own 401/403/404 responses remain authoritative, and guards must
   never be relied on as the only enforcement of anything.
 - No hardcoded API URL anywhere in `src/`. The base URL comes from
-  `VITE_API_BASE_URL` (`.env.local`, gitignored; `.env.example` documents
+  `VITE_API_BASE_URL` (`.env`, gitignored; `.env.example` documents
   the key with no real value) — `src/api/client.ts` throws at startup if
   it's unset, rather than silently falling back to a default host.
 - No fabricated production data. An empty/missing/gapped API response is

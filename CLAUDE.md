@@ -396,7 +396,7 @@ See `TASK_IMPLEMENTATION.md`'s test matrix for current coverage and gaps.
 ### Environment configuration
 
 `VITE_API_BASE_URL` is the only environment variable this app reads.
-`.env.example` documents it with a placeholder; `.env.local` (gitignored)
+`.env.example` documents it with a placeholder; `.env` (gitignored)
 holds the real value for local development against the Dockerized API.
 
 ### Performance constraints
@@ -575,7 +575,7 @@ client-supplied Period.
   signature validity), even against an already-issued unexpired token.
 - **Safe rendering**: covered above under "no raw HTML."
 - **Environment variables**: `VITE_API_BASE_URL` only, documented in
-  `.env.example` with no real value; `.env.local` is gitignored.
+  `.env.example` with no real value; `.env` is gitignored.
 - **No secret persistence** anywhere this dashboard controls.
 
 ## Accessibility and responsiveness

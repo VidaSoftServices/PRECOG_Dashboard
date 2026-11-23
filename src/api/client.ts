@@ -14,7 +14,7 @@ if (!baseUrl) {
   // Fail loudly at startup rather than silently falling back to a hardcoded
   // production host, which is exactly the bug this rewrite is fixing.
   throw new Error(
-    'VITE_API_BASE_URL is not set. Copy .env.example to .env.local and point it at the API you want to run against.',
+    'VITE_API_BASE_URL is not set. Copy .env.example to .env and point it at the API you want to run against.',
   );
 }
 

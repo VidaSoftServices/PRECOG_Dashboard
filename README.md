@@ -8,12 +8,12 @@ permanent repository rules, and `TASK_IMPLEMENTATION.md` for current status.
 
 ```bash
 npm install
-cp .env.example .env.local   # set VITE_API_BASE_URL to your running VidaSoft.API instance
+cp .env.example .env         # set VITE_API_BASE_URL to your running VidaSoft.API instance
 npm run dev                  # http://localhost:8030
 ```
 
 Requires a running `VidaSoft.API` instance (see that repository's own
-setup) at the URL configured in `.env.local`.
+setup) at the URL configured in `.env`.
 
 ## Scripts
 
@@ -31,7 +31,7 @@ setup) at the URL configured in `.env.local`.
 ## Notes
 
 - The only environment variable this app reads is `VITE_API_BASE_URL`
-  (`.env.local` is gitignored; `.env.example` documents the key with no
+  (`.env` is gitignored; `.env.example` documents the key with no
   real value).
 - Sign-in uses the API's custom HMAC scheme; a session lives only in
   memory, so a page refresh always requires signing in again — this is a
