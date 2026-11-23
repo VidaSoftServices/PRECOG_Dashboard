@@ -64,3 +64,8 @@ control as a security boundary (the backend's own documentation states this
 requirement explicitly, addressed to dashboard consumers by name) — the
 only trusted source is `CurrentUserDto.isCompanyAdmin`, exactly as for
 every other authorization decision in this app.
+
+## An Admin added to another Company in WordPress still sees the old one (2026-11-21)
+
+The Dashboard shows what `GET /api/User/GetUserDetails` returns: the Company in `pg.users.CompanyId`, which the user synchronization never changes once the internal User exists ("a tenant move is never automatic"). Moving a User to another Company in WordPress / FluentCRM therefore changes nothing here: the page header, the Devices list and the Admin controls stay those of the old Company (`isCompanyAdmin = false`, an empty Device list). Use a separate WordPress account for the other Company, or ask for a manual move in the database; the full cause and the read-only diagnosis are in the API repository's `docs/features/company-identity.md` ("A User is never moved to another Company by the synchronization").
+
