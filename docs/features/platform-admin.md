@@ -1,0 +1,35 @@
+# Own user management: the platform administrator, invitations and password reset
+
+The WordPress-independence work (S1 schema, S2 sign-in from the User store) is described in `company-identity.md`. This file covers S3: the platform account (VSSSysAdmin), creating Companies, the single-use mail links (invitation, password reset) and the rule that a Company keeps an Admin.
+
+## The platform administrator (VSSSysAdmin)
+
+- **One account, configured only by the `.env`**: `PLATFORM_SYSADMIN_EMAIL` and `PLATFORM_SYSADMIN_HASH_B64`. The hash is the base64 of a password hash (WordPress `$wp$` bcrypt or phpass `$P$`) - base64 because the hash contains `$`, which Docker Compose's `env_file` and shells may interpolate (`AccountManagementTests` runs the hash through `DotEnv` and checks it decodes identically). The account is not in the database; a missing, half-given or invalid setting only makes the account unavailable (a warning without any value is written; the application starts). Both values or none.
+- **Sign-in**: the normal `POST /api/Authentication/Request_HMAC_Key` with the e-mail address (any case); the platform account is checked FIRST and wins over a same-named User or WordPress account. Same rate limit, throttle and token format as everyone: a failed attempt is counted under the SHA-256 of the name (`loginattempts.identitykey`), delayed from the 6th attempt. The token is recomputed from the hash after a restart (cache id `PlatformAdmin.CacheId`). Rotating the password = a new base64 in the `.env` and a restart.
+- **What it may do** (`PlatformController`, `/api/Platform/...`, all `[ValidateHMAC]` + `[AllowPlatformAdmin]`): list Companies (name, state, user / Admin counts), create a Company (unique name, http(s) website), enable / disable one (not a `Locked` one), list the people of a Company, invite a person (the first Admin, or anyone) by e-mail, list / withdraw pending invitations, grant / revoke the Admin or Reader role.
+- **What it may NOT do**: everything else. `ValidateHMACAttribute.Finish` is default-deny for `ActorType.PlatformAdmin`, exactly like for a DevicePrincipal: an endpoint without `[AllowPlatformAdmin]` answers it 403, so it never sees telemetry, Issues, Devices or models, and there is no cross-Company browsing of Company data. Only `GET /api/User/GetUserDetails` (with `isPlatformAdmin = true`, no Company) and the Platform endpoints are open to it. The Platform actions also check the actor type, so an ordinary Admin that the filter lets in gets 403.
+- **Never inserted by synchronization or invitation**: the platform e-mail cannot be invited (409) and is not a Company member.
+
+## Invitation and password reset (the single-use links)
+
+- **Token**: 32 random bytes (URL-safe base64, 43 characters), only its SHA-256 is stored (`pg.usertokens.tokenhash`), single use (`UserTokenService.ClaimAsync` is one atomic UPDATE), invitation 7 days, reset 1 hour. A new token for the same person and purpose revokes the earlier one. The raw token exists only in the mail; it is never logged, returned by a list, or stored. The link carries it in the URL **fragment** (`.../accept-invite#token=...&lang=hu`), which a browser never sends to a server or proxy.
+- **Mail**: `AccountMailer` (English / Hungarian by the token's language) through the same sender and `IssueEmail` settings as the Issue e-mails; the link base is `Dashboard__BaseUrl` (https, or http for localhost). No Dashboard address / mail off / no `IssueEmail__Password` = nothing is sent (the invitation exists, the response says `emailSent: false`), nothing throws, nothing sensitive is logged (only the exception type of a mail-server failure). The password of the sending mailbox now lives only in the `.env` (`IssueEmail__Password`); it was removed from the source on 2026-11-24 and the deploy refuses to run without it.
+- **Anonymous endpoints** (`AccountsController`, rate limit policy `AccountToken` 10 / minute; the single-use token is the credential; every unknown / used / expired / revoked token is the same 404): `POST /api/Accounts/Invitations/Info`, `.../Invitations/Accept`, `.../PasswordReset/Request` (always 204, the work is done after the answer so that the time does not tell whether the address exists; only an enabled, locally created User with a password is mailed, at most once a minute; a WordPress / Entra User keeps its password at the source), `.../PasswordReset/Confirm` (sets the new password and drops every cached access key of the account).
+- **Accepting** creates the User (login name = e-mail, `source` Local, the invited role, a `$wp$` hash, language from the invitation) and uses the token up in one transaction. 409 if the address already belongs to a User (a person in two Companies is a later slice).
+- **Password rules** (`PasswordPolicy`): 10-128 characters, not blank, at least four different characters, not the e-mail address; the reason never echoes the password.
+
+## A Company keeps its Admin
+
+`CompanyAdminGuard`: revoking the Admin role of the Company's last **enabled** Admin is refused with 409 - by the platform administrator (`DELETE .../Members/{userId}/Roles/Admin`) and by the Company's own Admin (`DELETE /api/Company/Members/{userId}/Roles/Admin`). The check and the change run in one transaction under a per-Company advisory lock (`pg_advisory_xact_lock`), so two simultaneous revocations cannot both pass. A `Locked` (WordPress-synchronized) User's roles are not changed here (409). Disabling / deleting a User follows the same rule in the Company-Admin slice (S4).
+
+## Settings (.env, see `.env.example`)
+
+`PLATFORM_SYSADMIN_EMAIL`, `PLATFORM_SYSADMIN_HASH_B64`, `IssueEmail__Password` (required on the host), optional `IssueEmail__UserName` / `FromAddress` / `Host` / `Port` / `Enabled`, `Dashboard__BaseUrl`. Defaults of the mailbox: smtp.hostinger.com:587 (STARTTLS), user and sender `precog@vidasoftservices.com`; sending as another mailbox or sender (for example no-reply@ through an info@ account) is a pure `.env` change, but a Hostinger mailbox may refuse a sender that is not its own or an alias - try it before relying on it.
+
+## Tests
+
+`PlatformAndInvitationFlowTests` (the platform sign-in and its 403 elsewhere, restart, off switch; Company creation and its refusals; invite -> accept -> sign in as the Company's Admin; single use, expiry, replacement, withdrawal; refusals for an existing User / the platform e-mail / bad address / bad role / disabled Company; mail failure; the last-Admin guard for both callers; reset flow and its no-enumeration, once-a-minute and Local-only rules), `AccountManagementTests` (platform setting parsing, the `$` survival, password rules, tokens, the mails), `OpenApiCompletenessTests` (the four anonymous endpoints are the only public ones besides the two authentication endpoints).
+
+## The Dashboard
+
+The Dashboard pages for this (accept-invite, reset-password, forgot password, the Company Admin's invite panel, the platform Companies page, the logo) are slice S5; see `company-identity.md` for the state of the work.
