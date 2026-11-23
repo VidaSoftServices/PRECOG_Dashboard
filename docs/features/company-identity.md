@@ -69,3 +69,15 @@ every other authorization decision in this app.
 
 The Dashboard shows what `GET /api/User/GetUserDetails` returns: the Company in `pg.users.CompanyId`, which the user synchronization never changes once the internal User exists ("a tenant move is never automatic"). Moving a User to another Company in WordPress / FluentCRM therefore changes nothing here: the page header, the Devices list and the Admin controls stay those of the old Company (`isCompanyAdmin = false`, an empty Device list). Use a separate WordPress account for the other Company, or ask for a manual move in the database; the full cause and the read-only diagnosis are in the API repository's `docs/features/company-identity.md` ("A User is never moved to another Company by the synchronization").
 
+
+
+## Own user management: schema foundation (2026-11-23, slice S1 of the WordPress-independence work)
+
+The internal `pg.users` is becoming the single source of truth for sign-in, the WordPress mirror an optional, locked source. Slice S1 only adds the **schema** (nothing reads or writes it yet, behaviour is unchanged):
+
+- `pg.users` gets `loginname` (the name signed in with and the "username" part of the access token: the WordPress login for synchronized Users, the e-mail for invited ones), `passwordhash` (phpass `$P$` or `$wp$` bcrypt, never returned or logged), `passwordchangedat`, `language`, `mobile`, `emailnotification`, `source` (`UserOrigin`: 1 Local, 2 WordPress, 3 EntraId), `locked` (a synchronized User cannot be deleted or have its roles changed here) and `lastloginat`. `pg.wp_fc_companies` (the Company table) gets `locked`.
+- New tables: `pg.usertokens` (single-use invitation / password-reset tokens, only the SHA-256 is stored), `pg.companylogos` (uploaded logo, png / jpeg / webp, at most 512 KB), `pg.servers` (the servers of a Company: name, address = IP or DNS name, port, TLS, enabled, the Device-id range the server may hand out) and `devices.serverid` (null = this server).
+- `Enums.ActorType.PlatformAdmin` (the VSSSysAdmin, no Company) is reserved for slice S3.
+- **Additive only**: the previous release keeps running against this schema. The in-place script is `DataAccess/DBScripts/DB_S1_Schema.sql` (idempotent, one transaction; `DB_S1_Schema_Rollback.sql` removes exactly what it added and deletes whatever those objects hold). The script is run BEFORE the release that needs the columns is deployed. Tests: `OwnUserManagementSchemaScriptTests` (the script produces exactly the schema the model creates, is idempotent, keeps existing rows, the rollback works) and `DeviceIngestionContinuityTests` (Device token login, the telemetry filter, a "restart" with the same token, disabled Device / Company / revoked credential still refused).
+- No unique index on the e-mail or login name yet: existing rows may share them; the application enforces uniqueness and the constraint follows in the cleanup release after the data has been checked.
+- Entra ID stays supported: Entra Users get `source = 3`, no local password, locked like WordPress ones; the Entra provider is untouched.
