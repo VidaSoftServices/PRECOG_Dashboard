@@ -1,8 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { apiClient, unwrap } from '@/api/client';
 import type { HmacKeyResponse } from '@/api/domainTypes';
+import { queryClient } from '@/api/queryClient';
 import type { components } from '@/api/schema.generated';
 import * as authStore from './authStore';
+import { loadLoginPage } from './loadLoginPage';
 
 export type CurrentUser = components['schemas']['CurrentUserDto'];
 
@@ -93,6 +95,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     authStore.clearSession();
     setUserName(null);
+    setUserDetails(null);
+    // Nothing of this person may survive into the next sign-in: the query cache (Devices, Sensors, Issues, ...), the per-server routing and the
+    // selected Device are module- or tree-level memory, and the login page returns to the page that was open. A full page load of /login
+    // (the token lives only in memory, so nothing else is lost) starts the next user from a clean slate.
+    queryClient.clear();
+    loadLoginPage();
   }, []);
 
   const value = useMemo<AuthContextValue>(
