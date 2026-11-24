@@ -6,6 +6,8 @@
  * server's HMAC key, so the SAME token is accepted by all of them. This module only decides WHICH server a request goes to:
  *
  *   - a request that names a Device (path `/api/Devices/{id}...` or a `deviceId` query parameter) goes to that Device's server;
+ *     EXCEPT the changes that belong to the master (S10): `/api/Devices/{id}/Server` and `/api/Devices/{id}/Principal...` stay on the home
+ *     server (a replica refuses them with 409), as does creating a Device (no id in the URL);
  *   - an Issue-by-id request (`/api/Issue/{id}...`, no Device in the URL) goes to the server of the selected Device (the Issue
  *     pages are reached from a Device's Issue list; the page verifies the loaded Issue really belongs to that server);
  *   - everything else (Company, Users, servers registry, authentication, reference data) goes to the home server.
@@ -99,6 +101,8 @@ export function isBlockedByMixedContent(baseUrl: string, pageProtocol: string = 
 
 const DEVICE_PATH = /^\/api\/Devices\/(\d+)(?:\/|$)/i;
 const ISSUE_PATH = /^\/api\/Issue\/\d+/i;
+/** Changes the master owns: the server assignment and the DevicePrincipal of a Device. */
+const MASTER_DEVICE_PATH = /^\/api\/Devices\/\d+\/(?:Server|Principal)(?:\/|$)/i;
 
 /**
  * The base URL a request should go to, or undefined when it stays on the home server. `url` is the full request URL.
@@ -113,6 +117,7 @@ export function routeBaseUrlFor(url: string): string | undefined {
     return undefined;
   }
   if (!parsed.pathname.startsWith('/api/')) return undefined;
+  if (MASTER_DEVICE_PATH.test(parsed.pathname)) return undefined;
   const path = DEVICE_PATH.exec(parsed.pathname);
   const fromQuery = parsed.searchParams.get('deviceId');
   const id = path ? Number(path[1]) : fromQuery !== null && /^\d+$/.test(fromQuery) ? Number(fromQuery) : undefined;

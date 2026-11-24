@@ -48,6 +48,19 @@ export const HU_SERVERS: Record<string, string> = {
   'A Device assigned to this server has an id outside this range.': 'A szerverhez rendelt egyik eszköz azonosítója a tartományon kívül esik.',
   'Devices are still assigned to this server. Move them to another server first.': 'A szerverhez még vannak eszközök rendelve. Előbb helyezd át őket másik szerverre.',
   "The server does not exist in the caller's Company.": 'Ilyen szerver nincs a cégben.',
+  "ServerId does not belong to the caller's Company.": 'A megadott szerver nem ehhez a céghez tartozik.',
+  'The chosen server is disabled.': 'A kiválasztott szerver le van tiltva.',
+  'The server of a Device can be changed only while it has no Sensors (and so no telemetry). Delete its Sensors or the Device first.':
+    'Az eszköz szervere csak addig módosítható, amíg nincs Sensora (így telemetriája sem). Előbb töröld a Sensorait vagy az eszközt.',
+  'This server is a replica: users, roles, Devices and DevicePrincipals are changed on the master server only. Make this change there.':
+    'Ez a szerver másodpéldány (replika): a felhasználókat, szerepköröket, eszközöket és DevicePrincipalokat csak a master szerveren lehet módosítani. Ott végezd el a változtatást.',
+  'This Device lives on another server, where its data is. Delete it there.': 'Ez az eszköz másik szerveren él, ott van az adata. Ott töröld.',
+  'The Device id range of the chosen server ({0}-{1}) is full.': 'A kiválasztott szerver eszközazonosító-tartománya ({0}–{1}) betelt.',
+  'The Device id range of this server ({0}-{1}) is full.': 'Ennek a szervernek az eszközazonosító-tartománya ({0}–{1}) betelt.',
+  'The server can no longer be changed: this Device already has Sensors, so its data is on its server.': 'A szerver már nem módosítható: az eszköznek már vannak Sensorai, így az adata a szerverén van.',
+  'Server the Device lives on': 'A szerver, amelyen az eszköz él',
+  "Optional. The Device id comes from this server's reserved range and only this server accepts its data. It can be changed until the Device has Sensors.":
+    'Nem kötelező. Az eszközazonosítót a szerver fenntartott tartományából kapja, és az eszköz adatát csak ez a szerver fogadja. Addig módosítható, amíg az eszköznek nincs Sensora.',
   'Device {0} is outside the Device id range of this server ({1}-{2}).': 'A(z) {0}. eszköz a szerver eszközazonosító-tartományán ({1}–{2}) kívül esik.',
   'A Company can have at most {0} servers.': 'Egy cégnek legfeljebb {0} szervere lehet.',
   'Something went wrong.': 'Valami hiba történt.',

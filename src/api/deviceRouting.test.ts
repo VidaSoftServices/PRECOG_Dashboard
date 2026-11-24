@@ -47,6 +47,11 @@ describe('routeBaseUrlFor', () => {
     setDeviceRoutes(new Map([[5, PLANT_A]]));
     expect(routeBaseUrlFor(`${home()}/api/Devices/5`)).toBe(PLANT_A.baseUrl);
     expect(routeBaseUrlFor(`${home()}/api/Devices/5/Sensors/3/Maintenance`)).toBe(PLANT_A.baseUrl);
+    // the master owns the server assignment and the DevicePrincipal of a Device, wherever the Device lives
+    expect(routeBaseUrlFor(`${home()}/api/Devices/5/Server`)).toBeUndefined();
+    expect(routeBaseUrlFor(`${home()}/api/Devices/5/Principal`)).toBeUndefined();
+    expect(routeBaseUrlFor(`${home()}/api/Devices/5/Principal/Provision`)).toBeUndefined();
+    expect(routeBaseUrlFor(`${home()}/api/Devices/5/Principal/Credentials/9/Revoke`)).toBeUndefined();
     expect(routeBaseUrlFor(`${home()}/api/Continuous/MeasuredDateRange?deviceId=5&sensorId=2`)).toBe(PLANT_A.baseUrl);
     expect(routeBaseUrlFor(`${home()}/api/Issue?deviceId=5&take=50`)).toBe(PLANT_A.baseUrl);
     // another Device, the Device list, the registry, authentication and Company data stay home

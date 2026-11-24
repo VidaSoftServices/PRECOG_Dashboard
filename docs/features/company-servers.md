@@ -42,3 +42,14 @@ The **Status** card shows "Server: <name>" when the Device has one. In the Devic
 Knowledge sharing between Devices of different servers, Ollama jobs and Issue categories are Company-level calls and stay on the home server; Issue pages work for the selected Device's server only (see above). Not verified against a real second server (none exists yet): the unit tests cover the routing, the merge, the failure notices and the 401 handling with a mocked network.
 
 Tests: `src/api/deviceRouting.test.ts`, `src/api/hooks/devices.routing.test.ts`.
+
+## Master and replica, choosing the server (slice S10, 2026-11-24)
+
+The API now has one **master** (also a data server) and any number of **replicas** (`Server__Role`, see the API doc of the same name). What the Dashboard does with it:
+
+- **Master-owned requests stay on the home server.** `routeBaseUrlFor` no longer re-addresses `/api/Devices/{id}/Server` and `/api/Devices/{id}/Principal...` (the server assignment and the DevicePrincipal operations) to the Device's server: a replica refuses them with 409, so they always go to the home server (the master), wherever the Device lives. Creating a Device (`POST /api/Devices`, no id) was already a home-server call. Sensors, telemetry, Issues and the rest of a Device's requests still go to the Device's own server.
+- **Add Device** (Devices page) has an optional **Server the Device lives on** select (shown when the Company has registered servers; disabled servers are not offered). The choice is sent as `serverId`; the API takes the Device id from that server's reserved range and only that server accepts the Device's data. Without a choice the Device lives where it is created, as before.
+- **Device page, Server select**: **disabled once the Device has Sensors** (the hint says why) - the data is on the server and this release moves none; the API answers 409 to a change anyway. Free to change while there are no Sensors.
+- The API's new refusals (replica, Sensors exist, chosen server disabled / not the Company's, a full range, deleting a Device whose data is on another server) have Hungarian texts in `translations.servers.ts`; `translateServerError` handles the "range is full" text with its numbers.
+- Tests: `deviceRouting.test.ts` (the server assignment and the DevicePrincipal paths stay home).
+

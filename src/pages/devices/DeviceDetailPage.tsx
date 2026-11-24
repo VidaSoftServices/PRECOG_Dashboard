@@ -441,6 +441,8 @@ export function DeviceDetailPage() {
   const updateDevice = useUpdateDevice(id);
   const assignServer = useAssignDeviceServer(id);
   const serversQuery = useServers();
+  // The server can be chosen only while the Device has no Sensors (and so no telemetry); the API refuses a change afterwards.
+  const hasSensors = (sensorsQuery.data?.length ?? 0) > 0;
   const disableDevice = useDisableDevice(id);
   const [nameDraft, setNameDraft] = useState('');
   const [zoneDraft, setZoneDraft] = useState(DEFAULT_DEVICE_TIME_ZONE);
@@ -531,10 +533,17 @@ export function DeviceDetailPage() {
                 ))}
               </Select>
             </Field>
-            <Field label={t('Server')} hint={t('The registered server of the Company this Device lives on. A server with a reserved Device id range only accepts Devices inside it.')}>
+            <Field
+              label={t('Server')}
+              hint={
+                hasSensors
+                  ? t('The server can no longer be changed: this Device already has Sensors, so its data is on its server.')
+                  : t('The registered server of the Company this Device lives on. A server with a reserved Device id range only accepts Devices inside it.')
+              }
+            >
               <Select
                 value={device.serverId == null ? '' : String(device.serverId)}
-                disabled={assignServer.isPending}
+                disabled={assignServer.isPending || hasSensors}
                 onChange={(_, d) =>
                   assignServer.mutate(d.value === '' ? null : Number(d.value), { onSuccess: () => toast.success(t('Device server updated')) })
                 }

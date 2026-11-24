@@ -55,6 +55,8 @@ export function translateServerError(message: string, t: (text: string, ...args:
   if (overlap) return t('The Device id range overlaps the range of the server {0} ({1}-{2}).', overlap[1], overlap[2], overlap[3]);
   const outside = /^Device (\d+) is outside the Device id range of this server \((\d+)-(\d+)\)\.$/.exec(message);
   if (outside) return t('Device {0} is outside the Device id range of this server ({1}-{2}).', outside[1], outside[2], outside[3]);
+  const full = /^The Device id range of (this|the chosen) server \((\d+)-(\d+)\) is full\.$/.exec(message);
+  if (full) return t(full[1] === 'this' ? 'The Device id range of this server ({0}-{1}) is full.' : 'The Device id range of the chosen server ({0}-{1}) is full.', full[2], full[3]);
   const atMost = /^A Company can have at most (\d+) servers\.$/.exec(message);
   if (atMost) return t('A Company can have at most {0} servers.', atMost[1]);
   return t(message);

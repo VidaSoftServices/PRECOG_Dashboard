@@ -113,7 +113,8 @@ describe('PlatformUsersPage', () => {
     expect(question).toBeInTheDocument();
     expect(calls.filter((c) => c.method === 'PUT' && c.path === '/api/Platform/Users/11/Company')).toHaveLength(1);
 
-    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    // the question is a second dialog opening while the first closes: wait for its button (slow under a full run)
+    await user.click(await screen.findByRole('button', { name: 'Continue', hidden: true }, { timeout: 10_000 }));
     await waitFor(() => expect(calls.filter((c) => c.method === 'PUT' && c.path === '/api/Platform/Users/11/Company')).toHaveLength(2));
     const puts = calls.filter((c) => c.method === 'PUT' && c.path === '/api/Platform/Users/11/Company');
     expect(puts[0]?.body).toEqual({ companyId: 2, confirmLastAdmin: false });

@@ -32,6 +32,7 @@ import { EmptyState } from '@/components/states/EmptyState';
 import { EnabledPill, FreshnessPill } from '@/components/StatusPill';
 import { useAppToast } from '@/components/ToastProvider';
 import { useDevices, useCreateDevice, type DeviceDto } from '@/api/hooks/devices';
+import { useServers } from '@/api/hooks/servers';
 import { freshnessOf, formatRelative } from '@/lib/dateTime';
 import { useAuth } from '@/auth/AuthContext';
 import { useBreakpoint } from '@/lib/useMediaQuery';
@@ -73,12 +74,15 @@ function NewDeviceDialog({ open, onClose }: { open: boolean; onClose: () => void
   const [externalDeviceId, setExternalDeviceId] = useState('');
   const [deviceName, setDeviceName] = useState('');
   const [applicationMode, setApplicationMode] = useState<'continuous' | 'periodic'>('continuous');
+  const servers = useServers();
+  const [serverId, setServerId] = useState('');
 
   const submit = async () => {
-    await createDevice.mutateAsync({ externalDeviceId, deviceName: deviceName || undefined, applicationMode });
+    await createDevice.mutateAsync({ externalDeviceId, deviceName: deviceName || undefined, applicationMode, serverId: serverId === '' ? undefined : Number(serverId) });
     toast.success(t('Device created'));
     setExternalDeviceId('');
     setDeviceName('');
+    setServerId('');
     onClose();
   };
 
@@ -100,6 +104,21 @@ function NewDeviceDialog({ open, onClose }: { open: boolean; onClose: () => void
                 <option value="periodic">{t('Periodic')}</option>
               </Select>
             </Field>
+            {(servers.data ?? []).length > 0 && (
+              <Field
+                label={t('Server the Device lives on')}
+                hint={t("Optional. The Device id comes from this server's reserved range and only this server accepts its data. It can be changed until the Device has Sensors.")}
+              >
+                <Select value={serverId} onChange={(_, d) => setServerId(d.value)}>
+                  <option value="">{t('No server')}</option>
+                  {(servers.data ?? []).filter((sv) => sv.enabled !== false).map((sv) => (
+                    <option key={sv.id} value={String(sv.id)}>
+                      {sv.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            )}
             {createDevice.isError && <ErrorState error={createDevice.error} />}
           </DialogContent>
           <DialogActions>
