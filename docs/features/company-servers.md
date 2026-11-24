@@ -18,3 +18,7 @@ The **Status** card shows "Server: <name>" when the Device has one. In the Devic
 
 - Hooks `src/api/hooks/servers.ts`: `useServers`, `useCreateServer`, `useUpdateServer`, `useDeleteServer`, `useAssignDeviceServer`; query key `queryKeys.servers`. `DeviceDto.serverId` / `serverName` come from the regenerated schema.
 - Tests: `serverForm.test.ts` (address / range / port rules, the URL, the Hungarian of the API's refusals), `ServersTab.test.tsx` (list, no delete with Devices, add sends the typed values authenticated, a bad address is refused before any request, the overlap refusal in Hungarian, delete after a confirmation).
+
+## Routing between servers: not built yet (S7)
+
+The Dashboard still talks to the one server it signed in to (`VITE_API_BASE_URL`). The API now has the settings a second server needs (`HMAC_SERVER_KEY`, `Cors__AdditionalOrigins`, see the API doc), but a Device on another server can only be opened when that server accepts the token - either both servers hold the same user with the same password hash (then the same token is valid on both), or the second server asks the first one who the token belongs to. That choice decides how the Dashboard picks the base URL per Device (`Device.serverId` -> the registered server's `serverUrl`, https only from an https page); it is not guessed here.
