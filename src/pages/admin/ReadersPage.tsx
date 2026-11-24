@@ -11,8 +11,6 @@ import {
   useInviteMember,
   useRevokeCompanyInvitation,
   useRemoveCompanyMember,
-  useLinkMemberToWordPress,
-  useUnlinkMemberFromWordPress,
   useAssignCompanyRole,
   useRevokeCompanyRole,
   useReaders,
@@ -47,8 +45,7 @@ const useStyles = makeStyles({
 const COMPANY_ROLES = ['Admin', 'Reader'] as const;
 
 /**
- * One person of the Company: the roles (managed here for everyone, also for a person synchronized from WordPress - WordPress provides no role), where the
- * person comes from, and the actions (remove, link to / unlink from WordPress).
+ * One person of the Company: the roles (managed here for everyone), where the person comes from, and the action (remove).
  */
 function MemberRow({ member, editable }: { member: CompanyMemberDto; editable: boolean }) {
   const t = useT();
@@ -57,8 +54,6 @@ function MemberRow({ member, editable }: { member: CompanyMemberDto; editable: b
   const assign = useAssignCompanyRole();
   const revoke = useRevokeCompanyRole();
   const removeMember = useRemoveCompanyMember();
-  const linkMember = useLinkMemberToWordPress();
-  const unlinkMember = useUnlinkMemberFromWordPress();
   const roles = new Set(member.companyRoles ?? []);
   const busy = assign.isPending || revoke.isPending;
 
@@ -80,19 +75,15 @@ function MemberRow({ member, editable }: { member: CompanyMemberDto; editable: b
   return (
     <div className={styles.memberRow}>
       <div>
-        <Text weight="semibold">{member.displayName || t('User {0}', member.userId)}</Text> {member.synchronizedFromWordPress && <WordPressBadge />}
+        <Text weight="semibold">{member.displayName || t('User {0}', member.userId)}</Text> {member.origin === 'WordPress' && <WordPressBadge />}
         <br />
         <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
           {member.email}
         </Text>
         <MemberActions
           name={member.displayName || member.email || t('User {0}', member.userId)}
-          fromWordPress={member.synchronizedFromWordPress === true}
-          origin={member.origin}
           handlers={{
             remove: () => removeMember.mutateAsync(member.userId!),
-            link: () => linkMember.mutateAsync(member.userId!),
-            unlink: () => unlinkMember.mutateAsync(member.userId!),
           }}
         />
       </div>

@@ -114,7 +114,7 @@ export const HU_ACCOUNTS: Record<string, string> = {
   'A Company must keep at least one Admin: grant the Admin role to another User first.': 'Egy cégnek mindig marad legalább egy Adminja: előbb adja meg az Admin szerepkört másik felhasználónak.',
   // Removing a person, and where the person manages the password (link to / unlink from WordPress)
   WordPress: 'WordPress',
-  'Synchronized from WordPress: the password is managed there.': 'WordPressből szinkronizált: a jelszavát ott kezeli.',
+    'Imported from the old WordPress user list. The person is managed here now, like everyone else.': 'A régi WordPress-felhasználólistából átvéve. A személyt innentől itt kezelik, mint mindenki mást.',
   'Remove {0} from the company?': 'Eltávolítja {0} felhasználót a cégből?',
   '{0} can no longer sign in or reach this company.': '{0} többé nem tud belépni, és nem éri el a céget.',
   '{0} was removed.': '{0} eltávolítva.',

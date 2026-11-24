@@ -10,8 +10,8 @@ import { setLanguage } from '@/lib/language';
 import { fetchMock } from '@/test/mockFetch';
 
 const MEMBERS = [
-  { userId: 7, displayName: 'Anna Admin', email: 'anna@example.test', enabled: true, companyRoles: ['Admin'], origin: 'Local', synchronizedFromWordPress: false },
-  { userId: 8, displayName: 'Wanda WordPress', email: 'wanda@example.test', enabled: true, companyRoles: [], origin: 'WordPress', synchronizedFromWordPress: true },
+  { userId: 7, displayName: 'Anna Admin', email: 'anna@example.test', enabled: true, companyRoles: ['Admin'], origin: 'Local' },
+  { userId: 8, displayName: 'Wanda WordPress', email: 'wanda@example.test', enabled: true, companyRoles: [], origin: 'WordPress' },
 ];
 const PENDING = [{ id: 31, email: 'pending@example.test', roleName: 'Reader', language: 'en', createdAt: '2026-11-20T10:00:00Z', expiresAt: '2026-11-27T10:00:00Z' }];
 
@@ -68,18 +68,17 @@ function renderPage() {
 beforeEach(() => setLanguage('en'));
 
 describe('ReadersPage: the people of the Company', () => {
-  it('marks the person that comes from WordPress, and only that one, and offers the right link action to each', async () => {
+  it('marks the person that comes from the old WordPress list, and only that one, and offers only Remove to each', async () => {
     mockApi();
     renderPage();
 
     expect(await screen.findByText('Anna Admin')).toBeInTheDocument();
     expect(screen.getAllByText('WordPress')).toHaveLength(1);                         // exactly one badge: Wanda's
-    expect(screen.getByRole('button', { name: 'Unlink from WordPress' })).toBeInTheDocument();   // Wanda
-    expect(screen.getByRole('button', { name: 'Link to WordPress' })).toBeInTheDocument();       // Anna (locally managed)
+    expect(screen.queryByRole('button', { name: /WordPress/ })).toBeNull();           // no link / unlink any more
     expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(2);
   });
 
-  it('lets the Admin change the roles of a WordPress person too (WordPress provides no role)', async () => {
+  it('lets the Admin change the roles of a person from the old WordPress list like anyone else', async () => {
     const calls = mockApi();
     const user = userEvent.setup();
     renderPage();
@@ -118,19 +117,6 @@ describe('ReadersPage: the people of the Company', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Eltávolítás', hidden: true }));
 
     expect(await screen.findByText(/a cég utolsó Adminja, ezért nem távolítható el/)).toBeInTheDocument();
-  });
-
-  it('unlinks a WordPress person so the password is managed here', async () => {
-    const calls = mockApi();
-    const user = userEvent.setup();
-    renderPage();
-    await screen.findByText('Wanda WordPress');
-
-    await user.click(screen.getByRole('button', { name: 'Unlink from WordPress' }));
-    const dialog = await screen.findByRole('dialog', { hidden: true });
-    await user.click(within(dialog).getByRole('button', { name: 'Unlink', hidden: true }));
-
-    await waitFor(() => expect(calls.some((c) => c.method === 'DELETE' && c.path === '/api/Company/Members/8/WordPressLink')).toBe(true));
   });
 
   it('invites one person at a time by e-mail (Reader by default), lists the pending ones and withdraws one', async () => {

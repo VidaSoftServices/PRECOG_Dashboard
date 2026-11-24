@@ -30,7 +30,6 @@ import {
   useCreatePlatformCompany,
   useGrantPlatformRole,
   useInviteToCompany,
-  useLinkPlatformMember,
   usePlatformCompanies,
   usePlatformInvitations,
   usePlatformMembers,
@@ -38,7 +37,6 @@ import {
   useRevokeInvitation,
   useRevokePlatformRole,
   useSetPlatformCompanyEnabled,
-  useUnlinkPlatformMember,
   type PlatformCompany,
 } from '@/api/hooks/platform';
 import { InvitePanel } from '@/components/people/InvitePanel';
@@ -144,8 +142,6 @@ function CompanyDetail({ company, onDeleted }: { company: PlatformCompany; onDel
   const revoke = useRevokePlatformRole();
   const setEnabled = useSetPlatformCompanyEnabled();
   const removeMember = useRemovePlatformMember();
-  const linkMember = useLinkPlatformMember();
-  const unlinkMember = useUnlinkPlatformMember();
 
   const [pendingRevoke, setPendingRevoke] = useState<{ userId: number; name: string; roleName: 'Admin' | 'Reader' } | null>(null);
   const [confirmEnabled, setConfirmEnabled] = useState(false);
@@ -195,7 +191,7 @@ function CompanyDetail({ company, onDeleted }: { company: PlatformCompany; onDel
               return (
                 <TableRow key={userId}>
                   <TableCell>
-                    {name} {m.synchronizedFromWordPress && <WordPressBadge />}
+                    {name} {m.origin === 'WordPress' && <WordPressBadge />}
                   </TableCell>
                   <TableCell>{m.email}</TableCell>
                   <TableCell>
@@ -217,12 +213,8 @@ function CompanyDetail({ company, onDeleted }: { company: PlatformCompany; onDel
                     </div>
                     <MemberActions
                       name={name}
-                      fromWordPress={m.synchronizedFromWordPress === true}
-                      origin={m.origin}
                       handlers={{
                         remove: () => removeMember.mutateAsync({ companyId, userId }),
-                        link: () => linkMember.mutateAsync({ companyId, userId }),
-                        unlink: () => unlinkMember.mutateAsync({ companyId, userId }),
                       }}
                     />
                   </TableCell>

@@ -153,28 +153,11 @@ export function useRevokeCompanyInvitation() {
   });
 }
 
-/** Removes a User from the Company. A User with a history is deactivated instead of deleted (the result says so); the API refuses a User synchronized from WordPress (while the sync is on) and the last Admin. */
+/** Removes a User from the Company. A User with a history is deactivated instead of deleted (the result says so); the API refuses the last Admin. */
 export function useRemoveCompanyMember() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (userId: number) => unwrap(await apiClient.DELETE('/api/Company/Members/{userId}', { params: { path: { userId } } })),
-    onSuccess: () => invalidateMembership(queryClient),
-  });
-}
-
-/** Decides where the person manages the password: linked = in WordPress, unlinked = here. */
-export function useLinkMemberToWordPress() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (userId: number) => unwrap(await apiClient.POST('/api/Company/Members/{userId}/WordPressLink', { params: { path: { userId } } })),
-    onSuccess: () => invalidateMembership(queryClient),
-  });
-}
-
-export function useUnlinkMemberFromWordPress() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (userId: number) => unwrap(await apiClient.DELETE('/api/Company/Members/{userId}/WordPressLink', { params: { path: { userId } } })),
     onSuccess: () => invalidateMembership(queryClient),
   });
 }

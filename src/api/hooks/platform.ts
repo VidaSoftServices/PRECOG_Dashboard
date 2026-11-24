@@ -131,24 +131,6 @@ export function useRemovePlatformMember() {
   });
 }
 
-export function useLinkPlatformMember() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (vars: { companyId: number; userId: number }) =>
-      unwrap(await apiClient.POST('/api/Platform/Companies/{companyId}/Members/{userId}/WordPressLink', { params: { path: vars } })),
-    onSuccess: (_, vars) => invalidatePeople(queryClient, vars.companyId),
-  });
-}
-
-export function useUnlinkPlatformMember() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (vars: { companyId: number; userId: number }) =>
-      unwrap(await apiClient.DELETE('/api/Platform/Companies/{companyId}/Members/{userId}/WordPressLink', { params: { path: vars } })),
-    onSuccess: (_, vars) => invalidatePeople(queryClient, vars.companyId),
-  });
-}
-
 // ---------------------------------------------------------------- the Company profile (name, website, logo)
 
 function refreshCompanies(queryClient: ReturnType<typeof useQueryClient>) {

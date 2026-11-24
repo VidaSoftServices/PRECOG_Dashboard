@@ -8,12 +8,12 @@ import { AppToastProvider } from '@/components/ToastProvider';
 import { setLanguage } from '@/lib/language';
 import { ApiError } from '@/api/client';
 
-function renderActions(props: Partial<React.ComponentProps<typeof MemberActions>> = {}) {
-  const handlers = { remove: vi.fn().mockResolvedValue({ deactivated: false }), link: vi.fn().mockResolvedValue(undefined), unlink: vi.fn().mockResolvedValue(undefined) };
+function renderActions() {
+  const handlers = { remove: vi.fn().mockResolvedValue({ deactivated: false }) };
   render(
     <FluentProvider theme={webLightTheme}>
       <AppToastProvider>
-        <MemberActions name="Rita Reader" fromWordPress={false} origin="Local" handlers={handlers} {...props} />
+        <MemberActions name="Rita Reader" handlers={handlers} />
       </AppToastProvider>
     </FluentProvider>,
   );
@@ -23,15 +23,9 @@ function renderActions(props: Partial<React.ComponentProps<typeof MemberActions>
 beforeEach(() => setLanguage('en'));
 
 describe('MemberActions', () => {
-  it('offers "Link to WordPress" to a locally managed person and "Unlink" to a WordPress one - never both', () => {
-    renderActions({ fromWordPress: false, origin: 'Local' });
-    expect(screen.getByRole('button', { name: 'Link to WordPress' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Unlink from WordPress' })).toBeNull();
+  it('offers only "Remove" - nothing about WordPress', () => {
+    renderActions();
     expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument();
-  });
-
-  it('offers no link at all to an Entra ID person, and only "Unlink" to a WordPress one', () => {
-    renderActions({ fromWordPress: false, origin: 'EntraId' });
     expect(screen.queryByRole('button', { name: /WordPress/ })).toBeNull();
   });
 
@@ -62,45 +56,19 @@ describe('MemberActions', () => {
     expect(await screen.findByText(/the history stays: the account was deactivated/)).toBeInTheDocument();
   });
 
-  it('shows the refusal of the API in Hungarian: a person synchronized with WordPress cannot be removed', async () => {
+  it('shows the refusal of the API in Hungarian: the last Admin cannot be removed', async () => {
     setLanguage('hu');
     const user = userEvent.setup();
-    const handlers = renderActions({ fromWordPress: true });
+    const handlers = renderActions();
     handlers.remove.mockRejectedValue(
-      new ApiError({ status: 409, message: 'This User cannot be removed: it is synchronized with WordPress. Unlink it from WordPress first, or switch the synchronization off.' } as never),
+      new ApiError({ status: 409, message: 'This User is the last Admin of the Company, so it cannot be removed: make someone else an Admin first.' } as never),
     );
 
     await user.click(screen.getByRole('button', { name: 'Eltávolítás' }));
     const dialog = await screen.findByRole('dialog', { hidden: true });
     await user.click(within(dialog).getByRole('button', { name: 'Eltávolítás', hidden: true }));
 
-    expect(await screen.findByText(/nem távolítható el: szinkronban van a WordPress-szel/)).toBeInTheDocument();
-  });
-
-  it('unlinks and links only after a confirmation that explains where the password lives', async () => {
-    const user = userEvent.setup();
-    const handlers = renderActions({ fromWordPress: true });
-
-    await user.click(screen.getByRole('button', { name: 'Unlink from WordPress' }));
-    const dialog = await screen.findByRole('dialog', { hidden: true });
-    expect(within(dialog).getByText(/manages the password here, not in WordPress/)).toBeInTheDocument();
-    expect(handlers.unlink).not.toHaveBeenCalled();
-    await user.click(within(dialog).getByRole('button', { name: 'Unlink', hidden: true }));
-
-    await waitFor(() => expect(handlers.unlink).toHaveBeenCalledTimes(1));
-    expect(await screen.findByText('Rita Reader is now managed here.')).toBeInTheDocument();
-  });
-
-  it('links a locally managed person after a confirmation', async () => {
-    const user = userEvent.setup();
-    const handlers = renderActions({ fromWordPress: false, origin: 'Local' });
-
-    await user.click(screen.getByRole('button', { name: 'Link to WordPress' }));
-    const dialog = await screen.findByRole('dialog', { hidden: true });
-    expect(within(dialog).getByText(/The password set here stops working/)).toBeInTheDocument();
-    await user.click(within(dialog).getByRole('button', { name: 'Link', hidden: true }));
-
-    await waitFor(() => expect(handlers.link).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText(/a cég utolsó Adminja, ezért nem távolítható el/)).toBeInTheDocument();
   });
 });
 

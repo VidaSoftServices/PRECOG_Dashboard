@@ -4,6 +4,8 @@ How the Dashboard reads the Company profile and identity state: `profileSource` 
 
 Related: the API side of this feature is in [../../../PRECOG_API/docs/features/company-identity.md](../../../PRECOG_API/docs/features/company-identity.md).
 
+> **S8 (2026-11-24): the WordPress mirror is gone.** The Company people pages (Company admin "People", the platform Companies and People pages) no longer offer "Link to WordPress" / "Unlink from WordPress" (the four `WordPressLink` endpoints were removed from the API) and the `synchronizedFromWordPress` field is gone; a person of the old list still carries the small **WordPress** badge (`origin === 'WordPress'`) whose tooltip now says the person is managed here like everyone else. The only action on a person is **Remove**. `CompanyDto.profileSource` is always `Local`, so the role controls always show. Tests: `MemberActions.test.tsx`, `ReadersPage.test.tsx`.
+
 The text below was moved verbatim from `CLAUDE.md` (Dashboard) on 2026-11-19; dates and "superseded" notes are the original ones. Keep this file up to date with every change to the feature.
 
 ### Company profile and mirrored identity
