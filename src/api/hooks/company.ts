@@ -124,3 +124,57 @@ export function useRevokeReaderDeviceGrant(userId: number) {
     },
   });
 }
+
+export type CompanyInvitation = components['schemas']['InvitationDto'];
+
+/** The Company Admin's own invitations: one person at a time, by e-mail, as Admin or Reader. */
+export function useCompanyInvitations() {
+  return useQuery({
+    queryKey: queryKeys.companyInvitations,
+    queryFn: async ({ signal }) => unwrap(await apiClient.GET('/api/Company/Invitations', { signal })),
+  });
+}
+
+export function useInviteMember() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { email: string; roleName: 'Admin' | 'Reader'; language: 'en' | 'hu' }) =>
+      unwrap(await apiClient.POST('/api/Company/Invitations', { body: vars })),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.companyInvitations }),
+  });
+}
+
+export function useRevokeCompanyInvitation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (invitationId: number) =>
+      unwrap(await apiClient.DELETE('/api/Company/Invitations/{invitationId}', { params: { path: { invitationId } } })),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.companyInvitations }),
+  });
+}
+
+/** Removes a User from the Company. A User with a history is deactivated instead of deleted (the result says so); the API refuses a User synchronized from WordPress (while the sync is on) and the last Admin. */
+export function useRemoveCompanyMember() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: number) => unwrap(await apiClient.DELETE('/api/Company/Members/{userId}', { params: { path: { userId } } })),
+    onSuccess: () => invalidateMembership(queryClient),
+  });
+}
+
+/** Decides where the person manages the password: linked = in WordPress, unlinked = here. */
+export function useLinkMemberToWordPress() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: number) => unwrap(await apiClient.POST('/api/Company/Members/{userId}/WordPressLink', { params: { path: { userId } } })),
+    onSuccess: () => invalidateMembership(queryClient),
+  });
+}
+
+export function useUnlinkMemberFromWordPress() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: number) => unwrap(await apiClient.DELETE('/api/Company/Members/{userId}/WordPressLink', { params: { path: { userId } } })),
+    onSuccess: () => invalidateMembership(queryClient),
+  });
+}

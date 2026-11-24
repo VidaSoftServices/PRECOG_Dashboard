@@ -4,6 +4,7 @@ export const queryKeys = {
   company: ['company'] as const,
   companyMembers: ['company', 'members'] as const,
   readers: ['company', 'readers'] as const,
+  companyInvitations: ['company', 'invitations'] as const,
   readerGrants: (userId: number) => ['company', 'readers', userId, 'devices'] as const,
   readerEffectiveAccess: (userId: number) => ['company', 'readers', userId, 'effectiveAccess'] as const,
 

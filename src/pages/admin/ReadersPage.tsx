@@ -6,8 +6,13 @@ import { ErrorState } from '@/components/states/ErrorState';
 import { EmptyState } from '@/components/states/EmptyState';
 import { useAppToast } from '@/components/ToastProvider';
 import {
-  useCompany,
   useCompanyMembers,
+  useCompanyInvitations,
+  useInviteMember,
+  useRevokeCompanyInvitation,
+  useRemoveCompanyMember,
+  useLinkMemberToWordPress,
+  useUnlinkMemberFromWordPress,
   useAssignCompanyRole,
   useRevokeCompanyRole,
   useReaders,
@@ -18,6 +23,9 @@ import {
   type CompanyMemberDto,
 } from '@/api/hooks/company';
 import { useDevices } from '@/api/hooks/devices';
+import { InvitePanel } from '@/components/people/InvitePanel';
+import { MemberActions } from '@/components/people/MemberActions';
+import { WordPressBadge } from '@/components/people/WordPressBadge';
 import { MobileDevicesPanel } from './MobileDevicesPanel';
 import { useT } from '@/lib/language';
 
@@ -39,13 +47,8 @@ const useStyles = makeStyles({
 const COMPANY_ROLES = ['Admin', 'Reader'] as const;
 
 /**
- * Assign/revoke company-wide role is only offered when the Company's own
- * profile is Local. A MirroredDatabase Company's Admin/Reader assignment is
- * synchronized one-way from the WordPress `permissionlevel` meta (see
- * CLAUDE.md's "Mirrored permission-level resolution" section) - editing it
- * here would be silently overwritten by the next sync run and would
- * misrepresent where the real answer lives, exactly the reasoning the
- * existing CompanyDto.nameEditable gate already uses for the Company name.
+ * One person of the Company: the roles (managed here for everyone, also for a person synchronized from WordPress - WordPress provides no role), where the
+ * person comes from, and the actions (remove, link to / unlink from WordPress).
  */
 function MemberRow({ member, editable }: { member: CompanyMemberDto; editable: boolean }) {
   const t = useT();
@@ -53,6 +56,9 @@ function MemberRow({ member, editable }: { member: CompanyMemberDto; editable: b
   const toast = useAppToast();
   const assign = useAssignCompanyRole();
   const revoke = useRevokeCompanyRole();
+  const removeMember = useRemoveCompanyMember();
+  const linkMember = useLinkMemberToWordPress();
+  const unlinkMember = useUnlinkMemberFromWordPress();
   const roles = new Set(member.companyRoles ?? []);
   const busy = assign.isPending || revoke.isPending;
 
@@ -74,11 +80,21 @@ function MemberRow({ member, editable }: { member: CompanyMemberDto; editable: b
   return (
     <div className={styles.memberRow}>
       <div>
-        <Text weight="semibold">{member.displayName || t('User {0}', member.userId)}</Text>
+        <Text weight="semibold">{member.displayName || t('User {0}', member.userId)}</Text> {member.synchronizedFromWordPress && <WordPressBadge />}
         <br />
         <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
           {member.email}
         </Text>
+        <MemberActions
+          name={member.displayName || member.email || t('User {0}', member.userId)}
+          fromWordPress={member.synchronizedFromWordPress === true}
+          origin={member.origin}
+          handlers={{
+            remove: () => removeMember.mutateAsync(member.userId!),
+            link: () => linkMember.mutateAsync(member.userId!),
+            unlink: () => unlinkMember.mutateAsync(member.userId!),
+          }}
+        />
       </div>
       {editable ? (
         <div style={{ display: 'flex', gap: tokens.spacingHorizontalM, alignItems: 'center' }}>
@@ -114,9 +130,10 @@ function MemberRow({ member, editable }: { member: CompanyMemberDto; editable: b
 function CompanyMembersCard() {
   const t = useT();
   const styles = useStyles();
-  const companyQuery = useCompany();
   const membersQuery = useCompanyMembers();
-  const editable = companyQuery.data?.profileSource === 'Local';
+  const invitations = useCompanyInvitations();
+  const invite = useInviteMember();
+  const revokeInvitation = useRevokeCompanyInvitation();
 
   if (membersQuery.isLoading) return <LoadingState label={t('Loading Company members…')} />;
   if (membersQuery.isError) return <ErrorState error={membersQuery.error} onRetry={() => membersQuery.refetch()} />;
@@ -126,17 +143,20 @@ function CompanyMembersCard() {
   return (
     <Card className={styles.card} style={{ marginBottom: tokens.spacingVerticalL }}>
       <Body1Strong>{t('Company members')}</Body1Strong>
-      {!editable && companyQuery.data && (
-        <Text size={200} style={{ color: tokens.colorNeutralForeground3, display: 'block', marginTop: tokens.spacingVerticalXS }}>
-          {t('Role is synchronized from WordPress for this Company and can\'t be changed here.')}</Text>
-      )}
       {members.length === 0 && <EmptyState title={t('No Company members found')} />}
       {members.map((member, index) => (
         <div key={member.userId}>
           {index > 0 && <Divider />}
-          <MemberRow member={member} editable={editable} />
+          <MemberRow member={member} editable />
         </div>
       ))}
+      <Divider />
+      <InvitePanel
+        pending={invitations.data}
+        onInvite={(v) => invite.mutateAsync(v)}
+        onWithdraw={(id) => revokeInvitation.mutateAsync(id)}
+      />
+      {invitations.isError && <ErrorState error={invitations.error} onRetry={() => invitations.refetch()} />}
     </Card>
   );
 }

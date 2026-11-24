@@ -13,7 +13,6 @@ import {
   Input,
   MessageBar,
   MessageBarBody,
-  Select,
   Subtitle1,
   Table,
   TableBody,
@@ -31,21 +30,27 @@ import {
   useCreatePlatformCompany,
   useGrantPlatformRole,
   useInviteToCompany,
+  useLinkPlatformMember,
   usePlatformCompanies,
   usePlatformInvitations,
   usePlatformMembers,
+  useRemovePlatformMember,
   useRevokeInvitation,
   useRevokePlatformRole,
   useSetPlatformCompanyEnabled,
+  useUnlinkPlatformMember,
   type PlatformCompany,
 } from '@/api/hooks/platform';
+import { InvitePanel } from '@/components/people/InvitePanel';
+import { MemberActions } from '@/components/people/MemberActions';
+import { WordPressBadge } from '@/components/people/WordPressBadge';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageHeader } from '@/components/PageHeader';
 import { useAppToast } from '@/components/ToastProvider';
 import { EmptyState } from '@/components/states/EmptyState';
 import { ErrorState } from '@/components/states/ErrorState';
 import { LoadingState } from '@/components/states/LoadingState';
-import { useLanguage, useT } from '@/lib/language';
+import { useT } from '@/lib/language';
 
 const useStyles = makeStyles({
   page: { display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalM },
@@ -124,7 +129,6 @@ function CompanyDetail({ company }: { company: PlatformCompany }) {
   const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
-  const { language } = useLanguage();
   // The generated DTO marks every property optional; the API always sends the id.
   const companyId = company.id ?? 0;
 
@@ -135,26 +139,12 @@ function CompanyDetail({ company }: { company: PlatformCompany }) {
   const grant = useGrantPlatformRole();
   const revoke = useRevokePlatformRole();
   const setEnabled = useSetPlatformCompanyEnabled();
+  const removeMember = useRemovePlatformMember();
+  const linkMember = useLinkPlatformMember();
+  const unlinkMember = useUnlinkPlatformMember();
 
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState<'Admin' | 'Reader'>('Admin');
-  const [mailLanguage, setMailLanguage] = useState<'en' | 'hu'>(language);
   const [pendingRevoke, setPendingRevoke] = useState<{ userId: number; name: string; roleName: 'Admin' | 'Reader' } | null>(null);
   const [confirmEnabled, setConfirmEnabled] = useState(false);
-
-  const submitInvitation = (event: FormEvent) => {
-    event.preventDefault();
-    invite.mutate(
-      { companyId, email: email.trim(), roleName: role, language: mailLanguage },
-      {
-        onSuccess: (result) => {
-          if (result.emailSent) toast.success('The invitation was created and the e-mail was sent.');
-          else toast.info('The invitation was created, but the e-mail could not be sent. Check the e-mail settings and send the invitation again.');
-          setEmail('');
-        },
-      },
-    );
-  };
 
   return (
     <Card className={styles.card}>
@@ -191,7 +181,9 @@ function CompanyDetail({ company }: { company: PlatformCompany }) {
               const name = m.displayName ?? m.email ?? String(userId);
               return (
                 <TableRow key={userId}>
-                  <TableCell>{name}</TableCell>
+                  <TableCell>
+                    {name} {m.synchronizedFromWordPress && <WordPressBadge />}
+                  </TableCell>
                   <TableCell>{m.email}</TableCell>
                   <TableCell>
                     {roles.length === 0 ? <Text>{t('No role')}</Text> : roles.map((r) => <Badge key={r} appearance="tint" style={{ marginRight: 4 }}>{r === 'Admin' ? t('Administrator') : t('Reader')}</Badge>)}
@@ -210,6 +202,16 @@ function CompanyDetail({ company }: { company: PlatformCompany }) {
                         <Button size="small" onClick={() => grant.mutate({ companyId, userId, roleName: 'Reader' }, { onSuccess: () => toast.success('The Reader role was granted.') })}>{t('Make Reader')}</Button>
                       )}
                     </div>
+                    <MemberActions
+                      name={name}
+                      fromWordPress={m.synchronizedFromWordPress === true}
+                      origin={m.origin}
+                      handlers={{
+                        remove: () => removeMember.mutateAsync({ companyId, userId }),
+                        link: () => linkMember.mutateAsync({ companyId, userId }),
+                        unlink: () => unlinkMember.mutateAsync({ companyId, userId }),
+                      }}
+                    />
                   </TableCell>
                 </TableRow>
               );
@@ -223,54 +225,14 @@ function CompanyDetail({ company }: { company: PlatformCompany }) {
         </MessageBar>
       )}
 
-      <Subtitle1 as="h3">{t('Pending invitations')}</Subtitle1>
+      <InvitePanel
+        pending={invitations.data}
+        onInvite={(v) => invite.mutateAsync({ companyId, ...v })}
+        onWithdraw={(invitationId) => revokeInvitation.mutateAsync({ companyId, invitationId })}
+        disabled={!company.enabled}
+        defaultRole="Admin"
+      />
       {invitations.isError && <ErrorState error={invitations.error} onRetry={() => invitations.refetch()} />}
-      {invitations.data && invitations.data.length === 0 && <Text>{t('No pending invitations.')}</Text>}
-      {invitations.data && invitations.data.length > 0 && (
-        <Table aria-label={t('Pending invitations')} size="small">
-          <TableBody>
-            {invitations.data.map((i) => (
-              <TableRow key={i.id ?? 0}>
-                <TableCell>{i.email}</TableCell>
-                <TableCell>{i.roleName === 'Admin' ? t('Administrator') : t('Reader')}</TableCell>
-                <TableCell>{t('Valid until {0}', new Date(i.expiresAt ?? 0).toLocaleDateString(language === 'hu' ? 'hu-HU' : 'en-GB'))}</TableCell>
-                <TableCell>
-                  <Button size="small" onClick={() => revokeInvitation.mutate({ companyId, invitationId: i.id ?? 0 }, { onSuccess: () => toast.success('The invitation was withdrawn.') })}>
-                    {t('Withdraw')}
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-
-      <Subtitle1 as="h3">{t('Invite someone')}</Subtitle1>
-      <form onSubmit={submitInvitation} className={styles.row}>
-        <Field label={t('E-mail address')} className={styles.grow} required>
-          <Input type="email" value={email} onChange={(_, d) => setEmail(d.value)} maxLength={256} disabled={invite.isPending || !company.enabled} />
-        </Field>
-        <Field label={t('Role')}>
-          <Select value={role} onChange={(_, d) => setRole(d.value as 'Admin' | 'Reader')} disabled={invite.isPending || !company.enabled}>
-            <option value="Admin">{t('Administrator')}</option>
-            <option value="Reader">{t('Reader')}</option>
-          </Select>
-        </Field>
-        <Field label={t('E-mail language')}>
-          <Select value={mailLanguage} onChange={(_, d) => setMailLanguage(d.value as 'en' | 'hu')} disabled={invite.isPending || !company.enabled}>
-            <option value="en">English</option>
-            <option value="hu">Magyar</option>
-          </Select>
-        </Field>
-        <Button type="submit" appearance="primary" icon={<Add16Regular />} disabled={invite.isPending || !email.trim() || !company.enabled}>
-          {t('Send invitation')}
-        </Button>
-      </form>
-      {invite.isError && (
-        <MessageBar intent="error">
-          <MessageBarBody>{t(invite.error.message)}</MessageBarBody>
-        </MessageBar>
-      )}
 
       <ConfirmDialog
         open={pendingRevoke !== null}

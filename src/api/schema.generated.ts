@@ -556,7 +556,7 @@ export interface paths {
         };
         /**
          * Get the caller's own Company, including its public profile metadata.
-         * @description Read-only, idempotent. Returns the tenant the authenticated human User belongs to - identifier, name, logo, website, enabled state, and where that profile comes from. There is no way to browse or look up another Company; the caller always sees exactly their own. Human principals only (Admin or Reader); a DevicePrincipal token receives 403. While Identity:UserSource is MirroredDatabase and the Company was synchronized from WordPress (wp_fc_companies), ProfileSource is MirroredDatabase, WordPress is authoritative for name/logo/website, and NameEditable is false. A locally owned Company (the EntraId-mode configured Company, or one created directly in PRECOG) reports ProfileSource Local, and a Company Admin may rename it through PUT /api/Company/Name. 401 is returned when the caller has no resolvable authorized Company - use GET /api/User/GetUserDetails for the display-oriented view of that state.
+         * @description Read-only, idempotent. Returns the tenant the authenticated human User belongs to - identifier, name, logo, website, enabled state, and where that profile comes from. There is no way to browse or look up another Company; the caller always sees exactly their own. Human principals only (Admin or Reader); a DevicePrincipal token receives 403. The profile is always owned in PRECOG (ProfileSource Local): WordPress never writes a Company, and a Company Admin may rename it through PUT /api/Company/Name. 401 is returned when the caller has no resolvable authorized Company - use GET /api/User/GetUserDetails for the display-oriented view of that state.
          */
         get: operations["Company_GetCompany"];
         put?: never;
@@ -577,7 +577,7 @@ export interface paths {
         get?: never;
         /**
          * Change the caller's own Company name. Requires Company Admin, and a locally owned Company profile.
-         * @description Mutating and idempotent - submitting the name the Company already has succeeds and changes nothing. Human Company Admins only; a Reader receives 403 and a DevicePrincipal token receives 403. Only the name is editable, and only for a locally owned profile (ProfileSource = Local): the EntraId-mode configured Company, or a Company created directly in PRECOG. When Identity:UserSource is MirroredDatabase and the Company came from wp_fc_companies, WordPress owns the name, logo, and website, and this operation returns 409 rather than accepting an edit the next synchronization run would overwrite. Company names are unique across Companies, so a name already used by another Company is rejected with 409. The change is audited (company.rename) with the acting Admin's internal User id.
+         * @description Mutating and idempotent - submitting the name the Company already has succeeds and changes nothing. Human Company Admins only; a Reader receives 403 and a DevicePrincipal token receives 403. Only the name is editable here (the website and the logo follow). Company names are unique across Companies, so a name already used by another Company is rejected with 409. The change is audited (company.rename) with the acting Admin's internal User id.
          */
         put: operations["Company_UpdateCompanyName"];
         post?: never;
@@ -642,6 +642,94 @@ export interface paths {
          * @description Idempotent - revoking a role the User does not hold succeeds silently (204). Requires an authenticated Company Admin. Every Company keeps at least one enabled Admin: revoking the last Admin role is refused with 409.
          */
         delete: operations["Company_RevokeRole"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Company/Members/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a User from the caller's Company. Requires Company Admin.
+         * @description Anyone can be removed except a User that is synchronized from WordPress while the synchronization is on (409: unlink it first or switch the synchronization off) and the Company's last Admin (409: make someone else an Admin first). A User with no history is deleted; one whose Issue reviews, training or Ollama requests, categories or knowledge-share approvals others point to is DEACTIVATED instead (Deactivated = true): it can no longer sign in or reach the Company, its roles, grants, password, login name and e-mail address are gone (the address can be invited again), the old records keep its name.
+         */
+        delete: operations["Company_RemoveMember"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Company/Members/{userId}/WordPressLink": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Link a locally managed User to its WordPress account: the person then manages the password in WordPress. Requires Company Admin.
+         * @description Only while the WordPress synchronization is on. The WordPress account is found by the User's e-mail address (exactly one approved account). WordPress becomes the authority for the password: the copied hash replaces the one set here (the old password stops working), the profile is copied and the User is locked. 409 when the synchronization is off, the User is already synchronized, or the WordPress account is ambiguous or already linked; 404 when no approved WordPress account has the address.
+         */
+        post: operations["Company_LinkMemberToWordPress"];
+        /**
+         * Cut the link of a User to WordPress: the person then manages the password here. Requires Company Admin.
+         * @description The User becomes a locally managed one (no longer locked, no longer touched by the synchronization) and keeps the password hash that was copied last, so it can still sign in and then changes the password here (a password reset by e-mail). 409 when the User is not synchronized from WordPress.
+         */
+        delete: operations["Company_UnlinkMemberFromWordPress"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Company/Invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the pending (unused, unexpired) invitations of the caller's Company. Requires Company Admin.
+         * @description Read-only. The invitation links themselves are never returned: they exist only in the e-mail.
+         */
+        get: operations["Company_GetInvitations"];
+        put?: never;
+        /**
+         * Invite a person into the caller's Company by e-mail, one at a time, as Admin or Reader. Requires Company Admin.
+         * @description Mails a single-use link (valid 7 days); the person chooses a password and becomes a User of the Company with the role. A new invitation for the same address replaces the earlier one. 409 when the address already belongs to a User. EmailSent is false when mail is off or not configured - the invitation exists, send it again once the settings are fixed.
+         */
+        post: operations["Company_InviteMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Company/Invitations/{invitationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Withdraw a pending invitation of the caller's Company. Requires Company Admin.
+         * @description The link in the e-mail stops working. 404 when the invitation is not pending (used, expired or already withdrawn).
+         */
+        delete: operations["Company_RevokeInvitation"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2366,14 +2454,58 @@ export interface paths {
         put?: never;
         /**
          * Grant the Admin or Reader role of a Company to one of its Users. Platform administrator only.
-         * @description Idempotent. A User synchronized from WordPress (Locked) keeps the roles of its source (409).
+         * @description Idempotent. Roles are managed here for every User, also one synchronized from WordPress (WordPress provides no role).
          */
         post: operations["Platform_GrantCompanyRole"];
         /**
          * Revoke the Admin or Reader role of a Company from one of its Users. Platform administrator only.
-         * @description Idempotent. Every Company keeps at least one enabled Admin: revoking the last one is refused (409) - invite or grant another Admin first. A User synchronized from WordPress (Locked) keeps the roles of its source (409).
+         * @description Idempotent. Every Company keeps at least one enabled Admin: revoking the last one is refused (409) - invite or grant another Admin first. Roles are managed here for every User, also one synchronized from WordPress.
          */
         delete: operations["Platform_RevokeCompanyRole"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Platform/Companies/{companyId}/Members/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a User from a Company. Platform administrator only.
+         * @description The same rules as for the Company Admin: refused (409) for a User synchronized from WordPress while the synchronization is on and for the Company's last Admin. A User with a history is deactivated instead of deleted (Deactivated = true), see DELETE /api/Company/Members/{userId}.
+         */
+        delete: operations["Platform_RemoveCompanyMember"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Platform/Companies/{companyId}/Members/{userId}/WordPressLink": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Link a locally managed User of a Company to its WordPress account (the person then manages the password in WordPress). Platform administrator only.
+         * @description See POST /api/Company/Members/{userId}/WordPressLink: only while the synchronization is on, found by e-mail address, WordPress becomes the authority for the password.
+         */
+        post: operations["Platform_LinkCompanyMemberToWordPress"];
+        /**
+         * Cut the link of a User of a Company to WordPress (the person then manages the password here). Platform administrator only.
+         * @description See DELETE /api/Company/Members/{userId}/WordPressLink: the User becomes locally managed and keeps the password hash copied last.
+         */
+        delete: operations["Platform_UnlinkCompanyMemberFromWordPress"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3642,6 +3774,10 @@ export interface components {
             enabled?: boolean;
             /** @description Company-wide role names held by this user (e.g. "Admin"). Device/group/location-scoped grants are not included here. */
             companyRoles?: string[] | null;
+            /** @description Where the User comes from: "Local" (created or invited here), "WordPress" (synchronized from the WordPress mirror) or "EntraId". */
+            origin?: string | null;
+            /** @description True for a User synchronized from WordPress: WordPress is where it manages its password, and while the synchronization is on it cannot be removed here. */
+            synchronizedFromWordPress?: boolean;
         };
         /**
          * @description Where a Company's profile fields (name, logo, website) come from.
@@ -5859,6 +5995,11 @@ export interface components {
             /** @description Every Sensor of the job with its own phase and counts. */
             sensors?: components["schemas"]["RecalculationSensorDto"][] | null;
         };
+        /** @description The result of removing a User from a Company. */
+        RemoveMemberResultDto: {
+            /** @description True when the User had a history (reviewed Issues, requested trainings, ...) and was therefore deactivated instead of deleted: it cannot sign in or reach the Company, the old records keep its name. */
+            deactivated?: boolean;
+        };
         /** @description Request to set the authoritative review state of an Issue. */
         ReviewIssueRequest: {
             /**
@@ -7322,49 +7463,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 3,
                  *         "period": 1,
-                 *         "measured": "2026-11-18T00:06:36.5924661Z",
+                 *         "measured": "2026-11-18T01:29:22.1018845Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 2,
-                 *         "measured": "2026-11-19T00:06:36.5924672Z",
+                 *         "measured": "2026-11-19T01:29:22.1019886Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 3,
-                 *         "measured": "2026-11-20T00:06:36.5924675Z",
+                 *         "measured": "2026-11-20T01:29:22.1019893Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 4,
-                 *         "measured": "2026-11-21T00:06:36.5924676Z",
+                 *         "measured": "2026-11-21T01:29:22.1019896Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 5,
-                 *         "measured": "2026-11-22T00:06:36.5924678Z",
+                 *         "measured": "2026-11-22T01:29:22.1019899Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 6,
-                 *         "measured": "2026-11-23T00:06:36.5924683Z",
+                 *         "measured": "2026-11-23T01:29:22.1019912Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 1,
-                 *         "measured": "2026-11-18T00:06:36.5924685Z",
+                 *         "measured": "2026-11-18T01:29:22.1019915Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 2,
-                 *         "measured": "2026-11-19T00:06:36.5924686Z",
+                 *         "measured": "2026-11-19T01:29:22.1019918Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -7375,49 +7516,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 3,
                  *         "period": 1,
-                 *         "measured": "2026-11-18T00:06:36.5924661Z",
+                 *         "measured": "2026-11-18T01:29:22.1018845Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 2,
-                 *         "measured": "2026-11-19T00:06:36.5924672Z",
+                 *         "measured": "2026-11-19T01:29:22.1019886Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 3,
-                 *         "measured": "2026-11-20T00:06:36.5924675Z",
+                 *         "measured": "2026-11-20T01:29:22.1019893Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 4,
-                 *         "measured": "2026-11-21T00:06:36.5924676Z",
+                 *         "measured": "2026-11-21T01:29:22.1019896Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 5,
-                 *         "measured": "2026-11-22T00:06:36.5924678Z",
+                 *         "measured": "2026-11-22T01:29:22.1019899Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 6,
-                 *         "measured": "2026-11-23T00:06:36.5924683Z",
+                 *         "measured": "2026-11-23T01:29:22.1019912Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 1,
-                 *         "measured": "2026-11-18T00:06:36.5924685Z",
+                 *         "measured": "2026-11-18T01:29:22.1019915Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 2,
-                 *         "measured": "2026-11-19T00:06:36.5924686Z",
+                 *         "measured": "2026-11-19T01:29:22.1019918Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -7428,49 +7569,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 3,
                  *         "period": 1,
-                 *         "measured": "2026-11-18T00:06:36.5924661Z",
+                 *         "measured": "2026-11-18T01:29:22.1018845Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 2,
-                 *         "measured": "2026-11-19T00:06:36.5924672Z",
+                 *         "measured": "2026-11-19T01:29:22.1019886Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 3,
-                 *         "measured": "2026-11-20T00:06:36.5924675Z",
+                 *         "measured": "2026-11-20T01:29:22.1019893Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 4,
-                 *         "measured": "2026-11-21T00:06:36.5924676Z",
+                 *         "measured": "2026-11-21T01:29:22.1019896Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 5,
-                 *         "measured": "2026-11-22T00:06:36.5924678Z",
+                 *         "measured": "2026-11-22T01:29:22.1019899Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 3,
                  *         "period": 6,
-                 *         "measured": "2026-11-23T00:06:36.5924683Z",
+                 *         "measured": "2026-11-23T01:29:22.1019912Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 1,
-                 *         "measured": "2026-11-18T00:06:36.5924685Z",
+                 *         "measured": "2026-11-18T01:29:22.1019915Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 4,
                  *         "period": 2,
-                 *         "measured": "2026-11-19T00:06:36.5924686Z",
+                 *         "measured": "2026-11-19T01:29:22.1019918Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -7824,22 +7965,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-23T21:06:36.6152633Z",
+                 *             "measured": "2026-11-23T22:29:22.1517146Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-23T21:36:36.615267Z",
+                 *             "measured": "2026-11-23T22:59:22.1517606Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-23T22:06:36.6152672Z",
+                 *             "measured": "2026-11-23T23:29:22.151761Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-23T22:36:36.6152673Z",
+                 *             "measured": "2026-11-23T23:59:22.1517613Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -7850,22 +7991,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-23T23:06:36.615269Z",
+                 *             "measured": "2026-11-24T00:29:22.1517896Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-23T23:21:36.6152691Z",
+                 *             "measured": "2026-11-24T00:44:22.1517901Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-23T23:36:36.6156693Z",
+                 *             "measured": "2026-11-24T00:59:22.1517913Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-23T23:51:36.6156696Z",
+                 *             "measured": "2026-11-24T01:14:22.1517916Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -7876,12 +8017,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-23T21:06:36.6156706Z",
+                 *             "measured": "2026-11-23T22:29:22.151792Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-23T21:36:36.6156715Z",
+                 *             "measured": "2026-11-23T22:59:22.1517923Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -7897,22 +8038,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-23T21:06:36.6152633Z",
+                 *             "measured": "2026-11-23T22:29:22.1517146Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-23T21:36:36.615267Z",
+                 *             "measured": "2026-11-23T22:59:22.1517606Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-23T22:06:36.6152672Z",
+                 *             "measured": "2026-11-23T23:29:22.151761Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-23T22:36:36.6152673Z",
+                 *             "measured": "2026-11-23T23:59:22.1517613Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -7923,22 +8064,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-23T23:06:36.615269Z",
+                 *             "measured": "2026-11-24T00:29:22.1517896Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-23T23:21:36.6152691Z",
+                 *             "measured": "2026-11-24T00:44:22.1517901Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-23T23:36:36.6156693Z",
+                 *             "measured": "2026-11-24T00:59:22.1517913Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-23T23:51:36.6156696Z",
+                 *             "measured": "2026-11-24T01:14:22.1517916Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -7949,12 +8090,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-23T21:06:36.6156706Z",
+                 *             "measured": "2026-11-23T22:29:22.151792Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-23T21:36:36.6156715Z",
+                 *             "measured": "2026-11-23T22:59:22.1517923Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -7970,22 +8111,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-23T21:06:36.6152633Z",
+                 *             "measured": "2026-11-23T22:29:22.1517146Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-23T21:36:36.615267Z",
+                 *             "measured": "2026-11-23T22:59:22.1517606Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-23T22:06:36.6152672Z",
+                 *             "measured": "2026-11-23T23:29:22.151761Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-23T22:36:36.6152673Z",
+                 *             "measured": "2026-11-23T23:59:22.1517613Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -7996,22 +8137,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-23T23:06:36.615269Z",
+                 *             "measured": "2026-11-24T00:29:22.1517896Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-23T23:21:36.6152691Z",
+                 *             "measured": "2026-11-24T00:44:22.1517901Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-23T23:36:36.6156693Z",
+                 *             "measured": "2026-11-24T00:59:22.1517913Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-23T23:51:36.6156696Z",
+                 *             "measured": "2026-11-24T01:14:22.1517916Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -8022,12 +8163,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-23T21:06:36.6156706Z",
+                 *             "measured": "2026-11-23T22:29:22.151792Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-23T21:36:36.6156715Z",
+                 *             "measured": "2026-11-23T22:59:22.1517923Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -8628,8 +8769,8 @@ export interface operations {
                      *       "website": "https://example.invalid",
                      *       "enabled": true,
                      *       "createdAt": "2026-01-01T00:00:00Z",
-                     *       "profileSource": "MirroredDatabase",
-                     *       "nameEditable": false
+                     *       "profileSource": "Local",
+                     *       "nameEditable": true
                      *     }
                      */
                     "text/plain": components["schemas"]["CompanyDto"];
@@ -8641,8 +8782,8 @@ export interface operations {
                      *       "website": "https://example.invalid",
                      *       "enabled": true,
                      *       "createdAt": "2026-01-01T00:00:00Z",
-                     *       "profileSource": "MirroredDatabase",
-                     *       "nameEditable": false
+                     *       "profileSource": "Local",
+                     *       "nameEditable": true
                      *     }
                      */
                     "application/json": components["schemas"]["CompanyDto"];
@@ -8654,8 +8795,8 @@ export interface operations {
                      *       "website": "https://example.invalid",
                      *       "enabled": true,
                      *       "createdAt": "2026-01-01T00:00:00Z",
-                     *       "profileSource": "MirroredDatabase",
-                     *       "nameEditable": false
+                     *       "profileSource": "Local",
+                     *       "nameEditable": true
                      *     }
                      */
                     "text/json": components["schemas"]["CompanyDto"];
@@ -8731,8 +8872,8 @@ export interface operations {
                      *       "website": "https://example.invalid",
                      *       "enabled": true,
                      *       "createdAt": "2026-01-01T00:00:00Z",
-                     *       "profileSource": "MirroredDatabase",
-                     *       "nameEditable": false
+                     *       "profileSource": "Local",
+                     *       "nameEditable": true
                      *     }
                      */
                     "text/plain": components["schemas"]["CompanyDto"];
@@ -8744,8 +8885,8 @@ export interface operations {
                      *       "website": "https://example.invalid",
                      *       "enabled": true,
                      *       "createdAt": "2026-01-01T00:00:00Z",
-                     *       "profileSource": "MirroredDatabase",
-                     *       "nameEditable": false
+                     *       "profileSource": "Local",
+                     *       "nameEditable": true
                      *     }
                      */
                     "application/json": components["schemas"]["CompanyDto"];
@@ -8757,8 +8898,8 @@ export interface operations {
                      *       "website": "https://example.invalid",
                      *       "enabled": true,
                      *       "createdAt": "2026-01-01T00:00:00Z",
-                     *       "profileSource": "MirroredDatabase",
-                     *       "nameEditable": false
+                     *       "profileSource": "Local",
+                     *       "nameEditable": true
                      *     }
                      */
                     "text/json": components["schemas"]["CompanyDto"];
@@ -8935,6 +9076,305 @@ export interface operations {
             };
             /** @description The role is the Company's last Admin role. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Company_RemoveMember: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The User was removed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["RemoveMemberResultDto"];
+                    "application/json": components["schemas"]["RemoveMemberResultDto"];
+                    "text/json": components["schemas"]["RemoveMemberResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such User in the caller's Company. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The User is synchronized from WordPress, or is the Company's last Admin. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Company_LinkMemberToWordPress: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Linked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Company_UnlinkMemberFromWordPress: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unlinked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Company_GetInvitations: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pending invitations. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["InvitationDto"][];
+                    "application/json": components["schemas"]["InvitationDto"][];
+                    "text/json": components["schemas"]["InvitationDto"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Company_InviteMember: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["InviteUserRequest"];
+                "text/json": components["schemas"]["InviteUserRequest"];
+                "application/*+json": components["schemas"]["InviteUserRequest"];
+            };
+        };
+        responses: {
+            /** @description The invitation. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["InviteResultDto"];
+                    "application/json": components["schemas"]["InviteResultDto"];
+                    "text/json": components["schemas"]["InviteResultDto"];
+                };
+            };
+            /** @description The address or the role is not acceptable. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The address already belongs to a User. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Company_RevokeInvitation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                invitationId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Withdrawn. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such pending invitation. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9191,49 +9631,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 1,
                  *         "period": 1,
-                 *         "measured": "2026-11-18T00:06:36.924759Z",
+                 *         "measured": "2026-11-18T01:29:22.2672673Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 2,
-                 *         "measured": "2026-11-19T00:06:36.9247623Z",
+                 *         "measured": "2026-11-19T01:29:22.2672938Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 3,
-                 *         "measured": "2026-11-20T00:06:36.9247626Z",
+                 *         "measured": "2026-11-20T01:29:22.2672941Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 4,
-                 *         "measured": "2026-11-21T00:06:36.9247628Z",
+                 *         "measured": "2026-11-21T01:29:22.2672945Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 5,
-                 *         "measured": "2026-11-22T00:06:36.9247629Z",
+                 *         "measured": "2026-11-22T01:29:22.2672947Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 6,
-                 *         "measured": "2026-11-23T00:06:36.9247644Z",
+                 *         "measured": "2026-11-23T01:29:22.2672962Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 1,
-                 *         "measured": "2026-11-18T00:06:36.9247646Z",
+                 *         "measured": "2026-11-18T01:29:22.2672965Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 2,
-                 *         "measured": "2026-11-19T00:06:36.9247648Z",
+                 *         "measured": "2026-11-19T01:29:22.2672968Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -9244,49 +9684,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 1,
                  *         "period": 1,
-                 *         "measured": "2026-11-18T00:06:36.924759Z",
+                 *         "measured": "2026-11-18T01:29:22.2672673Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 2,
-                 *         "measured": "2026-11-19T00:06:36.9247623Z",
+                 *         "measured": "2026-11-19T01:29:22.2672938Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 3,
-                 *         "measured": "2026-11-20T00:06:36.9247626Z",
+                 *         "measured": "2026-11-20T01:29:22.2672941Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 4,
-                 *         "measured": "2026-11-21T00:06:36.9247628Z",
+                 *         "measured": "2026-11-21T01:29:22.2672945Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 5,
-                 *         "measured": "2026-11-22T00:06:36.9247629Z",
+                 *         "measured": "2026-11-22T01:29:22.2672947Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 6,
-                 *         "measured": "2026-11-23T00:06:36.9247644Z",
+                 *         "measured": "2026-11-23T01:29:22.2672962Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 1,
-                 *         "measured": "2026-11-18T00:06:36.9247646Z",
+                 *         "measured": "2026-11-18T01:29:22.2672965Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 2,
-                 *         "measured": "2026-11-19T00:06:36.9247648Z",
+                 *         "measured": "2026-11-19T01:29:22.2672968Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -9297,49 +9737,49 @@ export interface operations {
                  *       {
                  *         "sensorId": 1,
                  *         "period": 1,
-                 *         "measured": "2026-11-18T00:06:36.924759Z",
+                 *         "measured": "2026-11-18T01:29:22.2672673Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 2,
-                 *         "measured": "2026-11-19T00:06:36.9247623Z",
+                 *         "measured": "2026-11-19T01:29:22.2672938Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 3,
-                 *         "measured": "2026-11-20T00:06:36.9247626Z",
+                 *         "measured": "2026-11-20T01:29:22.2672941Z",
                  *         "actual": 3
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 4,
-                 *         "measured": "2026-11-21T00:06:36.9247628Z",
+                 *         "measured": "2026-11-21T01:29:22.2672945Z",
                  *         "actual": 2
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 5,
-                 *         "measured": "2026-11-22T00:06:36.9247629Z",
+                 *         "measured": "2026-11-22T01:29:22.2672947Z",
                  *         "actual": 1
                  *       },
                  *       {
                  *         "sensorId": 1,
                  *         "period": 6,
-                 *         "measured": "2026-11-23T00:06:36.9247644Z",
+                 *         "measured": "2026-11-23T01:29:22.2672962Z",
                  *         "actual": 10
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 1,
-                 *         "measured": "2026-11-18T00:06:36.9247646Z",
+                 *         "measured": "2026-11-18T01:29:22.2672965Z",
                  *         "actual": 55.4
                  *       },
                  *       {
                  *         "sensorId": 2,
                  *         "period": 2,
-                 *         "measured": "2026-11-19T00:06:36.9247648Z",
+                 *         "measured": "2026-11-19T01:29:22.2672968Z",
                  *         "actual": 56.1
                  *       }
                  *     ]
@@ -13770,22 +14210,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-23T21:06:37.0564341Z",
+                 *             "measured": "2026-11-23T22:29:22.5998806Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-23T21:36:37.0564382Z",
+                 *             "measured": "2026-11-23T22:59:22.5999157Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-23T22:06:37.0564384Z",
+                 *             "measured": "2026-11-23T23:29:22.599916Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-23T22:36:37.0564386Z",
+                 *             "measured": "2026-11-23T23:59:22.5999162Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -13796,22 +14236,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-23T23:06:37.0564396Z",
+                 *             "measured": "2026-11-24T00:29:22.5999381Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-23T23:21:37.0564398Z",
+                 *             "measured": "2026-11-24T00:44:22.5999385Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-23T23:36:37.0564411Z",
+                 *             "measured": "2026-11-24T00:59:22.5999396Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-23T23:51:37.0564413Z",
+                 *             "measured": "2026-11-24T01:14:22.5999398Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -13822,12 +14262,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-23T21:06:37.0564416Z",
+                 *             "measured": "2026-11-23T22:29:22.5999402Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-23T21:36:37.0564417Z",
+                 *             "measured": "2026-11-23T22:59:22.5999405Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -13843,22 +14283,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-23T21:06:37.0564341Z",
+                 *             "measured": "2026-11-23T22:29:22.5998806Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-23T21:36:37.0564382Z",
+                 *             "measured": "2026-11-23T22:59:22.5999157Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-23T22:06:37.0564384Z",
+                 *             "measured": "2026-11-23T23:29:22.599916Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-23T22:36:37.0564386Z",
+                 *             "measured": "2026-11-23T23:59:22.5999162Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -13869,22 +14309,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-23T23:06:37.0564396Z",
+                 *             "measured": "2026-11-24T00:29:22.5999381Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-23T23:21:37.0564398Z",
+                 *             "measured": "2026-11-24T00:44:22.5999385Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-23T23:36:37.0564411Z",
+                 *             "measured": "2026-11-24T00:59:22.5999396Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-23T23:51:37.0564413Z",
+                 *             "measured": "2026-11-24T01:14:22.5999398Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -13895,12 +14335,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-23T21:06:37.0564416Z",
+                 *             "measured": "2026-11-23T22:29:22.5999402Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-23T21:36:37.0564417Z",
+                 *             "measured": "2026-11-23T22:59:22.5999405Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -13916,22 +14356,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-23T21:06:37.0564341Z",
+                 *             "measured": "2026-11-23T22:29:22.5998806Z",
                  *             "actual": 200
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-23T21:36:37.0564382Z",
+                 *             "measured": "2026-11-23T22:59:22.5999157Z",
                  *             "actual": 370
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-23T22:06:37.0564384Z",
+                 *             "measured": "2026-11-23T23:29:22.599916Z",
                  *             "actual": 810
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-23T22:36:37.0564386Z",
+                 *             "measured": "2026-11-23T23:59:22.5999162Z",
                  *             "actual": 680
                  *           }
                  *         ]
@@ -13942,22 +14382,22 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-23T23:06:37.0564396Z",
+                 *             "measured": "2026-11-24T00:29:22.5999381Z",
                  *             "actual": 220
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-23T23:21:37.0564398Z",
+                 *             "measured": "2026-11-24T00:44:22.5999385Z",
                  *             "actual": 500
                  *           },
                  *           {
                  *             "period": 3,
-                 *             "measured": "2026-11-23T23:36:37.0564411Z",
+                 *             "measured": "2026-11-24T00:59:22.5999396Z",
                  *             "actual": 970
                  *           },
                  *           {
                  *             "period": 4,
-                 *             "measured": "2026-11-23T23:51:37.0564413Z",
+                 *             "measured": "2026-11-24T01:14:22.5999398Z",
                  *             "actual": 610
                  *           }
                  *         ]
@@ -13968,12 +14408,12 @@ export interface operations {
                  *         "curveData": [
                  *           {
                  *             "period": 1,
-                 *             "measured": "2026-11-23T21:06:37.0564416Z",
+                 *             "measured": "2026-11-23T22:29:22.5999402Z",
                  *             "actual": 12.5
                  *           },
                  *           {
                  *             "period": 2,
-                 *             "measured": "2026-11-23T21:36:37.0564417Z",
+                 *             "measured": "2026-11-23T22:59:22.5999405Z",
                  *             "actual": 13.1
                  *           }
                  *         ]
@@ -14626,13 +15066,6 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The User is locked (synchronized from WordPress). */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
         };
     };
     Platform_RevokeCompanyRole: {
@@ -14679,7 +15112,146 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The User is locked, or is the Company's last Admin. */
+            /** @description The User is the Company's last Admin. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Platform_RemoveCompanyMember: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                companyId: number;
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The User was removed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["RemoveMemberResultDto"];
+                    "application/json": components["schemas"]["RemoveMemberResultDto"];
+                    "text/json": components["schemas"]["RemoveMemberResultDto"];
+                };
+            };
+            /** @description The caller is not the platform administrator. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such User in that Company. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The User is synchronized from WordPress, or is the Company's last Admin. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Platform_LinkCompanyMemberToWordPress: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                companyId: number;
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Linked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The caller is not the platform administrator. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Platform_UnlinkCompanyMemberFromWordPress: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Provide HMAC Key generated with Authentication / Request_HMAC_Key and valid for 15 minutes. */
+                HMAC_Key: string;
+            };
+            path: {
+                companyId: number;
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unlinked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The caller is not the platform administrator. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
             409: {
                 headers: {
                     [name: string]: unknown;

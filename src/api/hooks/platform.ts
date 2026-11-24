@@ -116,3 +116,30 @@ export function useRevokePlatformRole() {
     onSuccess: (_, vars) => invalidatePeople(queryClient, vars.companyId),
   });
 }
+
+export function useRemovePlatformMember() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { companyId: number; userId: number }) =>
+      unwrap(await apiClient.DELETE('/api/Platform/Companies/{companyId}/Members/{userId}', { params: { path: vars } })),
+    onSuccess: (_, vars) => invalidatePeople(queryClient, vars.companyId),
+  });
+}
+
+export function useLinkPlatformMember() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { companyId: number; userId: number }) =>
+      unwrap(await apiClient.POST('/api/Platform/Companies/{companyId}/Members/{userId}/WordPressLink', { params: { path: vars } })),
+    onSuccess: (_, vars) => invalidatePeople(queryClient, vars.companyId),
+  });
+}
+
+export function useUnlinkPlatformMember() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { companyId: number; userId: number }) =>
+      unwrap(await apiClient.DELETE('/api/Platform/Companies/{companyId}/Members/{userId}/WordPressLink', { params: { path: vars } })),
+    onSuccess: (_, vars) => invalidatePeople(queryClient, vars.companyId),
+  });
+}
