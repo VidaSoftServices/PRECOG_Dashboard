@@ -15,7 +15,7 @@ const COMPANIES = [
   { id: 2, name: 'Plant Co', enabled: false, locked: false, userCount: 1, adminCount: 0, createdAt: '2026-01-01T00:00:00Z' },
 ];
 
-const ANNA = { userId: 11, displayName: 'Anna', email: 'anna@example.test', companyId: 1, companyName: 'VidaSoft', companyEnabled: true, companyRoles: ['Admin'], enabled: true, origin: 'Local', createdAt: '2026-01-01T00:00:00Z' };
+const ANNA = { userId: 11, displayName: 'Anna', loginName: 'anna.login', email: 'anna@example.test', companyId: 1, companyName: 'VidaSoft', companyEnabled: true, companyRoles: ['Admin'], enabled: true, origin: 'Local', createdAt: '2026-01-01T00:00:00Z' };
 const BELA = { userId: 12, displayName: 'Béla', email: 'bela@example.test', companyId: 2, companyName: 'Plant Co', companyEnabled: false, companyRoles: [], enabled: false, origin: 'WordPress', createdAt: '2026-01-01T00:00:00Z' };
 
 interface Recorded {
@@ -83,6 +83,28 @@ describe('PlatformUsersPage', () => {
     expect(within(table).getByText('Plant Co')).toBeInTheDocument();
     // Béla comes from WordPress and is disabled; so is his company
     expect(within(table).getAllByText('Disabled').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('shows the user name next to the name, and sorts by the clicked header on the API (the paged list is not sorted in the browser)', async () => {
+    const calls = mockApi();
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('Anna');
+
+    expect(screen.getByText('anna.login')).toBeInTheDocument();
+    const usersCalls = () => calls.filter((c) => c.path === '/api/Platform/Users');
+    expect(usersCalls()[0]!.query).not.toContain('sortBy'); // the default order (by name) needs no parameter
+
+    await user.click(screen.getByRole('button', { name: 'User name' }));
+    await waitFor(() => expect(usersCalls().some((c) => c.query.includes('sortBy=loginName') && !c.query.includes('descending'))).toBe(true));
+    expect(screen.getByRole('columnheader', { name: 'User name' })).toHaveAttribute('aria-sort', 'ascending');
+
+    await user.click(screen.getByRole('button', { name: 'User name' }));
+    await waitFor(() => expect(usersCalls().some((c) => c.query.includes('sortBy=loginName') && c.query.includes('descending=true'))).toBe(true));
+    expect(screen.getByRole('columnheader', { name: 'User name' })).toHaveAttribute('aria-sort', 'descending');
+
+    await user.click(screen.getByRole('button', { name: 'Company' }));
+    await waitFor(() => expect(usersCalls().some((c) => c.query.includes('sortBy=company') && !c.query.includes('descending'))).toBe(true));
   });
 
   it('sends the filters to the API', async () => {

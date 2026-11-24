@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { queryClient } from '@/api/queryClient';
 import { AuthProvider, useAuth } from './AuthContext';
@@ -77,6 +77,6 @@ describe('AuthContext logout', () => {
 
     expect(authStore.getSession()).toBeNull();
     expect(queryClient.getQueryData(['devices'])).toBeUndefined(); // the previous person's cached Devices are gone
-    expect(loadLoginPage).toHaveBeenCalledTimes(1); // a full page load: no module-level or in-tree state survives
+    await waitFor(() => expect(loadLoginPage).toHaveBeenCalledTimes(1)); // after the session is ended on the API: a full page load: no module-level or in-tree state survives
   });
 });

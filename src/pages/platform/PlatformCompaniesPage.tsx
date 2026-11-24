@@ -43,6 +43,9 @@ import { InvitePanel } from '@/components/people/InvitePanel';
 import { MemberActions } from '@/components/people/MemberActions';
 import { useLastAdminConfirm } from '@/components/people/useLastAdminConfirm';
 import { PlatformCompanyProfile } from './PlatformCompanyProfile';
+import { SortHeaderCell } from '@/components/SortHeaderCell';
+import { nextSort, sortRows, type SortState } from '@/lib/tableSort';
+import { PlatformCompanyLogo } from './PlatformCompanyLogo';
 import { DeleteCompanyDialog } from './DeleteCompanyDialog';
 import { WordPressBadge } from '@/components/people/WordPressBadge';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -147,6 +150,15 @@ function CompanyDetail({ company, onDeleted }: { company: PlatformCompany; onDel
   const [confirmEnabled, setConfirmEnabled] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const lastAdmin = useLastAdminConfirm();
+  type MemberColumn = 'name' | 'loginName' | 'email' | 'roles';
+  const [memberSort, setMemberSort] = useState<SortState<MemberColumn>>({ key: null, direction: 'ascending' });
+  const sortMembersBy = (column: MemberColumn) => setMemberSort((s) => nextSort(s, column));
+  const sortedMembers = sortRows(members.data ?? [], memberSort, {
+    name: (m) => m.displayName ?? m.email,
+    loginName: (m) => m.loginName,
+    email: (m) => m.email,
+    roles: (m) => (m.companyRoles ?? []).join(','),
+  });
 
   return (
     <Card className={styles.card}>
@@ -177,14 +189,15 @@ function CompanyDetail({ company, onDeleted }: { company: PlatformCompany; onDel
         <Table aria-label={t('People')} size="small">
           <TableHeader>
             <TableRow>
-              <TableHeaderCell>{t('Name')}</TableHeaderCell>
-              <TableHeaderCell>{t('E-mail address')}</TableHeaderCell>
-              <TableHeaderCell>{t('Roles')}</TableHeaderCell>
+              <SortHeaderCell column="name" sort={memberSort} onSort={sortMembersBy}>{t('Name')}</SortHeaderCell>
+              <SortHeaderCell column="loginName" sort={memberSort} onSort={sortMembersBy}>{t('User name')}</SortHeaderCell>
+              <SortHeaderCell column="email" sort={memberSort} onSort={sortMembersBy}>{t('E-mail address')}</SortHeaderCell>
+              <SortHeaderCell column="roles" sort={memberSort} onSort={sortMembersBy}>{t('Roles')}</SortHeaderCell>
               <TableHeaderCell>{t('Actions')}</TableHeaderCell>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {members.data.map((m) => {
+            {sortedMembers.map((m) => {
               const roles = m.companyRoles ?? [];
               const userId = m.userId ?? 0;
               const name = m.displayName ?? m.email ?? String(userId);
@@ -193,6 +206,7 @@ function CompanyDetail({ company, onDeleted }: { company: PlatformCompany; onDel
                   <TableCell>
                     {name} {m.origin === 'WordPress' && <WordPressBadge />}
                   </TableCell>
+                  <TableCell>{m.loginName}</TableCell>
                   <TableCell>{m.email}</TableCell>
                   <TableCell>
                     {roles.length === 0 ? <Text>{t('No role')}</Text> : roles.map((r) => <Badge key={r} appearance="tint" style={{ marginRight: 4 }}>{r === 'Admin' ? t('Administrator') : t('Reader')}</Badge>)}
@@ -316,6 +330,15 @@ export function PlatformCompaniesPage() {
   const companies = usePlatformCompanies();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
+  type CompanyColumn = 'name' | 'people' | 'admins' | 'state';
+  const [sort, setSort] = useState<SortState<CompanyColumn>>({ key: null, direction: 'ascending' });
+  const sortBy = (column: CompanyColumn) => setSort((s) => nextSort(s, column));
+  const sortedCompanies = sortRows(companies.data ?? [], sort, {
+    name: (c) => c.name,
+    people: (c) => c.userCount,
+    admins: (c) => c.adminCount,
+    state: (c) => c.enabled,
+  });
 
   const selected = companies.data?.find((c) => c.id === selectedId) ?? null;
 
@@ -337,14 +360,14 @@ export function PlatformCompaniesPage() {
         <Table aria-label={t('Companies')} size="small">
           <TableHeader>
             <TableRow>
-              <TableHeaderCell>{t('Company')}</TableHeaderCell>
-              <TableHeaderCell>{t('People')}</TableHeaderCell>
-              <TableHeaderCell>{t('Admins')}</TableHeaderCell>
-              <TableHeaderCell>{t('State')}</TableHeaderCell>
+              <SortHeaderCell column="name" sort={sort} onSort={sortBy}>{t('Company')}</SortHeaderCell>
+              <SortHeaderCell column="people" sort={sort} onSort={sortBy}>{t('People')}</SortHeaderCell>
+              <SortHeaderCell column="admins" sort={sort} onSort={sortBy}>{t('Admins')}</SortHeaderCell>
+              <SortHeaderCell column="state" sort={sort} onSort={sortBy}>{t('State')}</SortHeaderCell>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {companies.data.map((c) => (
+            {sortedCompanies.map((c) => (
               <TableRow
                 key={c.id}
                 className={mergeClasses(styles.clickable, c.id === selectedId && styles.selectedRow)}
@@ -356,6 +379,7 @@ export function PlatformCompaniesPage() {
               >
                 <TableCell>
                   <span className={styles.nameCell}>
+                    <PlatformCompanyLogo company={c} size="list" />
                     {c.name}
                   </span>
                 </TableCell>

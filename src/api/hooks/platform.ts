@@ -194,6 +194,9 @@ export interface PlatformUserFilters {
   enabled: '' | 'true' | 'false';
   skip: number;
   take: number;
+  /** The column the API sorts by (the page is sorted there, not in the browser); '' = by name. */
+  sortBy: '' | 'name' | 'loginName' | 'email' | 'company' | 'state';
+  descending: boolean;
 }
 
 export function usePlatformUsers(filters: PlatformUserFilters) {
@@ -211,6 +214,8 @@ export function usePlatformUsers(filters: PlatformUserFilters) {
               enabled: filters.enabled === '' ? undefined : filters.enabled === 'true',
               skip: filters.skip,
               take: filters.take,
+              sortBy: filters.sortBy || undefined,
+              descending: filters.descending || undefined,
             },
           },
           signal,

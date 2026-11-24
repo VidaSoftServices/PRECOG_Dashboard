@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button, Field, Input, Link, MessageBar, MessageBarBody, Text, makeStyles, tokens } from '@fluentui/react-components';
 import { ArrowUpload16Regular, Delete16Regular, Edit16Regular } from '@fluentui/react-icons';
-import { apiClient } from '@/api/client';
 import {
   useChangePlatformCompanyWebsite,
   useDeletePlatformCompanyLogo,
@@ -9,6 +8,7 @@ import {
   useUploadPlatformCompanyLogo,
   type PlatformCompany,
 } from '@/api/hooks/platform';
+import { PlatformCompanyLogo } from './PlatformCompanyLogo';
 import { useAppToast } from '@/components/ToastProvider';
 import { useT } from '@/lib/language';
 import { isSafeHttpsUrl } from '@/lib/safeExternalUrl';
@@ -17,46 +17,11 @@ const MAX_LOGO_BYTES = 512 * 1024;
 const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
 const useStyles = makeStyles({
-  logo: { height: '48px', maxWidth: '200px', objectFit: 'contain' },
   block: { display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalS },
   row: { display: 'flex', gap: tokens.spacingHorizontalS, flexWrap: 'wrap', alignItems: 'flex-end' },
   grow: { flex: '1 1 260px' },
   hidden: { display: 'none' },
 });
-
-/** The uploaded logo of a Company, fetched with the HMAC header (an image tag cannot send it) and shown from an object URL that is released again. */
-function PlatformCompanyLogo({ company }: { company: PlatformCompany }) {
-  const styles = useStyles();
-  const [url, setUrl] = useState<string | null>(null);
-  const has = company.hasUploadedLogo === true;
-  const version = company.logoUpdatedAt ?? '';
-  const companyId = company.id ?? 0;
-
-  useEffect(() => {
-    if (!has) {
-      setUrl(null);
-      return;
-    }
-    const controller = new AbortController();
-    let objectUrl: string | null = null;
-    apiClient
-      .GET('/api/Platform/Companies/{companyId}/Logo', { params: { path: { companyId } }, parseAs: 'blob', signal: controller.signal })
-      .then((result) => {
-        if (result.data instanceof Blob) {
-          objectUrl = URL.createObjectURL(result.data);
-          setUrl(objectUrl);
-        }
-      })
-      .catch(() => setUrl(null));
-    return () => {
-      controller.abort();
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [has, version, companyId]);
-
-  if (!url) return null;
-  return <img src={url} alt="" className={styles.logo} onError={(e) => { e.currentTarget.style.display = 'none'; }} />;
-}
 
 /** Name, website and logo of a Company, edited by the platform administrator (VSSSysAdmin). */
 export function PlatformCompanyProfile({ company }: { company: PlatformCompany }) {
@@ -102,7 +67,7 @@ export function PlatformCompanyProfile({ company }: { company: PlatformCompany }
   return (
     <div className={styles.block}>
       <div className={styles.row}>
-        <PlatformCompanyLogo company={company} />
+        <PlatformCompanyLogo company={company} size="detail" />
         <input
           ref={fileInput}
           type="file"

@@ -1,17 +1,20 @@
 ---
 name: session-expiry
-description: Session expiry in the Dashboard: on a 401 the access is marked expired, requests fail fast, and SessionExpiredDialog asks for the same user's password over the current page, then refetches failed queries. Use when working on, asking about or changing session expiry, re-authentication, notifyUnauthorized, authStore or SessionExpiredDialog.
+description: Session expiry and staying signed in: the browser session (rotated refresh token in an HttpOnly cookie) renews the 15-minute key before it ends, after a page load and on a 401; SessionExpiredDialog asks for the password only when the session ended; sign-out ends it on the API. Use when working on, asking about or changing session expiry, re-authentication, the refresh / sign-out calls, browserSession, notifyUnauthorized, authStore or SessionExpiredDialog.
 ---
 
-# Session expiry: sign in again in place
+# Session expiry and staying signed in
 
 1. Before answering or changing anything, read the complete description of this feature:
    - c:\VS\PRECOG_Dashboard\docs\features\session-expiry.md (this repository, Dashboard)
-   This feature has a doc only in the Dashboard repository; the API has no doc and no skill for it.
+   - c:\VS\PRECOG_API\docs\features\session-expiry.md (the API: cookie, rotation, limits, endpoints)
    Also respect the general rules in this repository's `CLAUDE.md` (and `AGENTS.md`).
 
 2. Main code files (Dashboard, paths relative to c:\VS\PRECOG_Dashboard):
    - `src/auth/authStore.ts`
+   - `src/auth/browserSession.ts` - refreshSession, endSession
+   - `src/auth/RequireAuth.tsx` - waits while a page load restores the session
+   - `src/lib/staleBuildReload.ts`
    - `src/auth/SessionExpiredDialog.tsx`
    - `src/auth/AuthContext.tsx`
    - `src/api/client.ts`

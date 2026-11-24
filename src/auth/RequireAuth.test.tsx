@@ -29,9 +29,10 @@ describe('RequireAuth', () => {
     vi.unstubAllGlobals();
   });
 
-  it('redirects to /login when there is no session - the replacement for the old dashboard having no route guards at all', () => {
+  it('redirects to /login when there is no session - the replacement for the old dashboard having no route guards at all', async () => {
     renderProtectedApp(['/']);
-    expect(screen.getByText('Login Page')).toBeInTheDocument();
+    // a page load first asks the browser session; with none the sign-in page follows
+    expect(await screen.findByText('Login Page')).toBeInTheDocument();
   });
 
   it('renders the protected route once a session exists', async () => {

@@ -1,8 +1,10 @@
-# Session expiry: sign in again in place
+# Session expiry and staying signed in
 
 What happens when the 15-minute access token expires: `notifyUnauthorized()` marks the access expired instead of signing out, page requests fail fast, `SessionExpiredDialog` asks for the password of the same (read-only) user over the current page, and after a successful sign-in the failed queries are refetched. The token storage and logout rules stay in CLAUDE.md ("Authentication and security").
 
-Related: the API has no doc of its own for this feature (Dashboard-only doc).
+Related: the API side (the cookie, rotation, limits, the Refresh and SignOut endpoints, the schema) is in `c:\VS\PRECOG_API\docs\features\session-expiry.md` (since 2026-11-25).
+
+**Since 2026-11-25 the sections below are partly superseded by "Stay signed in until sign-out" at the end:** a 401 first renews the key from the browser session, and the dialog appears only when that session has ended.
 
 The text below was moved verbatim from `CLAUDE.md` (Dashboard) on 2026-11-19; dates and "superseded" notes are the original ones. Keep this file up to date with every change to the feature.
 
@@ -19,3 +21,22 @@ The access token lives 15 minutes and the API has no refresh endpoint (a new key
 ## Sign out is a full sign-out (2026-11-24)
 
 `logout()` (`AuthContext.tsx`: the user menu's Sign out and the expiry dialog's Sign out) used to clear only the in-memory token. The TanStack Query cache (a module-level singleton), the per-server routing and the selected Device survived, and the login page returned the next person to the page that was open, so signing in as another user often showed the previous user's dashboard. Now `logout()` clears the session, the user name and details, empties the query cache (`queryClient.clear()`) and loads `/login` as a fresh page (`loadLoginPage()`, `src/auth/loadLoginPage.ts`), so no in-memory state of the previous sign-in survives (the token is memory-only anyway, nothing else is lost). Test: `AuthContext.test.tsx` ("AuthContext logout").
+
+## A tab left open across a deploy (2026-11-24)
+
+The page files are loaded lazily, one per route. After a deploy the old files are gone and `serve -s` answers a request for one with index.html (200), so a tab opened before the deploy failed on the first page it had not loaded yet with React Router's "Unexpected Application Error! Failed to fetch dynamically imported module" - which looked like the Dashboard being unreachable, typically right after signing in again in the expiry dialog. Reproduced against the live site in Chromium (a page file answered with index.html). `installStaleBuildReload()` (`src/lib/staleBuildReload.ts`, installed in `main.tsx`) listens for Vite's `vite:preloadError` and loads the page again (the new build); the token is memory-only, so the person signs in again. At most one reload per 30 s (the time of the last try in sessionStorage, nothing auth-related), so a file that is really missing shows its error instead of a reload loop. Test: `staleBuildReload.test.ts`; checked with the local build in Chromium (mocked API): the failed page file reloads the page, sign-in works, no error page.
+
+## Stay signed in until sign-out (2026-11-25)
+
+The user's decision: no sign-out every 15 minutes, only on Sign out - with a rotated refresh token in an HttpOnly cookie (the option recommended to them; the alternatives were a sliding key in a response header or a longer key lifetime). The API part is in the API's `session-expiry.md`.
+
+- **Sign-in** (`AuthContext.login`) sends `startSession: true` with `credentials: 'include'`: the API sets the `precog_session` cookie (HttpOnly, Secure, SameSite=Strict, path /api/Authentication). This code never sees the token - only the browser keeps it. The 15-minute key stays in memory (`authStore`) as before.
+- **Renewal** (`src/auth/browserSession.ts`): `refreshSession()` = `POST /api/Authentication/Refresh` with `credentials: 'include'` and the `X-Precog-Session` header, around `apiClient` on purpose (its 401 only means "no session" and must not mark the access expired; no HMAC_Key travels). Concurrent calls of one tab share one request. It runs
+  - a minute before the key ends (`REFRESH_AHEAD_MS`; a background tab may run the timer late - then the 401 path renews it),
+  - on a **page load** with no key in memory: `RequireAuth` shows "Signing in…" (`restoring`) instead of the sign-in form, and a valid session signs in without the password (the user name for the dialog comes back with the key). A reload, the deploy reload (`staleBuildReload`) and a new tab therefore stay signed in;
+  - on a **401** (`authStore.onUnauthorized`): while it runs the dialog stays closed (`sessionExpired = reauthRequired && !recovering`); on success the failed queries are refetched with the new key, no dialog.
+- **The dialog** (`SessionExpiredDialog`) appears only when the renewal is refused: signed out in another tab, 7 days after the sign-in, 8 hours unused (a closed browser - an open Dashboard renews every ~14 minutes, so a wall screen stays signed in), the account disabled or deleted, a new password, or a disabled Company.
+- **Sign-out** (`logout`): `endSession()` = `POST /api/Authentication/SignOut` (revokes the session on the API and removes the cookie; gives up after 4 s) before the full page load of /login, so the next page load does not sign the previous person in again.
+- **Several tabs** share the cookie: each renews on its own timer; the API accepts the token that was just rotated for 30 s, so two tabs renewing at the same moment do not end the session.
+- **Before the API's schema script is run** the API answers Refresh with 401 and sets no cookie: the Dashboard then behaves as before (the dialog after 15 minutes, sign-in after a reload).
+- Tests: `browserSession.test.tsx` (a page load with a session signs in without the password - credentials and header sent, no key; without one the sign-in page follows and the sign-in asks for a session; a 401 is renewed silently and the request repeated with the new key, no dialog; a refused renewal opens the dialog; the key is renewed a minute before its end; sign-out calls SignOut with credentials before the page load), `RequireAuth.test.tsx`, `AuthContext.test.tsx`. Checked in Chromium against a local API on a throw-away database (see the API doc): cookie HttpOnly / Secure / Strict and invisible to `document.cookie`, reloads stayed signed in, sign-out removed the cookie and the next load showed the sign-in form.

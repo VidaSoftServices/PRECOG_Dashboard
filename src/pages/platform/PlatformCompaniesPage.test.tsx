@@ -10,13 +10,13 @@ import { setLanguage } from '@/lib/language';
 import { fetchMock } from '@/test/mockFetch';
 
 const COMPANIES = [
-  { id: 1, name: 'VidaSoft', enabled: true, locked: false, userCount: 6, adminCount: 3, createdAt: '2026-01-01T00:00:00Z' },
+  { id: 1, name: 'VidaSoft', enabled: true, locked: false, userCount: 6, adminCount: 3, createdAt: '2026-01-01T00:00:00Z', hasUploadedLogo: true, logoUpdatedAt: '2026-11-20T08:00:00Z' },
   { id: 2, name: 'Synced Co', enabled: true, locked: true, userCount: 1, adminCount: 1, createdAt: '2026-01-01T00:00:00Z' },
   { id: 3, name: 'New Co', enabled: true, locked: false, userCount: 0, adminCount: 0, createdAt: '2026-01-01T00:00:00Z' },
 ];
 const MEMBERS = [
-  { userId: 7, displayName: 'Anna Admin', email: 'anna@example.test', enabled: true, companyRoles: ['Admin'] },
-  { userId: 8, displayName: 'Rita Reader', email: 'rita@example.test', enabled: true, companyRoles: ['Reader'] },
+  { userId: 7, displayName: 'Anna Admin', loginName: 'zed.anna', email: 'anna@example.test', enabled: true, companyRoles: ['Admin'] },
+  { userId: 8, displayName: 'Rita Reader', loginName: 'rita.login', email: 'rita@example.test', enabled: true, companyRoles: ['Reader'] },
 ];
 const INVITATIONS = [{ id: 31, email: 'pending@example.test', roleName: 'Reader', language: 'en', createdAt: '2026-11-20T10:00:00Z', expiresAt: '2026-11-27T10:00:00Z' }];
 
@@ -40,6 +40,8 @@ function mockApi(overrides: Record<string, { status: number; body?: unknown }> =
     if (!answer) {
       if (key === 'GET /api/Platform/Companies') answer = { status: 200, body: COMPANIES };
       else if (key === 'POST /api/Platform/Companies') answer = { status: 201, body: { ...COMPANIES[2], id: 4, name: 'Created Co' } };
+      else if (/GET \/api\/Platform\/Companies\/\d+\/Logo$/.test(key))
+        return new Response(new Blob(['png'], { type: 'image/png' }), { status: 200, headers: { 'content-type': 'image/png' } });
       else if (/GET \/api\/Platform\/Companies\/\d+\/Members$/.test(key)) answer = { status: 200, body: MEMBERS };
       else if (/GET \/api\/Platform\/Companies\/\d+\/Invitations$/.test(key)) answer = { status: 200, body: INVITATIONS };
       else if (/POST \/api\/Platform\/Companies\/\d+\/Invitations$/.test(key))
@@ -70,7 +72,11 @@ function renderPage() {
   );
 }
 
-beforeEach(() => setLanguage('en'));
+beforeEach(() => {
+  setLanguage('en');
+  URL.createObjectURL = () => 'blob:logo';
+  URL.revokeObjectURL = () => undefined;
+});
 
 describe('PlatformCompaniesPage', () => {
   it('lists the companies with their counts, marks the synchronized one and a company without an Admin', async () => {
@@ -81,6 +87,52 @@ describe('PlatformCompaniesPage', () => {
     expect(screen.getByText('Synced Co')).toBeInTheDocument();
     expect(screen.getByText('No Admin yet')).toBeInTheDocument();
     expect(screen.getByText('Select a company to see its people and invitations.')).toBeInTheDocument();
+  });
+
+  it('shows the uploaded logo of a company in the list, and asks for no logo of a company without one', async () => {
+    const calls = mockApi();
+    const { container } = renderPage();
+
+    await screen.findByText('VidaSoft');
+    await waitFor(() => expect(container.querySelectorAll('img')).toHaveLength(1));
+    expect(container.querySelector('img')).toHaveAttribute('src', 'blob:logo');
+    const logoCalls = calls.filter((c) => c.path.endsWith('/Logo'));
+    expect(logoCalls.map((c) => c.path)).toEqual(['/api/Platform/Companies/1/Logo']);
+    expect(logoCalls[0]?.hasKey).toBe(true);
+  });
+
+  it('sorts the companies by the clicked header (names, counts, state), the opposite way on a second click', async () => {
+    mockApi();
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('VidaSoft');
+    const names = () => within(screen.getAllByRole('table')[0]!).getAllByRole('row').slice(1).map((r) => within(r).getAllByRole('cell')[0]!.textContent);
+
+    expect(names()).toEqual(['VidaSoft', 'Synced Co', 'New Co']); // the order the API sent
+    await user.click(screen.getByRole('button', { name: 'Company' }));
+    expect(names()).toEqual(['New Co', 'Synced Co', 'VidaSoft']);
+    await user.click(screen.getByRole('button', { name: 'Company' }));
+    expect(names()).toEqual(['VidaSoft', 'Synced Co', 'New Co']);
+    await user.click(screen.getByRole('button', { name: 'People' }));
+    expect(names()).toEqual(['New Co', 'Synced Co', 'VidaSoft']); // 0, 1, 6 people
+    await user.click(screen.getByRole('button', { name: 'Admins' }));
+    expect(names()).toEqual(['New Co', 'Synced Co', 'VidaSoft']); // 0, 1, 3 admins
+    expect(screen.getByRole('columnheader', { name: 'Admins' })).toHaveAttribute('aria-sort', 'ascending');
+  });
+
+  it('shows the user name of a company member, and sorts the members by the clicked header', async () => {
+    mockApi();
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByText('VidaSoft'));
+    expect(await screen.findByText('zed.anna')).toBeInTheDocument();
+    const people = () => within(screen.getByRole('table', { name: 'People' })).getAllByRole('row').slice(1).map((r) => within(r).getAllByRole('cell')[0]!.textContent?.trim());
+
+    expect(people()).toEqual(['Anna Admin', 'Rita Reader']);
+    await user.click(screen.getByRole('button', { name: 'User name' }));
+    expect(people()).toEqual(['Rita Reader', 'Anna Admin']); // rita.login before zed.anna
+    await user.click(screen.getByRole('button', { name: 'User name' }));
+    expect(people()).toEqual(['Anna Admin', 'Rita Reader']);
   });
 
   it('creates a company with the trimmed name and an optional website', async () => {

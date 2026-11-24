@@ -69,7 +69,7 @@ The complete description of a feature is in `docs/features/<slug>.md`; read it (
 | Platform administrator, invitations and password reset | The env-configured platform account (VSSSysAdmin): creating Companies, the Company profile (name / website / logo), the People page (move, disable, remove), a disabled Company stopping its people, the last-Admin question, inviting the first Admin by e-mail, single-use invitation and password-reset links, the last-Admin rule, the e-mail and Dashboard address settings. | `docs/features/platform-admin.md` | `/platform-admin` |
 | The Company's servers: registry and Device id ranges | The platform administrator's Servers section (add by IP address or DNS name, edit, delete a server: address, port, TLS, reserved Device id range; VSSSysAdmin only, the Company sees a read-only Servers tab) and the Server selector / name on the Device page; the API prevents two servers of one Company creating the same Device id; a Device's requests go to its own server (same token on every server); master / replica (`Server__Role`, S10), the server choice for a new Device and the replication of the identity from the master to a replica every 60 s with the replication key and "Sync now" (S11). | `docs/features/company-servers.md` | `/company-servers` |
 | DevicePrincipal ids next to the Secret | The DevicePrincipal page shows the Principal ID and Device ID (copyable, not secret) permanently and next to the one-time Secret. | `docs/features/device-principal.md` | `/device-principal` |
-| Session expiry: sign in again in place | A 401 never throws the user out: the access is marked expired and a dialog asks for the password over the current page, then failed queries are refetched. | `docs/features/session-expiry.md` | `/session-expiry` |
+| Session expiry and staying signed in | Stay signed in until sign-out: the 15-minute key is renewed from a rotated refresh token in an HttpOnly cookie (also after a page load); only when that session has ended does a dialog ask for the password over the current page. | `docs/features/session-expiry.md` | `/session-expiry` |
 
 API-only features (doc and skill only in c:\VS\PRECOG_API): `recalculation` (Recalculation and catch-up), `telemetry-ingestion` (Signal ingestion and the derived Period), `device-heartbeat` (Device activity and liveness (HeartBeat)), `issue-email` (Issue e-mail notifications).
 
@@ -549,25 +549,30 @@ client-supplied Period.
 - Human sign-in: `POST /api/Authentication/Request_HMAC_Key`. The response
   (`{_HMAC_Key}`) has no schema in the live OpenAPI document (prose only) —
   `domainTypes.ts`'s `HmacKeyResponse` is hand-typed from source.
-- **Token storage decision**: memory-only, in `authStore.ts`'s closure.
-  Never localStorage/sessionStorage/a cookie. A page refresh always requires
-  re-authentication — a deliberate carry-over from the old dashboard's one
-  correct security property.
+- **Token storage decision**: the 15-minute access key is memory-only, in
+  `authStore.ts`'s closure - never localStorage/sessionStorage/a readable
+  cookie. **Staying signed in (2026-11-25)**: the sign-in also starts a
+  browser session on the API - a rotated refresh token in an HttpOnly,
+  Secure, SameSite=Strict cookie (`precog_session`, path /api/Authentication)
+  that this code can neither read nor write (`credentials: 'include'` only);
+  the key is renewed from it before it ends, after a page load and on a 401.
+  See `docs/features/session-expiry.md` (both repositories).
 - **Token expiry**: the API doesn't return an expiry in the login response,
   so the frontend assumes the documented 900s default for UI purposes
   (`ASSUMED_TOKEN_LIFETIME_SECONDS` in `AuthContext.tsx`) while the *actual*
   enforcement is entirely server-side, caught by the global 401 handler.
-- **No silent reauthentication loop.** The old dashboard held the plaintext
-  password resident in React state for the whole session specifically to
-  support a 14m30s auto-refresh `setInterval`. This dashboard does not do
-  that, anywhere. A 401 from any call, on any page, does **not** sign the
-  user out and does not redirect: `notifyUnauthorized` marks the access as
-  expired (`isReauthRequired`) and `SessionExpiredDialog` asks for the password
-  again **over the current page** (see "Session expiry: sign in again in
-  place" below). Signing out (or closing the tab) is what ends the session.
-- **Logout**: clears the in-memory session; nothing to invalidate
-  server-side beyond the token's own natural expiry (there's no logout/
-  revoke-token endpoint).
+- **No password kept for a silent re-sign-in.** The old dashboard held the
+  plaintext password resident in React state for the whole session to
+  support a 14m30s auto-refresh `setInterval`. This dashboard never does
+  that: the renewal uses only the HttpOnly session cookie. A 401 first tries
+  that renewal; only when the session has ended (sign-out, 7 days, 8 hours
+  unused, disabled account, new password) does `SessionExpiredDialog` ask for
+  the password **over the current page**. Sign-out ends the session on the
+  API (`POST /api/Authentication/SignOut`) before the fresh page load.
+- **Logout**: revokes the browser session on the API (the refresh token
+  cannot be used again), clears the in-memory key and the query cache and
+  loads /login afresh; the 15-minute key already handed out expires on its own
+  (there is no key revocation).
 - **One-time Device Secret**: see "Security rules" in `AGENTS.md` — held
   only in `DevicePrincipalPage.tsx`'s local dialog state, copy button +
   persistent warning, discarded on close.

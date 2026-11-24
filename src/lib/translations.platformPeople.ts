@@ -7,6 +7,8 @@ export const HU_PLATFORM_PEOPLE: Record<string, string> = {
   'Every person of every company. Only the platform administrator can change a person\'s company.': 'Minden cég minden embere. Egy ember cégét csak a platform adminisztrátor változtathatja.',
   Search: 'Keresés',
   'Name or e-mail address': 'Név vagy e-mail-cím',
+  'Name, user name or e-mail address': 'Név, felhasználónév vagy e-mail-cím',
+  'User name': 'Felhasználónév',
   'All companies': 'Minden cég',
   'Any role': 'Bármely szerepkör',
   'Any state': 'Bármely állapot',

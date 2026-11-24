@@ -38,6 +38,8 @@ import { PageHeader } from '@/components/PageHeader';
 import { useAppToast } from '@/components/ToastProvider';
 import { WordPressBadge } from '@/components/people/WordPressBadge';
 import { useLastAdminConfirm } from '@/components/people/useLastAdminConfirm';
+import { SortHeaderCell } from '@/components/SortHeaderCell';
+import { nextSort, type SortState } from '@/lib/tableSort';
 import { EmptyState } from '@/components/states/EmptyState';
 import { ErrorState } from '@/components/states/ErrorState';
 import { LoadingState } from '@/components/states/LoadingState';
@@ -54,7 +56,7 @@ const useStyles = makeStyles({
   roles: { display: 'flex', gap: tokens.spacingHorizontalXS, flexWrap: 'wrap' },
 });
 
-const INITIAL: PlatformUserFilters = { search: '', companyId: null, role: '', enabled: '', skip: 0, take: PAGE_SIZE };
+const INITIAL: PlatformUserFilters = { search: '', companyId: null, role: '', enabled: '', skip: 0, take: PAGE_SIZE, sortBy: '', descending: false };
 
 /** The API's refusals are English texts; the ones this page can meet are translated here. */
 function RefusalBar({ error }: { error: unknown }) {
@@ -162,6 +164,13 @@ export function PlatformUsersPage() {
   const total = users.data?.total ?? 0;
   const items = users.data?.items ?? [];
   const nameOf = (u: PlatformUser) => u.displayName ?? u.email ?? String(u.userId);
+  // The list is paged by the API, so the API sorts it (every page is a slice of the same order); the unsorted list is the name order.
+  type Column = 'name' | 'loginName' | 'email' | 'company' | 'state';
+  const sort: SortState<Column> = { key: (filters.sortBy || 'name') as Column, direction: filters.descending ? 'descending' : 'ascending' };
+  const sortBy = (column: Column) => {
+    const next = nextSort(sort, column);
+    set({ sortBy: column, descending: next.direction === 'descending' });
+  };
 
   return (
     <div className={styles.page}>
@@ -169,7 +178,7 @@ export function PlatformUsersPage() {
 
       <div className={styles.filters}>
         <Field label={t('Search')} className={styles.grow}>
-          <Input value={filters.search} onChange={(_, d) => set({ search: d.value })} placeholder={t('Name or e-mail address')} />
+          <Input value={filters.search} onChange={(_, d) => set({ search: d.value })} placeholder={t('Name, user name or e-mail address')} />
         </Field>
         <Field label={t('Company')}>
           <Select value={filters.companyId === null ? '' : String(filters.companyId)} onChange={(_, d) => set({ companyId: d.value === '' ? null : Number(d.value) })}>
@@ -205,11 +214,12 @@ export function PlatformUsersPage() {
         <Table aria-label={t('People')} size="small">
           <TableHeader>
             <TableRow>
-              <TableHeaderCell>{t('Name')}</TableHeaderCell>
-              <TableHeaderCell>{t('E-mail address')}</TableHeaderCell>
-              <TableHeaderCell>{t('Company')}</TableHeaderCell>
+              <SortHeaderCell column="name" sort={sort} onSort={sortBy}>{t('Name')}</SortHeaderCell>
+              <SortHeaderCell column="loginName" sort={sort} onSort={sortBy}>{t('User name')}</SortHeaderCell>
+              <SortHeaderCell column="email" sort={sort} onSort={sortBy}>{t('E-mail address')}</SortHeaderCell>
+              <SortHeaderCell column="company" sort={sort} onSort={sortBy}>{t('Company')}</SortHeaderCell>
               <TableHeaderCell>{t('Roles')}</TableHeaderCell>
-              <TableHeaderCell>{t('State')}</TableHeaderCell>
+              <SortHeaderCell column="state" sort={sort} onSort={sortBy}>{t('State')}</SortHeaderCell>
               <TableHeaderCell>{t('Actions')}</TableHeaderCell>
             </TableRow>
           </TableHeader>
@@ -221,6 +231,7 @@ export function PlatformUsersPage() {
                   <TableCell>
                     {nameOf(u)} {u.origin === 'WordPress' && <WordPressBadge />}
                   </TableCell>
+                  <TableCell>{u.loginName}</TableCell>
                   <TableCell>{u.email}</TableCell>
                   <TableCell>
                     {u.companyId == null ? (
