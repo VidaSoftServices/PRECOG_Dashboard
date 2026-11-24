@@ -7,6 +7,11 @@ export const queryKeys = {
   readerGrants: (userId: number) => ['company', 'readers', userId, 'devices'] as const,
   readerEffectiveAccess: (userId: number) => ['company', 'readers', userId, 'effectiveAccess'] as const,
 
+  // The platform administrator's (VSSSysAdmin) views: Companies, the people of one, its pending invitations.
+  platformCompanies: ['platform', 'companies'] as const,
+  platformMembers: (companyId: number) => ['platform', 'companies', companyId, 'members'] as const,
+  platformInvitations: (companyId: number) => ['platform', 'companies', companyId, 'invitations'] as const,
+
   sensorMetadata: ['sensorMetadata'] as const,
   sensorTypes: ['sensorTypes'] as const,
   // Admin-only logs; the filters are part of the key, so each filter set has its own paged list.

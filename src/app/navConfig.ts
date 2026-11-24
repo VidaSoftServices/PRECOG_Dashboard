@@ -13,6 +13,7 @@ import {
   Settings24Regular,
   HeartPulse24Regular,
   TextBulletListSquare24Regular,
+  Building24Regular,
 } from '@fluentui/react-icons';
 
 export interface NavEntry {
@@ -21,10 +22,13 @@ export interface NavEntry {
   icon: FluentIcon;
   /** true = Admin only, false = Admin + Reader, per the role model in the modernization audit. */
   adminOnly: boolean;
+  /** true = only the platform administrator (VSSSysAdmin) sees this entry - and it sees no other: it has no Company data to look at. */
+  platformOnly?: boolean;
 }
 
 /** Single source of truth for both the NavDrawer and the top-level route table, so they can't drift apart. */
 export const navEntries: NavEntry[] = [
+  { path: '/platform/companies', label: 'Companies', icon: Building24Regular, adminOnly: false, platformOnly: true },
   { path: '/', label: 'Overview', icon: Home24Regular, adminOnly: false },
   { path: '/devices', label: 'Devices', icon: DeviceMeetingRoom24Regular, adminOnly: false },
   { path: '/monitoring', label: 'Live Monitoring', icon: PulseSquare24Regular, adminOnly: false },
@@ -39,3 +43,11 @@ export const navEntries: NavEntry[] = [
   { path: '/admin/logs', label: 'Logs', icon: TextBulletListSquare24Regular, adminOnly: true },
   { path: '/status', label: 'System Status', icon: HeartPulse24Regular, adminOnly: false },
 ];
+
+/**
+ * What a person sees in the navigation: the platform administrator (VSSSysAdmin) has no Company data to look at, so it sees only the platform entries;
+ * everyone else never sees those, and sees the Admin-only entries only as a Company Admin.
+ */
+export function visibleNavEntries(isPlatformAdmin: boolean, isAdmin: boolean): NavEntry[] {
+  return navEntries.filter((entry) => (isPlatformAdmin ? entry.platformOnly === true : !entry.platformOnly && (!entry.adminOnly || isAdmin)));
+}

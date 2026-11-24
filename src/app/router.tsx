@@ -2,11 +2,26 @@ import { createBrowserRouter } from 'react-router-dom';
 import { AppShell } from './AppShell';
 import { RequireAuth } from '@/auth/RequireAuth';
 import { RequireAdmin } from '@/auth/RequireAdmin';
+import { RequirePlatformAdmin } from '@/auth/RequirePlatformAdmin';
 
 export const router = createBrowserRouter([
   {
     path: '/login',
     lazy: () => import('@/pages/LoginPage').then((m) => ({ Component: m.LoginPage })),
+  },
+  // The pages behind the links of the invitation / password-reset e-mails: no session exists yet, the single-use token of the link (in the URL
+  // fragment) is the credential.
+  {
+    path: '/accept-invite',
+    lazy: () => import('@/pages/account/AcceptInvitationPage').then((m) => ({ Component: m.AcceptInvitationPage })),
+  },
+  {
+    path: '/forgot-password',
+    lazy: () => import('@/pages/account/ForgotPasswordPage').then((m) => ({ Component: m.ForgotPasswordPage })),
+  },
+  {
+    path: '/reset-password',
+    lazy: () => import('@/pages/account/ResetPasswordPage').then((m) => ({ Component: m.ResetPasswordPage })),
   },
   {
     element: <RequireAuth />,
@@ -89,6 +104,16 @@ export const router = createBrowserRouter([
           {
             path: 'ollama-jobs',
             lazy: () => import('@/pages/ollama/OllamaJobsPage').then((m) => ({ Component: m.OllamaJobsPage })),
+          },
+          {
+            path: 'platform/companies',
+            element: <RequirePlatformAdmin />,
+            children: [
+              {
+                index: true,
+                lazy: () => import('@/pages/platform/PlatformCompaniesPage').then((m) => ({ Component: m.PlatformCompaniesPage })),
+              },
+            ],
           },
           {
             path: 'admin/readers',

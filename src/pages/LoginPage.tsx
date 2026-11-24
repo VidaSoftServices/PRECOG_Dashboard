@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import {
   Button,
   Field,
@@ -73,7 +73,7 @@ export function LoginPage() {
         <Text align="center" style={{ color: tokens.colorNeutralForeground3 }}>
           {t('Predictive Industrial Sentinel AI')}</Text>
         <form className={styles.form} onSubmit={handleSubmit}>
-          <Field label={t('Username')} required>
+          <Field label={t('Username or e-mail address')} required>
             <Input
               value={userName}
               onChange={(_, data) => setUserName(data.value)}
@@ -98,6 +98,9 @@ export function LoginPage() {
           <Button type="submit" appearance="primary" disabled={loginPending || !userName || !password}>
             {loginPending ? t('Signing in…') : t('Sign in')}
           </Button>
+          <Text align="center">
+            <Link to="/forgot-password">{t('Forgot your password?')}</Link>
+          </Text>
         </form>
       </Card>
     </div>

@@ -22,6 +22,8 @@ const ASSUMED_TOKEN_LIFETIME_SECONDS = 900;
 interface AuthContextValue {
   isAuthenticated: boolean;
   isAdmin: boolean;
+  /** The platform administrator (VSSSysAdmin): no Company, it only creates Companies, invites their first Admin and grants or revokes roles. */
+  isPlatformAdmin: boolean;
   /** False only once userDetails has actually loaded and confirmed no authorized Company - never true-by-default during the initial fetch, so a Company-having User never sees a false flash of the no-Company state. */
   hasAuthorizedCompany: boolean;
   userDetails: CurrentUser | null;
@@ -93,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       isAuthenticated: session !== null,
       isAdmin: userDetails?.isCompanyAdmin ?? false,
+      isPlatformAdmin: userDetails?.isPlatformAdmin ?? false,
       // true (not false) while userDetails is still loading, so a normal
       // Company-having User never sees a flash of the no-Company state -
       // only an actually-confirmed false response ever gates it off.

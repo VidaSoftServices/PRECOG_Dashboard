@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { SelectedDeviceProvider } from './SelectedDeviceProvider';
 import { SessionExpiredDialog } from '@/auth/SessionExpiredDialog';
 import {
@@ -34,7 +34,7 @@ import {
   DesktopFlow24Regular,
   ArrowExit20Regular,
 } from '@fluentui/react-icons';
-import { navEntries } from './navConfig';
+import { navEntries, visibleNavEntries } from './navConfig';
 import { useAuth } from '@/auth/AuthContext';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { LANGUAGES, useLanguage, useT } from '@/lib/language';
@@ -211,12 +211,13 @@ export function AppShell() {
     if (isCompact && !wasCompact.current) setDrawerOpen(false);
     wasCompact.current = isCompact;
   }, [isCompact]);
-  const { isAdmin, hasAuthorizedCompany, userDetails, logout } = useAuth();
+  const { isAdmin, isPlatformAdmin, hasAuthorizedCompany, userDetails, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const crumbs = useCrumbs();
 
-  const visibleEntries = navEntries.filter((entry) => !entry.adminOnly || isAdmin);
+  // The platform administrator (VSSSysAdmin) has no Company data to look at: it sees only its own entry; everyone else never sees that one.
+  const visibleEntries = visibleNavEntries(isPlatformAdmin, isAdmin);
 
   return (
     <div className={styles.shell}>
@@ -231,7 +232,12 @@ export function AppShell() {
             <img src={precogLogo} alt="" className={styles.logo} />
             <div>
               <Text weight="semibold">PRECOG</Text>
-              {hasAuthorizedCompany && userDetails?.companyName && (
+              {isPlatformAdmin && (
+                <Text size={200} className={styles.companyName}>
+                  {userDetails?.displayName}
+                </Text>
+              )}
+              {!isPlatformAdmin && hasAuthorizedCompany && userDetails?.companyName && (
                 <Text size={200} className={styles.companyName}>
                   {userDetails.companyName}
                 </Text>
@@ -309,7 +315,16 @@ export function AppShell() {
         </div>
 
         <main className={styles.content}>
-          <SelectedDeviceProvider>{hasAuthorizedCompany ? <Outlet /> : <NoCompanyState />}</SelectedDeviceProvider>
+          <SelectedDeviceProvider>
+            {isPlatformAdmin ? (
+              // Only the platform pages: anywhere else the platform account would meet a Company-less state it has no use for.
+              location.pathname.startsWith('/platform') ? <Outlet /> : <Navigate to="/platform/companies" replace />
+            ) : hasAuthorizedCompany ? (
+              <Outlet />
+            ) : (
+              <NoCompanyState />
+            )}
+          </SelectedDeviceProvider>
           <SessionExpiredDialog />
         </main>
       </div>
