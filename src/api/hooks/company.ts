@@ -178,3 +178,40 @@ export function useUnlinkMemberFromWordPress() {
     onSuccess: () => invalidateMembership(queryClient),
   });
 }
+
+/** The Company website (an http(s) address; blank removes it). The API returns the updated Company. */
+export function useUpdateCompanyWebsite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (website: string) => unwrap(await apiClient.PUT('/api/Company/Website', { body: { website } })),
+    onSuccess: (updated) => queryClient.setQueryData(queryKeys.company, updated),
+  });
+}
+
+/** Uploads the Company logo (multipart, one `file` field). The API checks the CONTENT (PNG, JPEG or WebP, at most 512 KB), not the file name. */
+export function useUploadCompanyLogo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (file: File) =>
+      unwrap(
+        await apiClient.PUT('/api/Company/Logo', {
+          // The generated body type is the file field itself; the real body is the multipart form below (the browser sets the boundary).
+          body: { file: file as unknown as string },
+          bodySerializer: () => {
+            const form = new FormData();
+            form.append('file', file);
+            return form;
+          },
+        }),
+      ),
+    onSuccess: (updated) => queryClient.setQueryData(queryKeys.company, updated),
+  });
+}
+
+export function useDeleteCompanyLogo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => unwrap(await apiClient.DELETE('/api/Company/Logo')),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.company }),
+  });
+}

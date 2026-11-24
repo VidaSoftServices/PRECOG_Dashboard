@@ -35,6 +35,7 @@ import {
   type DeviceGroupDto,
 } from '@/api/hooks/referenceData';
 import { useCompany, useUpdateCompanyName } from '@/api/hooks/company';
+import { CompanyBranding, CompanyLogoView } from './CompanyBranding';
 import { useDevices } from '@/api/hooks/devices';
 import { isSafeHttpsUrl } from '@/lib/safeExternalUrl';
 import { activateProps } from '@/lib/useActivateProps';
@@ -76,30 +77,11 @@ function CompanyProfileTab() {
   return (
     <Card className={styles.card} style={{ maxWidth: '560px' }}>
       <div className={styles.profileHeader}>
-        {isSafeHttpsUrl(company.logo) && (
-          // Untrusted external image (see CLAUDE.md's Company-profile rules) - hide silently on load failure rather than showing a broken-image icon.
-          <img
-            src={company.logo}
-            alt=""
-            className={styles.logo}
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-            }}
-          />
-        )}
+        <CompanyLogoView company={company} />
         <div>
           <Body1Strong>{company.name}</Body1Strong>
         </div>
       </div>
-
-      {company.website &&
-        (isSafeHttpsUrl(company.website) ? (
-          <Link href={company.website} target="_blank" rel="noopener noreferrer">
-            {company.website}
-          </Link>
-        ) : (
-          <Text size={200}>{company.website}</Text>
-        ))}
 
       {editingName ? (
         <div className={styles.toolbar}>
@@ -125,6 +107,17 @@ function CompanyProfileTab() {
         </MessageBar>
       )}
       {updateName.isError && <ErrorState error={updateName.error} />}
+      {company.nameEditable ? (
+        <CompanyBranding company={company} />
+      ) : (
+        company.website && (isSafeHttpsUrl(company.website) ? (
+          <Link href={company.website} target="_blank" rel="noopener noreferrer">
+            {company.website}
+          </Link>
+        ) : (
+          <Text size={200}>{company.website}</Text>
+        ))
+      )}
     </Card>
   );
 }
