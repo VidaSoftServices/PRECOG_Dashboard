@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiClient, unwrap } from '@/api/client';
+import { ApiError, apiClient, unwrap } from '@/api/client';
+import { baseUrlForDevice, baseUrlForHint } from '@/api/deviceRouting';
 import { queryKeys } from '@/api/queryKeys';
 import type { components } from '@/api/schema.generated';
 
@@ -36,8 +37,15 @@ export function useIssues(deviceId: number | undefined, options?: { includeMembe
 export function useIssue(issueId: number | undefined) {
   return useQuery({
     queryKey: queryKeys.issue(issueId ?? -1),
-    queryFn: async ({ signal }) =>
-      unwrap(await apiClient.GET('/api/Issue/{issueId}', { params: { path: { issueId: issueId! } }, signal })),
+    queryFn: async ({ signal }) => {
+      const issue = unwrap(await apiClient.GET('/api/Issue/{issueId}', { params: { path: { issueId: issueId! } }, signal }));
+      // An Issue id is only unique within one server. This request went to the server of the selected Device; if the Issue belongs
+      // to a Device on another server, what came back may be a different Issue that merely has the same id - never show it.
+      if (baseUrlForDevice(issue.deviceId) !== baseUrlForHint()) {
+        throw new ApiError({ status: 409, message: "This Issue belongs to a Device on another server. Open it from that Device's Issue list.", raw: null });
+      }
+      return issue;
+    },
     enabled: issueId !== undefined,
   });
 }

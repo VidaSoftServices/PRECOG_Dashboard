@@ -5,7 +5,8 @@
 // other than local Docker).
 import createClient, { type Middleware } from 'openapi-fetch';
 import type { AuthPatchedPaths } from './authHeaderPatch';
-import { getToken, isReauthRequired, notifyUnauthorized } from '@/auth/authStore';
+import { getToken, isExpired, isReauthRequired, notifyUnauthorized } from '@/auth/authStore';
+import { getHomeBaseUrl, reroute, routeBaseUrlFor } from './deviceRouting';
 import { normalizeApiError, type NormalizedApiError } from './errors';
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL as string | undefined;
@@ -63,6 +64,27 @@ export function isAbort(error: unknown, request?: Request): boolean {
   return typeof error === 'object' && error !== null && (error as { name?: unknown }).name === 'AbortError';
 }
 
+/** True when the request went to another server of the Company than the home one (see deviceRouting.ts). */
+function isOtherServer(request: Request): boolean {
+  try {
+    return new URL(request.url).origin !== new URL(getHomeBaseUrl()).origin;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Sends a request that belongs to a Device on another server of the Company to that server (same token, same path). Does nothing
+ * unless a route is registered, so a Company with one server is untouched. Registered BEFORE the auth middleware, so the
+ * token header is set on the re-addressed request.
+ */
+const routingMiddleware: Middleware = {
+  async onRequest({ request }) {
+    const target = routeBaseUrlFor(request.url);
+    return target ? await reroute(request, target) : request;
+  },
+};
+
 const authMiddleware: Middleware = {
   onRequest({ request }) {
     // The access has expired and the sign-in dialog is open: do not ask the API with a token it already refused (every page
@@ -75,14 +97,23 @@ const authMiddleware: Middleware = {
     if (token) request.headers.set('HMAC_Key', token);
     return request;
   },
-  async onResponse({ response }) {
+  async onResponse({ response, request }) {
     if (response.ok) return response;
 
     // Clone before consuming the body - openapi-fetch also needs to read it.
     const normalized = await normalizeApiError(response.clone());
 
     if (response.status === 401) {
-      notifyUnauthorized();
+      // Another server that refuses the token does not mean the sign-in expired: that server may simply not have this user (or
+      // the same password hash). Only a genuinely expired access opens the sign-in dialog.
+      if (!isOtherServer(request) || isExpired()) notifyUnauthorized();
+      else {
+        throw new ApiError({
+          status: 401,
+          message: 'The server of this Device did not accept your sign-in. The same user, with the same password, must exist on that server.',
+          raw: normalized.raw,
+        });
+      }
     }
 
     throw new ApiError(normalized);
@@ -102,6 +133,7 @@ const authMiddleware: Middleware = {
 };
 
 export const apiClient = createClient<AuthPatchedPaths>({ baseUrl });
+apiClient.use(routingMiddleware);
 apiClient.use(authMiddleware);
 
 /**

@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { SelectedDeviceProvider } from './SelectedDeviceProvider';
+import { DeviceRoutingGate } from './DeviceRoutingGate';
 import { SessionExpiredDialog } from '@/auth/SessionExpiredDialog';
 import {
   NavDrawer,
@@ -320,7 +321,9 @@ export function AppShell() {
               // Only the platform pages: anywhere else the platform account would meet a Company-less state it has no use for.
               location.pathname.startsWith('/platform') ? <Outlet /> : <Navigate to="/platform/companies" replace />
             ) : hasAuthorizedCompany ? (
-              <Outlet />
+              <DeviceRoutingGate>
+                <Outlet />
+              </DeviceRoutingGate>
             ) : (
               <NoCompanyState />
             )}

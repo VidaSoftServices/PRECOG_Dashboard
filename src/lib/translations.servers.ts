@@ -51,4 +51,16 @@ export const HU_SERVERS: Record<string, string> = {
   'Device {0} is outside the Device id range of this server ({1}-{2}).': 'A(z) {0}. eszköz a szerver eszközazonosító-tartományán ({1}–{2}) kívül esik.',
   'A Company can have at most {0} servers.': 'Egy cégnek legfeljebb {0} szervere lehet.',
   'Something went wrong.': 'Valami hiba történt.',
+
+  // Routing of a Device's requests to its own server
+  'Some servers of your Company could not be read': 'A cég néhány szervere nem olvasható',
+  '{0}: this address starts with http://, which the browser blocks from a page opened over https. Give the server an https address.':
+    '{0}: ez a cím http://-vel kezdődik, amelyet a böngésző nem enged https-en megnyitott oldalról. Adj a szervernek https címet.',
+  '{0}: the server did not accept your sign-in. The same user, with the same password, must exist on it.':
+    '{0}: a szerver nem fogadta el a bejelentkezésedet. Ugyanennek a felhasználónak, ugyanazzal a jelszóval léteznie kell rajta.',
+  '{0}: the server could not be reached. Its Devices are not shown.': '{0}: a szerver nem érhető el. Az eszközei nem láthatók.',
+  'The server of this Device did not accept your sign-in. The same user, with the same password, must exist on that server.':
+    'Az eszköz szervere nem fogadta el a bejelentkezésedet. Ugyanennek a felhasználónak, ugyanazzal a jelszóval léteznie kell azon a szerveren.',
+  "This Issue belongs to a Device on another server. Open it from that Device's Issue list.":
+    'Ez a probléma egy másik szerveren lévő eszközhöz tartozik. Nyisd meg az eszköz problémalistájából.',
 };
