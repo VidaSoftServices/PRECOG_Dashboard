@@ -7,7 +7,6 @@ import {
   Input,
   Field,
   Select,
-  Badge,
   Link,
   Checkbox,
   MessageBar,
@@ -90,10 +89,6 @@ function CompanyProfileTab() {
         )}
         <div>
           <Body1Strong>{company.name}</Body1Strong>
-          <br />
-          <Badge appearance="tint" color={company.profileSource === 'Local' ? 'informative' : 'subtle'}>
-            {company.profileSource === 'Local' ? t('Locally managed') : t('Synchronized from WordPress')}
-          </Badge>
         </div>
       </div>
 
@@ -125,9 +120,7 @@ function CompanyProfileTab() {
       ) : (
         <MessageBar intent="info">
           <MessageBarBody>
-            {company.profileSource === 'MirroredDatabase'
-              ? t('This Company\'s name, logo, and website are synchronized from WordPress and can\'t be edited here - update them at the source instead.')
-              : t('This Company\'s name can\'t be edited by your account.')}
+            {t('This Company\'s name can\'t be edited by your account.')}
           </MessageBarBody>
         </MessageBar>
       )}
