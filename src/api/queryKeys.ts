@@ -2,6 +2,7 @@
 export const queryKeys = {
   userDetails: ['userDetails'] as const,
   company: ['company'] as const,
+  servers: ['servers'] as const,
   companyMembers: ['company', 'members'] as const,
   readers: ['company', 'readers'] as const,
   companyInvitations: ['company', 'invitations'] as const,

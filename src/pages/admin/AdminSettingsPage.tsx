@@ -36,6 +36,7 @@ import {
 } from '@/api/hooks/referenceData';
 import { useCompany, useUpdateCompanyName } from '@/api/hooks/company';
 import { CompanyBranding, CompanyLogoView } from './CompanyBranding';
+import { ServersTab } from './ServersTab';
 import { useDevices } from '@/api/hooks/devices';
 import { isSafeHttpsUrl } from '@/lib/safeExternalUrl';
 import { activateProps } from '@/lib/useActivateProps';
@@ -352,17 +353,19 @@ export function AdminSettingsPage() {
   const [tab, setTab] = useState('profile');
   return (
     <>
-      <PageHeader title={t('Company Settings')} description={t('Company profile, Locations, Device groups, and the Device-class reference catalog.')} />
+      <PageHeader title={t('Company Settings')} description={t('Company profile, Locations, Device groups, the Device-class reference catalog and the Company servers.')} />
       <TabList selectedValue={tab} onTabSelect={(_, d) => setTab(String(d.value))} style={{ marginBottom: tokens.spacingVerticalL }}>
         <Tab value="profile">{t('Profile')}</Tab>
         <Tab value="locations">{t('Locations')}</Tab>
         <Tab value="groups">{t('Device groups')}</Tab>
         <Tab value="classes">{t('Device classes')}</Tab>
+        <Tab value="servers">{t('Servers')}</Tab>
       </TabList>
       {tab === 'profile' && <CompanyProfileTab />}
       {tab === 'locations' && <LocationsTab />}
       {tab === 'groups' && <DeviceGroupsTab />}
       {tab === 'classes' && <DeviceClassesTab />}
+      {tab === 'servers' && <ServersTab />}
     </>
   );
 }

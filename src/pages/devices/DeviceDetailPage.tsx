@@ -33,6 +33,8 @@ import { DescriptionsDialog } from './DescriptionsDialog';
 import { DeleteDeviceDataDialog, DeleteDeviceDialog } from './DeleteDeviceDialog';
 import { useAppToast } from '@/components/ToastProvider';
 import { useDevice, useUpdateDevice, useDisableDevice } from '@/api/hooks/devices';
+import { useAssignDeviceServer, useServers } from '@/api/hooks/servers';
+import { ServerErrorBar } from '@/pages/admin/ServersTab';
 import { useSensors, useCreateSensor, useUpdateSensor, type SensorDto } from '@/api/hooks/sensors';
 import { useSensorDescriptionTexts, useUpdateSensorDescriptions } from '@/api/hooks/sensorDescriptions';
 import { MAX_DESCRIPTION_TEXT } from '@/lib/descriptionSheet';
@@ -437,6 +439,8 @@ export function DeviceDetailPage() {
 
   const [editing, setEditing] = useState(false);
   const updateDevice = useUpdateDevice(id);
+  const assignServer = useAssignDeviceServer(id);
+  const serversQuery = useServers();
   const disableDevice = useDisableDevice(id);
   const [nameDraft, setNameDraft] = useState('');
   const [zoneDraft, setZoneDraft] = useState(DEFAULT_DEVICE_TIME_ZONE);
@@ -527,6 +531,23 @@ export function DeviceDetailPage() {
                 ))}
               </Select>
             </Field>
+            <Field label={t('Server')} hint={t('The registered server of the Company this Device lives on. A server with a reserved Device id range only accepts Devices inside it.')}>
+              <Select
+                value={device.serverId == null ? '' : String(device.serverId)}
+                disabled={assignServer.isPending}
+                onChange={(_, d) =>
+                  assignServer.mutate(d.value === '' ? null : Number(d.value), { onSuccess: () => toast.success(t('Device server updated')) })
+                }
+              >
+                <option value="">{t('No server')}</option>
+                {(serversQuery.data ?? []).map((sv) => (
+                  <option key={sv.id} value={String(sv.id)}>
+                    {sv.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            {assignServer.isError && <ServerErrorBar error={assignServer.error} />}
             <Field label={t('Enabled')}>
               <Switch
                 checked={device.enabled ?? false}
@@ -561,6 +582,9 @@ export function DeviceDetailPage() {
           <EnabledPill enabled={device.enabled} />
           <Text size={200}>{t('Last heartbeat:')}{' '}{formatRelative(device.heartBeat)}</Text>
           <Text size={200}>{t('Time zone:')}{' '}{deviceZone}</Text>
+          {device.serverName && (
+            <Text size={200}>{t('Server:')}{' '}{device.serverName}</Text>
+          )}
           <FreshnessPill freshness={freshnessOf(device.heartBeat)} />
           <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
             {formatDateTimeWithZone(device.heartBeat)}

@@ -6,6 +6,7 @@ import { HU_DYNAMIC } from './translations.dynamic';
 import { HU_STATUS } from './translations.status';
 import { HU_MAINTENANCE } from './translations.maintenance';
 import { HU_ACCOUNTS } from './translations.accounts';
+import { HU_SERVERS } from './translations.servers';
 
 /** Hungarian texts, keyed by the English text (see language.ts). Add every new UI string here. */
 export const HU: Record<string, string> = {
@@ -17,6 +18,7 @@ export const HU: Record<string, string> = {
   ...HU_STATUS,
   ...HU_MAINTENANCE,
   ...HU_ACCOUNTS,
+  ...HU_SERVERS,
   Overview: 'Áttekintés',
   Devices: 'Eszközök',
   'Live Monitoring': 'Élő megfigyelés',
