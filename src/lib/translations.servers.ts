@@ -37,6 +37,38 @@ export const HU_SERVERS: Record<string, string> = {
     'A cég regisztrált szervere, amelyen ez az eszköz él. A fenntartott eszközazonosító-tartománnyal rendelkező szerver csak a tartományon belüli eszközöket fogadja.',
   'Company profile, Locations, Device groups, the Device-class reference catalog and the Company servers.': 'Cégprofil, helyszínek, eszközcsoportok, az eszközosztályok katalógusa és a cég szerverei.',
 
+  // Replication of the identity from the master to a replica
+  Replication: 'Replikáció',
+  'Replication key': 'Replikációs kulcs',
+  'Key issued': 'Kulcs kiadva',
+  'No key': 'Nincs kulcs',
+  'Up to date': 'Naprakész',
+  Behind: 'Le van maradva',
+  'Create replication key': 'Replikációs kulcs létrehozása',
+  'Create a new key': 'Új kulcs létrehozása',
+  'Revoke key': 'Kulcs visszavonása',
+  'Replication key revoked': 'A replikációs kulcs visszavonva',
+  'Without a key this server cannot pull users, roles and Devices from the master.': 'Kulcs nélkül ez a szerver nem tudja lehúzni a felhasználókat, szerepköröket és eszközöket a masterről.',
+  'Last pull seen by the master: {0}': 'A master által látott utolsó lehúzás: {0}',
+  'The master has not seen a pull from this server since it started.': 'A master az indulása óta nem látott lehúzást ettől a szervertől.',
+  'Key created {0}': 'Kulcs létrehozva: {0}',
+  "This key is shown only now and is not stored. Copy it into the replica server's .env file; creating a new key makes this one stop working.":
+    'Ez a kulcs csak most látszik, és nincs eltárolva. Másold a replika szerver .env fájljába; új kulcs létrehozása után ez megszűnik működni.',
+  'Settings for the .env file of the replica': 'A replika .env fájljába kerülő beállítások',
+  "The replica also needs the master's HMAC_SERVER_KEY, and Cors__AdditionalOrigins for the Dashboard's address.":
+    'A replikának szüksége van a master HMAC_SERVER_KEY értékére és a Dashboard címét tartalmazó Cors__AdditionalOrigins beállításra is.',
+  'The server {0} can no longer pull from the master. It keeps working from the last data it received.': 'A(z) {0} szerver többé nem tud húzni a masterről. A legutóbb kapott adatokból tovább működik.',
+  'Check replica': 'Replika ellenőrzése',
+  'Sync now': 'Szinkronizálás most',
+  'Synchronizing…': 'Szinkronizálás…',
+  'The replica is synchronized': 'A replika szinkronizálva',
+  'Last successful pull: {0}': 'Utolsó sikeres lehúzás: {0}',
+  never: 'még soha',
+  'Not configured: the master address, the key and the server id are all needed in its .env file.': 'Nincs beállítva: a .env fájlban a master címe, a kulcs és a szerver azonosítója is kell.',
+  '{0} Device deletion(s) not yet told to the master': '{0} eszköztörlésről még nem szólt a masternek',
+  'This server answers as a master, not as a replica (Server__Role is not Replica).': 'Ez a szerver masterként válaszol, nem replikaként (a Server__Role nem Replica).',
+  'The browser cannot reach this server from an https page because it is not secure (http).': 'A böngésző https oldalról nem éri el ezt a szervert, mert nem biztonságos (http).',
+
   // Refusals of the API (and the same checks made in the form)
   'The name is required and at most 200 characters.': 'A név kötelező, legfeljebb 200 karakter.',
   'The address must be a host name, DNS name, IPv4 or IPv6 address, without scheme, port or path.': 'A cím gépnév, DNS-név, IPv4- vagy IPv6-cím lehet, séma, port és elérési út nélkül.',
@@ -49,6 +81,9 @@ export const HU_SERVERS: Record<string, string> = {
   'Devices are still assigned to this server. Move them to another server first.': 'A szerverhez még vannak eszközök rendelve. Előbb helyezd át őket másik szerverre.',
   "The server does not exist in the caller's Company.": 'Ilyen szerver nincs a cégben.',
   "ServerId does not belong to the caller's Company.": 'A megadott szerver nem ehhez a céghez tartozik.',
+  'The server this Device lives on has not reported lately, so it cannot be checked whether the Device already has Sensors there. Try again when that server has synchronized.':
+    'Az a szerver, amelyen az eszköz él, mostanában nem jelentkezett, ezért nem ellenőrizhető, hogy az eszköznek van-e már ott Sensora. Próbáld újra, ha az a szerver szinkronizált.',
+  'This is the master itself: only another server pulls from it.': 'Ez maga a master: csak más szerver húz tőle.',
   'The chosen server is disabled.': 'A kiválasztott szerver le van tiltva.',
   'The server of a Device can be changed only while it has no Sensors (and so no telemetry). Delete its Sensors or the Device first.':
     'Az eszköz szervere csak addig módosítható, amíg nincs Sensora (így telemetriája sem). Előbb töröld a Sensorait vagy az eszközt.',

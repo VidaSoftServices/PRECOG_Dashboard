@@ -10,6 +10,9 @@ import { setLanguage } from '@/lib/language';
 import { fetchMock } from '@/test/mockFetch';
 import type { ServerDto } from '@/api/hooks/servers';
 
+// ReplicationSection (inside every server card) asks who is signed in
+vi.mock('@/auth/AuthContext', () => ({ useAuth: () => ({ isAdmin: true }) }));
+
 const SERVER: ServerDto = {
   id: 7,
   name: 'Plant A',

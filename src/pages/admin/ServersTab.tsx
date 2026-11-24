@@ -15,6 +15,7 @@ import {
   type SaveServerRequest,
   type ServerDto,
 } from '@/api/hooks/servers';
+import { ReplicationSection } from './ReplicationSection';
 import { checkServerForm, serverUrl, translateServerError, type ServerFormValues } from '@/lib/serverForm';
 import { useT } from '@/lib/language';
 
@@ -184,6 +185,7 @@ function ServerCard({ server, manage }: { server: ServerDto; manage?: { companyI
         </Text>
       )}
       {server.notes && <Text size={200}>{server.notes}</Text>}
+      <ReplicationSection server={server} manage={manage ? { companyId: manage.companyId } : undefined} />
       {remove.isError && <ServerErrorBar error={remove.error} />}
       <ConfirmDialog
         open={confirming}

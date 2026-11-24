@@ -14,6 +14,7 @@ export const queryKeys = {
   platformMembers: (companyId: number) => ['platform', 'companies', companyId, 'members'] as const,
   platformInvitations: (companyId: number) => ['platform', 'companies', companyId, 'invitations'] as const,
   platformServers: (companyId: number) => ['platform', 'companies', companyId, 'servers'] as const,
+  replicaStatus: (serverId: number) => ['replicaStatus', serverId] as const,
   /** Every list of People across Companies (the prefix of platformUsers). */
   platformUsersAll: ['platform', 'users'] as const,
   platformUsers: (filters: object) => ['platform', 'users', filters] as const,
