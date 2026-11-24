@@ -150,4 +150,21 @@ describe('PlatformUsersPage', () => {
 
     expect(await screen.findByText(/előbb töröld a céget/)).toBeInTheDocument();
   });
+
+  it('shows a person with no company and removes them through their own call', async () => {
+    const DRIFTER = { userId: 13, displayName: 'Drifter', email: 'drifter@example.test', companyRoles: [], enabled: false, origin: 'Local', createdAt: '2026-01-01T00:00:00Z' };
+    const calls = mockApi({ 'GET /api/Platform/Users': [{ status: 200, body: { total: 1, items: [DRIFTER] } }] });
+    const user = userEvent.setup();
+    renderPage();
+
+    const row = (await screen.findByText('drifter@example.test')).closest('tr')!;
+    expect(within(row).getByText('No company')).toBeInTheDocument();
+
+    await user.click(within(row).getByRole('button', { name: 'Remove' }));
+    const dialog = await screen.findByRole('dialog', {}, { timeout: 10_000 });
+    await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
+
+    await waitFor(() => expect(calls.some((c) => c.method === 'DELETE' && c.path === '/api/Platform/Users/13')).toBe(true));
+    expect(calls.some((c) => c.method === 'DELETE' && c.path.includes('/Members/'))).toBe(false);
+  });
 });

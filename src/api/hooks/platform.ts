@@ -269,3 +269,26 @@ export function useSetPlatformUserEnabled() {
     },
   });
 }
+
+/** Permanently deletes a Company that has no Admin (its name typed exactly). Every Device goes with all its data; its Users stay, disabled, with no Company. */
+export function useDeletePlatformCompany() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { companyId: number; confirmName: string }) =>
+      unwrap(await apiClient.DELETE('/api/Platform/Companies/{companyId}', { params: { path: { companyId: vars.companyId } }, body: { confirmName: vars.confirmName } })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['platform'] });
+    },
+  });
+}
+
+/** Removes a person who belongs to no Company (a person with a Company is removed from that Company's page). */
+export function useRemovePlatformUserWithoutCompany() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: number) => unwrap(await apiClient.DELETE('/api/Platform/Users/{userId}', { params: { path: { userId } } })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.platformUsersAll });
+    },
+  });
+}

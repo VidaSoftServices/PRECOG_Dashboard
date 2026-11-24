@@ -197,4 +197,32 @@ describe('PlatformCompaniesPage', () => {
     await waitFor(() => expect(calls.some((c) => c.method === 'PUT' && c.path === '/api/Platform/Companies/1/Enabled')).toBe(true));
     expect(calls.find((c) => c.method === 'PUT')!.body).toEqual({ enabled: false });
   });
+
+  it('a company with an Admin cannot be deleted; one without gets a dialog that needs its name typed, then deletes', async () => {
+    const calls = mockApi({ 'DELETE /api/Platform/Companies/3': { status: 200, body: { devicesDeleted: 2, usersKept: 1 } } });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByText('VidaSoft'));
+    expect(await screen.findByRole('button', { name: 'Delete company' })).toBeDisabled();
+    expect(screen.getByText(/with an Admin cannot be deleted/)).toBeInTheDocument();
+
+    await user.click(screen.getByText('New Co'));
+    const open = await screen.findByRole('button', { name: 'Delete company' });
+    await waitFor(() => expect(open).toBeEnabled());
+    await user.click(open);
+
+    const dialog = await screen.findByRole('dialog', { hidden: true });
+    const confirm = within(dialog).getByRole('button', { name: 'Delete company', hidden: true });
+    expect(confirm).toBeDisabled();
+    await user.type(within(dialog).getByLabelText('Type the company name to confirm'), 'new co');
+    expect(confirm).toBeDisabled();   // the name is case sensitive
+    await user.clear(within(dialog).getByLabelText('Type the company name to confirm'));
+    await user.type(within(dialog).getByLabelText('Type the company name to confirm'), 'New Co');
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+
+    await waitFor(() => expect(calls.some((c) => c.method === 'DELETE' && c.path === '/api/Platform/Companies/3')).toBe(true));
+    expect(calls.find((c) => c.method === 'DELETE' && c.path === '/api/Platform/Companies/3')!.body).toEqual({ confirmName: 'New Co' });
+  });
 });

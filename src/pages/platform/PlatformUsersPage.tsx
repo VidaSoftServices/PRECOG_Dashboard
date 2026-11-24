@@ -28,6 +28,7 @@ import {
   usePlatformCompanies,
   usePlatformUsers,
   useRemovePlatformMember,
+  useRemovePlatformUserWithoutCompany,
   useSetPlatformUserEnabled,
   type PlatformUser,
   type PlatformUserFilters,
@@ -151,6 +152,7 @@ export function PlatformUsersPage() {
   const users = usePlatformUsers(filters);
   const setEnabled = useSetPlatformUserEnabled();
   const remove = useRemovePlatformMember();
+  const removeWithoutCompany = useRemovePlatformUserWithoutCompany();
   const { attempt, dialog } = useLastAdminConfirm();
   const [moving, setMoving] = useState<PlatformUser | null>(null);
   const [disabling, setDisabling] = useState<PlatformUser | null>(null);
@@ -221,7 +223,13 @@ export function PlatformUsersPage() {
                   </TableCell>
                   <TableCell>{u.email}</TableCell>
                   <TableCell>
-                    {u.companyName} {u.companyEnabled === false && <Badge color="danger" appearance="outline">{t('Disabled')}</Badge>}
+                    {u.companyId == null ? (
+                      <Badge color="warning" appearance="outline">{t('No company')}</Badge>
+                    ) : (
+                      <>
+                        {u.companyName} {u.companyEnabled === false && <Badge color="danger" appearance="outline">{t('Disabled')}</Badge>}
+                      </>
+                    )}
                   </TableCell>
                   <TableCell>
                     <span className={styles.roles}>
@@ -271,7 +279,7 @@ export function PlatformUsersPage() {
           </Button>
         </div>
       )}
-      {(setEnabled.isError || remove.isError) && <RefusalBar error={setEnabled.error ?? remove.error} />}
+      {(setEnabled.isError || remove.isError || removeWithoutCompany.isError) && <RefusalBar error={setEnabled.error ?? remove.error ?? removeWithoutCompany.error} />}
 
       <ChangeCompanyDialog user={moving} onClose={() => setMoving(null)} />
 
@@ -307,10 +315,15 @@ export function PlatformUsersPage() {
           const user = removing;
           setRemoving(null);
           if (!user) return;
-          remove.mutate({ companyId: user.companyId!, userId: user.userId! }, { onSuccess: () => toast.success(t('The person was removed')) });
+          const done = { onSuccess: () => toast.success(t('The person was removed')) };
+          // A person with no company has no company page to be removed from: its own call.
+          if (user.companyId == null) removeWithoutCompany.mutate(user.userId!, done);
+          else remove.mutate({ companyId: user.companyId, userId: user.userId! }, done);
         }}
       >
-        {t('{0} is removed from {1}. A person with a history is deactivated instead of deleted.', removing ? nameOf(removing) : '', removing?.companyName ?? '')}
+        {removing?.companyId == null
+          ? t('{0} is removed. A person with a history is deactivated instead of deleted.', removing ? nameOf(removing) : '')
+          : t('{0} is removed from {1}. A person with a history is deactivated instead of deleted.', nameOf(removing), removing.companyName ?? '')}
       </ConfirmDialog>
 
       {dialog}

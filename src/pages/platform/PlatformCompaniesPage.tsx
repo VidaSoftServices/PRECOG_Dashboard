@@ -45,6 +45,7 @@ import { InvitePanel } from '@/components/people/InvitePanel';
 import { MemberActions } from '@/components/people/MemberActions';
 import { useLastAdminConfirm } from '@/components/people/useLastAdminConfirm';
 import { PlatformCompanyProfile } from './PlatformCompanyProfile';
+import { DeleteCompanyDialog } from './DeleteCompanyDialog';
 import { WordPressBadge } from '@/components/people/WordPressBadge';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PlatformServers } from '@/pages/admin/ServersTab';
@@ -128,7 +129,7 @@ function CreateCompanyDialog({ open, onClose }: { open: boolean; onClose: () => 
   );
 }
 
-function CompanyDetail({ company }: { company: PlatformCompany }) {
+function CompanyDetail({ company, onDeleted }: { company: PlatformCompany; onDeleted: () => void }) {
   const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
@@ -148,6 +149,7 @@ function CompanyDetail({ company }: { company: PlatformCompany }) {
 
   const [pendingRevoke, setPendingRevoke] = useState<{ userId: number; name: string; roleName: 'Admin' | 'Reader' } | null>(null);
   const [confirmEnabled, setConfirmEnabled] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const lastAdmin = useLastAdminConfirm();
 
   return (
@@ -274,6 +276,19 @@ function CompanyDetail({ company }: { company: PlatformCompany }) {
         {t('{0} loses this role. A company must keep at least one Admin.', pendingRevoke?.name ?? '')}
       </ConfirmDialog>
 
+      <Subtitle1 as="h3">{t('Delete company')}</Subtitle1>
+      <div className={styles.row}>
+        <Button appearance="secondary" disabled={(company.adminCount ?? 0) > 0} onClick={() => setDeleting(true)}>
+          {t('Delete company')}
+        </Button>
+        <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+          {(company.adminCount ?? 0) > 0
+            ? t('A company with an Admin cannot be deleted - disable it instead, or take its Admin away first.')
+            : t('The company has no Admin: it can be deleted permanently.')}
+        </Text>
+      </div>
+      <DeleteCompanyDialog company={company} open={deleting} onClose={() => setDeleting(false)} onDeleted={() => { setDeleting(false); onDeleted(); }} />
+
       {lastAdmin.dialog}
 
       <ConfirmDialog
@@ -367,7 +382,7 @@ export function PlatformCompaniesPage() {
         </Table>
       )}
 
-      {selected ? <CompanyDetail key={selected.id} company={selected} /> : companies.data && <Text>{t('Select a company to see its people and invitations.')}</Text>}
+      {selected ? <CompanyDetail key={selected.id} company={selected} onDeleted={() => setSelectedId(null)} /> : companies.data && <Text>{t('Select a company to see its people and invitations.')}</Text>}
 
       <CreateCompanyDialog open={creating} onClose={() => setCreating(false)} />
     </div>

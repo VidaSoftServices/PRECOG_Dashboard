@@ -38,6 +38,18 @@ export const HU_PLATFORM_PEOPLE: Record<string, string> = {
   'This is the last Admin of a Company that has Devices. After this the Company keeps its Devices with nobody to administer them. The person stays, with no role.':
     'Ez egy olyan cég utolsó Adminja, amelynek vannak eszközei. Ezután a cég eszközei kezelő nélkül maradnak. Az ember megmarad, szerepkör nélkül.',
 
+  // Deleting a company, a person with no company
+  'Delete company': 'Cég törlése',
+  'Delete this company permanently?': 'Véglegesen törlöd ezt a céget?',
+  'A company with an Admin cannot be deleted - disable it instead, or take its Admin away first.': 'Adminnal rendelkező céget nem lehet törölni – tiltsd le helyette, vagy előbb vedd el az Adminját.',
+  'The company has no Admin: it can be deleted permanently.': 'A cégnek nincs Adminja: véglegesen törölhető.',
+  'Every Device of {0} is deleted with all its data, and the company itself with its servers, places, groups and categories. The people stay, disabled and without a company. This cannot be undone.':
+    'A(z) {0} minden eszköze törlődik a teljes adatával, és maga a cég is a szervereivel, helyszíneivel, csoportjaival és kategóriáival együtt. Az emberek megmaradnak, letiltva és cég nélkül. Ez nem vonható vissza.',
+  'Type the company name to confirm': 'A megerősítéshez írd be a cég nevét',
+  'The company was deleted ({0} Device(s), {1} person(s) kept)': 'A cég törölve ({0} eszköz, {1} ember megmaradt)',
+  'No company': 'Nincs cég',
+  '{0} is removed. A person with a history is deactivated instead of deleted.': '{0} el lesz távolítva. Az előzménnyel rendelkező embert törlés helyett inaktiválja a rendszer.',
+
   // The states of a person
   'You have no access yet': 'Még nincs hozzáférésed',
   'Your sign-in is valid, but you have not been given a role in your company yet. Ask your company administrator to make you a Reader or an Administrator.':
@@ -47,6 +59,13 @@ export const HU_PLATFORM_PEOPLE: Record<string, string> = {
     'A céged le lett tiltva, ezért addig semmi sem jeleníthető meg és nem módosítható, amíg újra nem engedélyezik. Fordulj a platform adminisztrátorhoz.',
 
   // Refusals of the API
+  'This Company has an Admin, so it cannot be deleted: disable it instead, or take its Admin away first.': 'Ennek a cégnek van Adminja, ezért nem törölhető: tiltsd le helyette, vagy előbb vedd el az Adminját.',
+  'This Company has Devices on another server. Their data is not on this server, so the Company cannot be deleted here yet: move those Devices to this server or delete them there first.':
+    'Ennek a cégnek vannak eszközei másik szerveren. Az adataik nem ezen a szerveren vannak, ezért a cég itt még nem törölhető: előbb helyezd át őket erre a szerverre, vagy töröld őket ott.',
+  'The database is not prepared for deleting a Company yet (pg.users.companyid is still required): run DataAccess/DBScripts/DB_S9b_Schema.sql first. Nothing was deleted.':
+    'Az adatbázis még nincs felkészítve a cégtörlésre (a pg.users.companyid még kötelező): előbb futtasd a DataAccess/DBScripts/DB_S9b_Schema.sql szkriptet. Semmi sem törlődött.',
+  'ConfirmName must equal the Company\'s name exactly (case sensitive). Nothing was deleted.': 'A megerősítő névnek pontosan egyeznie kell a cég nevével (kis- és nagybetű számít). Semmi sem törlődött.',
+  'This User belongs to a Company: remove it from that Company\'s page.': 'Ez az ember cég tagja: a cég oldaláról távolítsd el.',
   'Your Company is disabled.': 'A céged le van tiltva.',
   'You have no role in this Company yet. Ask a Company Admin or the platform administrator.': 'A cégben még nincs szerepköröd. Kérj a cég adminisztrátorától vagy a platform adminisztrátortól.',
   'This is the last Admin of a Company that has Devices: after this the Company keeps its Devices with nobody to administer them. Confirm to continue.':
