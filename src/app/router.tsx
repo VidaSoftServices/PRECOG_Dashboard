@@ -116,6 +116,16 @@ export const router = createBrowserRouter([
             ],
           },
           {
+            path: 'platform/users',
+            element: <RequirePlatformAdmin />,
+            children: [
+              {
+                index: true,
+                lazy: () => import('@/pages/platform/PlatformUsersPage').then((m) => ({ Component: m.PlatformUsersPage })),
+              },
+            ],
+          },
+          {
             path: 'admin/readers',
             element: <RequireAdmin />,
             children: [

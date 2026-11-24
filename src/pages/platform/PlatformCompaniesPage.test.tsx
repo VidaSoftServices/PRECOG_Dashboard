@@ -79,7 +79,6 @@ describe('PlatformCompaniesPage', () => {
 
     expect(await screen.findByText('VidaSoft')).toBeInTheDocument();
     expect(screen.getByText('Synced Co')).toBeInTheDocument();
-    expect(screen.getByLabelText('Synchronized from WordPress')).toBeInTheDocument();
     expect(screen.getByText('No Admin yet')).toBeInTheDocument();
     expect(screen.getByText('Select a company to see its people and invitations.')).toBeInTheDocument();
   });
@@ -181,13 +180,13 @@ describe('PlatformCompaniesPage', () => {
     await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.path === '/api/Platform/Companies/1/Members/8/Roles/Admin')).toBe(true));
   });
 
-  it('cannot disable a company synchronized from WordPress, and asks before disabling another', async () => {
+  it('can disable any company - also one the old WordPress sync marked as locked - and asks before doing it', async () => {
     const calls = mockApi();
     const user = userEvent.setup();
     renderPage();
 
     await user.click(await screen.findByText('Synced Co'));
-    expect(await screen.findByRole('button', { name: 'Disable company' })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: 'Disable company' })).toBeEnabled();
 
     await user.click(screen.getByText('VidaSoft'));
     await user.click(await screen.findByRole('button', { name: 'Disable company' }));

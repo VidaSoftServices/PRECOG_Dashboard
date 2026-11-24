@@ -42,15 +42,15 @@ describe('RequirePlatformAdmin', () => {
 });
 
 describe('the navigation', () => {
-  it('has exactly one platform-only entry, and it is not an Admin or Company entry', () => {
+  it('has exactly the two platform-only entries (Companies, People), and neither is an Admin or Company entry', () => {
     const platformOnly = navEntries.filter((e) => e.platformOnly);
-    expect(platformOnly.map((e) => e.path)).toEqual(['/platform/companies']);
-    expect(platformOnly[0]!.adminOnly).toBe(false);
+    expect(platformOnly.map((e) => e.path)).toEqual(['/platform/companies', '/platform/users']);
+    expect(platformOnly.every((e) => !e.adminOnly)).toBe(true);
   });
 
-  it('shows the platform administrator only the platform entry, and nobody else that entry', () => {
-    expect(visibleNavEntries(true, false).map((e) => e.path)).toEqual(['/platform/companies']);
-    expect(visibleNavEntries(true, true).map((e) => e.path)).toEqual(['/platform/companies']);
+  it('shows the platform administrator only the platform entries, and nobody else those entries', () => {
+    expect(visibleNavEntries(true, false).map((e) => e.path)).toEqual(['/platform/companies', '/platform/users']);
+    expect(visibleNavEntries(true, true).map((e) => e.path)).toEqual(['/platform/companies', '/platform/users']);
 
     for (const isAdmin of [true, false]) {
       expect(visibleNavEntries(false, isAdmin).some((e) => e.platformOnly)).toBe(false);

@@ -21,6 +21,9 @@ export default defineConfig({
     css: false,
     // Fluent dialog tests are slow to mount when the whole suite runs in parallel; 5 s was too tight.
     testTimeout: 20_000,
+    // Eight workers on an eight-core machine starve each other: the Fluent dialogs of a few tests then fail to open in time (a different test each run).
+    // Four finish the whole suite faster AND without those failures.
+    maxWorkers: 4,
     // Fluent UI pulls in `tabster`, a CJS package whose named exports
     // Node's ESM loader can't statically detect - without this, any test
     // that renders a real Fluent component (Dialog, DataGrid, etc., not

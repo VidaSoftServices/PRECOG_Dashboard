@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient, unwrap } from '@/api/client';
 import { queryKeys } from '@/api/queryKeys';
 import type { components } from '@/api/schema.generated';
@@ -7,6 +7,7 @@ export type PlatformCompany = components['schemas']['PlatformCompanyDto'];
 export type PlatformMember = components['schemas']['CompanyMemberDto'];
 export type PendingInvitation = components['schemas']['InvitationDto'];
 export type InviteResult = components['schemas']['InviteResultDto'];
+export type PlatformUser = components['schemas']['PlatformUserDto'];
 
 /**
  * The platform administrator's (VSSSysAdmin) operations. The platform account sees no telemetry, Issue, Device or model: these lists hold only
@@ -89,6 +90,7 @@ export function useRevokeInvitation() {
 function invalidatePeople(queryClient: ReturnType<typeof useQueryClient>, companyId: number) {
   queryClient.invalidateQueries({ queryKey: queryKeys.platformMembers(companyId) });
   queryClient.invalidateQueries({ queryKey: queryKeys.platformCompanies });
+  queryClient.invalidateQueries({ queryKey: queryKeys.platformUsersAll });
 }
 
 export function useGrantPlatformRole() {
@@ -107,10 +109,13 @@ export function useGrantPlatformRole() {
 export function useRevokePlatformRole() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (vars: { companyId: number; userId: number; roleName: 'Admin' | 'Reader' }) =>
+    mutationFn: async (vars: { companyId: number; userId: number; roleName: 'Admin' | 'Reader'; confirmLastAdmin?: boolean }) =>
       unwrap(
         await apiClient.DELETE('/api/Platform/Companies/{companyId}/Members/{userId}/Roles/{roleName}', {
-          params: { path: { companyId: vars.companyId, userId: vars.userId, roleName: vars.roleName } },
+          params: {
+            path: { companyId: vars.companyId, userId: vars.userId, roleName: vars.roleName },
+            query: { confirmLastAdmin: vars.confirmLastAdmin ?? false },
+          },
         }),
       ),
     onSuccess: (_, vars) => invalidatePeople(queryClient, vars.companyId),
@@ -141,5 +146,126 @@ export function useUnlinkPlatformMember() {
     mutationFn: async (vars: { companyId: number; userId: number }) =>
       unwrap(await apiClient.DELETE('/api/Platform/Companies/{companyId}/Members/{userId}/WordPressLink', { params: { path: vars } })),
     onSuccess: (_, vars) => invalidatePeople(queryClient, vars.companyId),
+  });
+}
+
+// ---------------------------------------------------------------- the Company profile (name, website, logo)
+
+function refreshCompanies(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: queryKeys.platformCompanies });
+  queryClient.invalidateQueries({ queryKey: queryKeys.platformUsersAll });
+}
+
+export function useRenamePlatformCompany() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { companyId: number; name: string }) =>
+      unwrap(await apiClient.PUT('/api/Platform/Companies/{companyId}/Name', { params: { path: { companyId: vars.companyId } }, body: { name: vars.name } })),
+    onSuccess: () => refreshCompanies(queryClient),
+  });
+}
+
+export function useChangePlatformCompanyWebsite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { companyId: number; website: string }) =>
+      unwrap(await apiClient.PUT('/api/Platform/Companies/{companyId}/Website', { params: { path: { companyId: vars.companyId } }, body: { website: vars.website } })),
+    onSuccess: () => refreshCompanies(queryClient),
+  });
+}
+
+/** Uploads a Company's logo (multipart, one `file` field). The API checks the CONTENT (PNG, JPEG or WebP, at most 512 KB), not the file name. */
+export function useUploadPlatformCompanyLogo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { companyId: number; file: File }) =>
+      unwrap(
+        await apiClient.PUT('/api/Platform/Companies/{companyId}/Logo', {
+          params: { path: { companyId: vars.companyId } },
+          // The generated body type is the file field itself; the real body is the multipart form below (the browser sets the boundary).
+          body: { file: vars.file as unknown as string },
+          bodySerializer: () => {
+            const form = new FormData();
+            form.append('file', vars.file);
+            return form;
+          },
+        }),
+      ),
+    onSuccess: () => refreshCompanies(queryClient),
+  });
+}
+
+export function useDeletePlatformCompanyLogo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (companyId: number) => unwrap(await apiClient.DELETE('/api/Platform/Companies/{companyId}/Logo', { params: { path: { companyId } } })),
+    onSuccess: () => refreshCompanies(queryClient),
+  });
+}
+
+// ---------------------------------------------------------------- the People of every Company
+
+export interface PlatformUserFilters {
+  search: string;
+  companyId: number | null;
+  role: '' | 'Admin' | 'Reader' | 'None';
+  enabled: '' | 'true' | 'false';
+  skip: number;
+  take: number;
+}
+
+export function usePlatformUsers(filters: PlatformUserFilters) {
+  return useQuery({
+    queryKey: queryKeys.platformUsers(filters),
+    placeholderData: keepPreviousData,
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await apiClient.GET('/api/Platform/Users', {
+          params: {
+            query: {
+              search: filters.search.trim() || undefined,
+              companyId: filters.companyId ?? undefined,
+              role: filters.role || undefined,
+              enabled: filters.enabled === '' ? undefined : filters.enabled === 'true',
+              skip: filters.skip,
+              take: filters.take,
+            },
+          },
+          signal,
+        }),
+      ),
+  });
+}
+
+/** Moves a User to another Company (only the platform administrator can). `confirmLastAdmin` confirms taking the last Admin out of a Company that has Devices. */
+export function useChangePlatformUserCompany() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { userId: number; companyId: number; confirmLastAdmin?: boolean }) =>
+      unwrap(
+        await apiClient.PUT('/api/Platform/Users/{userId}/Company', {
+          params: { path: { userId: vars.userId } },
+          body: { companyId: vars.companyId, confirmLastAdmin: vars.confirmLastAdmin ?? false },
+        }),
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['platform'] });
+    },
+  });
+}
+
+export function useSetPlatformUserEnabled() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { userId: number; enabled: boolean; confirmLastAdmin?: boolean }) =>
+      unwrap(
+        await apiClient.PUT('/api/Platform/Users/{userId}/Enabled', {
+          params: { path: { userId: vars.userId } },
+          body: { enabled: vars.enabled, confirmLastAdmin: vars.confirmLastAdmin ?? false },
+        }),
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['platform'] });
+    },
   });
 }

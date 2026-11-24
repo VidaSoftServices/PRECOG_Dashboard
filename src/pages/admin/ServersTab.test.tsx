@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -67,6 +67,9 @@ function renderTab(platform = true) {
     </FluentProvider>,
   );
 }
+
+// The first Fluent dialog of a worker is slow to open when the whole suite runs in parallel: give these tests room instead of a flaky 5 s.
+vi.setConfig({ testTimeout: 30_000 });
 
 beforeEach(() => setLanguage('en'));
 
@@ -157,7 +160,7 @@ describe('ServersTab', () => {
     renderTab();
 
     await user.click(await screen.findByRole('button', { name: 'Delete server' }));
-    const dialog = await screen.findByRole('dialog');
+    const dialog = await screen.findByRole('dialog', {}, { timeout: 5000 });
     await user.click(within(dialog).getByRole('button', { name: 'Delete server' }));
 
     await waitFor(() => expect(calls.some((c) => c.method === 'DELETE' && c.path === `${PLATFORM_LIST}/7`)).toBe(true));

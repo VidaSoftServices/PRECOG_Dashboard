@@ -42,6 +42,8 @@ import { LANGUAGES, useLanguage, useT } from '@/lib/language';
 import { Translate24Regular } from '@fluentui/react-icons';
 import { useBreakpoint } from '@/lib/useMediaQuery';
 import { NoCompanyState } from '@/components/states/NoCompanyState';
+import { NoRoleState } from '@/components/states/NoRoleState';
+import { CompanyDisabledState } from '@/components/states/CompanyDisabledState';
 import precogLogo from '@/images/Precog-Dashboard.svg';
 
 const useStyles = makeStyles({
@@ -212,7 +214,7 @@ export function AppShell() {
     if (isCompact && !wasCompact.current) setDrawerOpen(false);
     wasCompact.current = isCompact;
   }, [isCompact]);
-  const { isAdmin, isPlatformAdmin, hasAuthorizedCompany, userDetails, logout } = useAuth();
+  const { isAdmin, isPlatformAdmin, hasAuthorizedCompany, hasRole, companyDisabled, userDetails, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const crumbs = useCrumbs();
@@ -321,9 +323,15 @@ export function AppShell() {
               // Only the platform pages: anywhere else the platform account would meet a Company-less state it has no use for.
               location.pathname.startsWith('/platform') ? <Outlet /> : <Navigate to="/platform/companies" replace />
             ) : hasAuthorizedCompany ? (
-              <DeviceRoutingGate>
-                <Outlet />
-              </DeviceRoutingGate>
+              hasRole ? (
+                <DeviceRoutingGate>
+                  <Outlet />
+                </DeviceRoutingGate>
+              ) : (
+                <NoRoleState />
+              )
+            ) : companyDisabled ? (
+              <CompanyDisabledState />
             ) : (
               <NoCompanyState />
             )}

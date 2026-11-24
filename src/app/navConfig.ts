@@ -29,6 +29,7 @@ export interface NavEntry {
 /** Single source of truth for both the NavDrawer and the top-level route table, so they can't drift apart. */
 export const navEntries: NavEntry[] = [
   { path: '/platform/companies', label: 'Companies', icon: Building24Regular, adminOnly: false, platformOnly: true },
+  { path: '/platform/users', label: 'People', icon: PeopleTeam24Regular, adminOnly: false, platformOnly: true },
   { path: '/', label: 'Overview', icon: Home24Regular, adminOnly: false },
   { path: '/devices', label: 'Devices', icon: DeviceMeetingRoom24Regular, adminOnly: false },
   { path: '/monitoring', label: 'Live Monitoring', icon: PulseSquare24Regular, adminOnly: false },

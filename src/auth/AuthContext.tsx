@@ -26,6 +26,10 @@ interface AuthContextValue {
   isPlatformAdmin: boolean;
   /** False only once userDetails has actually loaded and confirmed no authorized Company - never true-by-default during the initial fetch, so a Company-having User never sees a false flash of the no-Company state. */
   hasAuthorizedCompany: boolean;
+  /** False when the User belongs to a Company but holds neither the Admin nor the Reader role: it sees nothing but its own profile. True while the details load. */
+  hasRole: boolean;
+  /** True when the User's Company was disabled by the platform administrator. */
+  companyDisabled: boolean;
   userDetails: CurrentUser | null;
   /** The access expired (a request was answered 401): sign in again in place; the page and its state stay. */
   sessionExpired: boolean;
@@ -100,6 +104,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Company-having User never sees a flash of the no-Company state -
       // only an actually-confirmed false response ever gates it off.
       hasAuthorizedCompany: userDetails === null ? true : (userDetails.hasAuthorizedCompany ?? true),
+      hasRole: userDetails === null ? true : (userDetails.hasRole ?? true),
+      companyDisabled: userDetails?.companyDisabled ?? false,
       userDetails,
       sessionExpired,
       userName,

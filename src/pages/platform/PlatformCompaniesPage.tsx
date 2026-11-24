@@ -25,7 +25,7 @@ import {
   mergeClasses,
   tokens,
 } from '@fluentui/react-components';
-import { Add16Regular, LockClosed16Regular } from '@fluentui/react-icons';
+import { Add16Regular } from '@fluentui/react-icons';
 import {
   useCreatePlatformCompany,
   useGrantPlatformRole,
@@ -43,6 +43,8 @@ import {
 } from '@/api/hooks/platform';
 import { InvitePanel } from '@/components/people/InvitePanel';
 import { MemberActions } from '@/components/people/MemberActions';
+import { useLastAdminConfirm } from '@/components/people/useLastAdminConfirm';
+import { PlatformCompanyProfile } from './PlatformCompanyProfile';
 import { WordPressBadge } from '@/components/people/WordPressBadge';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PlatformServers } from '@/pages/admin/ServersTab';
@@ -146,6 +148,7 @@ function CompanyDetail({ company }: { company: PlatformCompany }) {
 
   const [pendingRevoke, setPendingRevoke] = useState<{ userId: number; name: string; roleName: 'Admin' | 'Reader' } | null>(null);
   const [confirmEnabled, setConfirmEnabled] = useState(false);
+  const lastAdmin = useLastAdminConfirm();
 
   return (
     <Card className={styles.card}>
@@ -153,13 +156,20 @@ function CompanyDetail({ company }: { company: PlatformCompany }) {
         <Subtitle1 as="h2">{company.name}</Subtitle1>
         <Button
           appearance="secondary"
-          disabled={company.locked || setEnabled.isPending}
+          disabled={setEnabled.isPending}
           onClick={() => setConfirmEnabled(true)}
-          title={company.locked ? t('Synchronized from WordPress: it cannot be disabled here.') : undefined}
         >
           {company.enabled ? t('Disable company') : t('Enable company')}
         </Button>
       </div>
+
+      {!company.enabled && (
+        <MessageBar intent="warning">
+          <MessageBarBody>{t('This company is disabled: its Devices are not accepted and its people cannot sign in or work.')}</MessageBarBody>
+        </MessageBar>
+      )}
+
+      <PlatformCompanyProfile company={company} />
 
       <Subtitle1 as="h3">{t('People')}</Subtitle1>
       {members.isLoading && <LoadingState label={t('Loading…')} />}
@@ -247,15 +257,24 @@ function CompanyDetail({ company }: { company: PlatformCompany }) {
         busy={revoke.isPending}
         onCancel={() => setPendingRevoke(null)}
         onConfirm={() => {
-          if (!pendingRevoke) return;
-          revoke.mutate(
-            { companyId, userId: pendingRevoke.userId, roleName: pendingRevoke.roleName },
-            { onSuccess: () => toast.success('The role was revoked.'), onSettled: () => setPendingRevoke(null) },
-          );
+          const pending = pendingRevoke;
+          setPendingRevoke(null);
+          if (!pending) return;
+          // The last Admin of a Company that has Devices is a question first (useLastAdminConfirm), not a refusal.
+          void lastAdmin
+            .attempt((confirmLastAdmin) =>
+              revoke.mutateAsync(
+                { companyId, userId: pending.userId, roleName: pending.roleName, confirmLastAdmin },
+                { onSuccess: () => toast.success('The role was revoked.') },
+              ),
+            )
+            .catch(() => undefined);
         }}
       >
         {t('{0} loses this role. A company must keep at least one Admin.', pendingRevoke?.name ?? '')}
       </ConfirmDialog>
+
+      {lastAdmin.dialog}
 
       <ConfirmDialog
         open={confirmEnabled}
@@ -331,7 +350,6 @@ export function PlatformCompaniesPage() {
                 <TableCell>
                   <span className={styles.nameCell}>
                     {c.name}
-                    {c.locked && <LockClosed16Regular aria-label={t('Synchronized from WordPress')} />}
                   </span>
                 </TableCell>
                 <TableCell>{c.userCount}</TableCell>
