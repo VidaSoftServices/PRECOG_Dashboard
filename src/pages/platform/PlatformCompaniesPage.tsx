@@ -45,6 +45,7 @@ import { InvitePanel } from '@/components/people/InvitePanel';
 import { MemberActions } from '@/components/people/MemberActions';
 import { WordPressBadge } from '@/components/people/WordPressBadge';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { PlatformServers } from '@/pages/admin/ServersTab';
 import { PageHeader } from '@/components/PageHeader';
 import { useAppToast } from '@/components/ToastProvider';
 import { EmptyState } from '@/components/states/EmptyState';
@@ -233,6 +234,9 @@ function CompanyDetail({ company }: { company: PlatformCompany }) {
         defaultRole="Admin"
       />
       {invitations.isError && <ErrorState error={invitations.error} onRetry={() => invitations.refetch()} />}
+
+      <Subtitle1 as="h3">{t('Servers')}</Subtitle1>
+      <PlatformServers companyId={companyId} />
 
       <ConfirmDialog
         open={pendingRevoke !== null}

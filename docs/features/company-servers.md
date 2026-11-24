@@ -1,14 +1,15 @@
-# The Company's servers (slice S6, 2026-11-24)
+# The Company's servers (slices S6, S7, S9, 2026-11-24)
 
-The API side (registry, Device id ranges, allocation, `Server__Id`) is in `c:\VS\PRECOG_API\docs\features\company-servers.md`. A Company may run any number of PRECOG servers with their own databases; the Dashboard only edits the registry and shows where a Device lives. Since slice S7 (2026-11-24) it also sends each Device's requests to the server the Device lives on (see "Routing between servers").
+The API side (registry, Device id ranges, allocation, `Server__Id`) is in `c:\VS\PRECOG_API\docs\features\company-servers.md`. A Company may run any number of PRECOG servers with their own databases; **only the platform administrator (VSSSysAdmin) registers, changes and removes a server** (slice S9) - from the platform page, never a Company Admin - and the Dashboard shows where a Device lives. Since slice S7 (2026-11-24) it also sends each Device's requests to the server the Device lives on (see "Routing between servers").
 
-## The Servers tab (Company Settings, Admin only)
+## Who manages the servers (slice S9)
 
-- A new tab **Servers** next to Profile / Locations / Device groups / Device classes (`src/pages/admin/ServersTab.tsx`).
-- One card per server: name, the address a person would open (`https://host:port`, the scheme follows the TLS switch; `serverUrl`), the Device id range or "No reserved Device id range", the number of Devices, a **This server** badge (the registry entry the API process is, `Server__Id`) and a **Disabled** badge. Notes are shown below.
-- **Add a server / Edit server**: Name, Address, Port, First / Last Device id, Connection (https or http), Status (enabled), Notes. The form checks the same rules as the API (`checkServerForm`, `isValidServerAddress` in `src/lib/serverForm.ts`) and shows the problems next to the field **before any request**: the address is a host name, DNS name, IPv4 or IPv6 address - no `https://`, port or path; the port 1-65535; the range needs both ends (1-32767, first not above last); the API checks everything again (409 for a taken name or an overlapping range, with the other server named).
+- **VSSSysAdmin** (the platform account) registers a Company's servers on the **Companies** page of the platform pages: open a Company, section **Servers** (`PlatformServers` in `src/pages/admin/ServersTab.tsx`). Nobody else can: the API answers 403 to a Company Admin, a Reader and a DevicePrincipal.
+- One card per server: name, the address a person would open (`https://host:port`, the scheme follows the TLS switch; `serverUrl`), the Device id range or "No reserved Device id range", the number of Devices and a **Disabled** badge. Notes are shown below.
+- **Add a server / Edit server**: Name, Address (an **IP address** or a DNS name), Port, First / Last Device id, Connection (https or http), Status (enabled), Notes. The form checks the same rules as the API (`checkServerForm`, `isValidServerAddress` in `src/lib/serverForm.ts`) and shows the problems next to the field **before any request**: the address is a host name, DNS name, IPv4 or IPv6 address - no `https://`, port or path; the port 1-65535; the range needs both ends (1-32767, first not above last); the API checks everything again (409 for a taken name or an overlapping range, with the other server named). A TLS certificate is valid for a DNS name, not for a bare IP address, so a secure (https) server should be registered by its DNS name.
 - **Delete server** is disabled while Devices are assigned (with the reason shown), asks for a confirmation otherwise; it only removes the registry entry.
 - The API's refusals are English texts, some with a name or numbers inside; `translateServerError` puts them through `t()` with the values in the Hungarian order (`src/lib/translations.servers.ts`).
+- A Company's own people (Admin and Reader) see the same list **read-only** on the **Servers** tab of Company Settings (`ServersTab`): no add, edit or delete button, and a line saying the platform administrator registers the servers.
 
 ## The Device page
 
@@ -16,8 +17,8 @@ The **Status** card shows "Server: <name>" when the Device has one. In the Devic
 
 ## Code
 
-- Hooks `src/api/hooks/servers.ts`: `useServers`, `useCreateServer`, `useUpdateServer`, `useDeleteServer`, `useAssignDeviceServer`; query key `queryKeys.servers`. `DeviceDto.serverId` / `serverName` come from the regenerated schema.
-- Tests: `serverForm.test.ts` (address / range / port rules, the URL, the Hungarian of the API's refusals), `ServersTab.test.tsx` (list, no delete with Devices, add sends the typed values authenticated, a bad address is refused before any request, the overlap refusal in Hungarian, delete after a confirmation).
+- Hooks `src/api/hooks/servers.ts`: `useServers` (the Company's own, read), `usePlatformServers`, `useCreatePlatformServer`, `useUpdatePlatformServer`, `useDeletePlatformServer` (the platform administrator's, `/api/Platform/Companies/{companyId}/Servers`), `useAssignDeviceServer` (a Company Admin sets a Device's server); query keys `queryKeys.servers`, `queryKeys.platformServers`. `DeviceDto.serverId` / `serverName` come from the regenerated schema.
+- Tests: `serverForm.test.ts` (address / range / port rules, the URL, the Hungarian of the API's refusals), `ServersTab.test.tsx` (the platform list, a Company's people see it read-only, no delete with Devices, add sends the typed values authenticated, a bad address is refused before any request, the overlap refusal in Hungarian, delete after a confirmation).
 
 ## Routing between servers (slice S7, 2026-11-24)
 

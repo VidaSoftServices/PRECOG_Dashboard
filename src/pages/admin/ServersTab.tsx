@@ -6,7 +6,15 @@ import { EmptyState } from '@/components/states/EmptyState';
 import { LoadingState } from '@/components/states/LoadingState';
 import { useAppToast } from '@/components/ToastProvider';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { useCreateServer, useDeleteServer, useServers, useUpdateServer, type SaveServerRequest, type ServerDto } from '@/api/hooks/servers';
+import {
+  useCreatePlatformServer,
+  useDeletePlatformServer,
+  usePlatformServers,
+  useServers,
+  useUpdatePlatformServer,
+  type SaveServerRequest,
+  type ServerDto,
+} from '@/api/hooks/servers';
 import { checkServerForm, serverUrl, translateServerError, type ServerFormValues } from '@/lib/serverForm';
 import { useT } from '@/lib/language';
 
@@ -54,12 +62,12 @@ const toRequest = (f: ServerFormValues): SaveServerRequest => ({
   notes: f.notes.trim() === '' ? null : f.notes.trim(),
 });
 
-function ServerEditor({ initial, serverId, onDone }: { initial: ServerFormValues; serverId: number | null; onDone: () => void }) {
+function ServerEditor({ companyId, initial, serverId, onDone }: { companyId: number; initial: ServerFormValues; serverId: number | null; onDone: () => void }) {
   const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
-  const create = useCreateServer();
-  const update = useUpdateServer();
+  const create = useCreatePlatformServer(companyId);
+  const update = useUpdatePlatformServer(companyId);
   const [form, setForm] = useState<ServerFormValues>(initial);
   const [submitted, setSubmitted] = useState(false);
   const problems = checkServerForm(form);
@@ -135,11 +143,12 @@ function ServerEditor({ initial, serverId, onDone }: { initial: ServerFormValues
   );
 }
 
-function ServerCard({ server, onEdit }: { server: ServerDto; onEdit: () => void }) {
+/** One server. With `manage` (the platform administrator) it can be edited and deleted; without it (a Company's own people) it is only shown. */
+function ServerCard({ server, manage }: { server: ServerDto; manage?: { companyId: number; onEdit: () => void } }) {
   const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
-  const remove = useDeleteServer();
+  const remove = useDeletePlatformServer(manage?.companyId ?? 0);
   const [confirming, setConfirming] = useState(false);
   const hasRange = server.deviceIdFrom != null && server.deviceIdTo != null;
   const deviceCount = server.deviceCount ?? 0;
@@ -152,12 +161,16 @@ function ServerCard({ server, onEdit }: { server: ServerDto; onEdit: () => void 
         {server.isThisServer && <Badge appearance="tint" color="brand">{t('This server')}</Badge>}
         {!server.enabled && <Badge appearance="tint" color="warning">{t('Disabled')}</Badge>}
         <span className={styles.grow} />
-        <Button size="small" icon={<Edit16Regular />} onClick={onEdit}>
-          {t('Edit server')}
-        </Button>
-        <Button size="small" icon={<Delete16Regular />} disabled={deviceCount > 0 || remove.isPending} onClick={() => setConfirming(true)}>
-          {t('Delete server')}
-        </Button>
+        {manage && (
+          <>
+            <Button size="small" icon={<Edit16Regular />} onClick={manage.onEdit}>
+              {t('Edit server')}
+            </Button>
+            <Button size="small" icon={<Delete16Regular />} disabled={deviceCount > 0 || remove.isPending} onClick={() => setConfirming(true)}>
+              {t('Delete server')}
+            </Button>
+          </>
+        )}
       </div>
       <Text>{serverUrl({ address: server.address ?? '', port: server.port, useTls: server.useTls ?? true })}</Text>
       <Text size={200} className={styles.muted}>
@@ -165,7 +178,7 @@ function ServerCard({ server, onEdit }: { server: ServerDto; onEdit: () => void 
         {' · '}
         {t('{0} Device(s)', deviceCount)}
       </Text>
-      {deviceCount > 0 && (
+      {manage && deviceCount > 0 && (
         <Text size={200} className={styles.muted}>
           {t('A server with Devices cannot be deleted - move its Devices to another server first.')}
         </Text>
@@ -195,11 +208,33 @@ function ServerCard({ server, onEdit }: { server: ServerDto; onEdit: () => void 
   );
 }
 
-/** The Company's PRECOG servers (an Admin edits; the page is Admin-only). Only records where things live and which Device ids a server may create. */
+/**
+ * The Company's PRECOG servers, read-only: a Company Admin (or Reader) sees where the Company's Devices can live, but cannot add, change or remove a server -
+ * only the platform administrator (VSSSysAdmin) does, from the platform page.
+ */
 export function ServersTab() {
   const t = useT();
   const styles = useStyles();
   const servers = useServers();
+
+  return (
+    <>
+      <Text size={200} className={styles.muted} block style={{ marginBottom: tokens.spacingVerticalM }}>
+        {t('The servers of your Company. They are registered by the platform administrator; each Device says on its own page which server it lives on.')}
+      </Text>
+      {servers.isLoading && <LoadingState label="" />}
+      {servers.isError && <ErrorState error={servers.error} />}
+      {servers.data && servers.data.length === 0 && <EmptyState title={t('No servers registered yet')} />}
+      {servers.data?.map((server) => <ServerCard key={server.id} server={server} />)}
+    </>
+  );
+}
+
+/** The servers of one Company, managed by the platform administrator (VSSSysAdmin): register by IP address or DNS name, change, delete. */
+export function PlatformServers({ companyId }: { companyId: number }) {
+  const t = useT();
+  const styles = useStyles();
+  const servers = usePlatformServers(companyId);
   const [editing, setEditing] = useState<number | 'new' | null>(null);
 
   return (
@@ -212,15 +247,15 @@ export function ServersTab() {
           {t('Add a server')}
         </Button>
       </div>
-      {editing === 'new' && <ServerEditor initial={EMPTY} serverId={null} onDone={() => setEditing(null)} />}
+      {editing === 'new' && <ServerEditor companyId={companyId} initial={EMPTY} serverId={null} onDone={() => setEditing(null)} />}
       {servers.isLoading && <LoadingState label="" />}
       {servers.isError && <ErrorState error={servers.error} />}
       {servers.data && servers.data.length === 0 && editing !== 'new' && <EmptyState title={t('No servers registered yet')} />}
       {servers.data?.map((server) =>
         editing === server.id ? (
-          <ServerEditor key={server.id} initial={toForm(server)} serverId={server.id ?? null} onDone={() => setEditing(null)} />
+          <ServerEditor key={server.id} companyId={companyId} initial={toForm(server)} serverId={server.id ?? null} onDone={() => setEditing(null)} />
         ) : (
-          <ServerCard key={server.id} server={server} onEdit={() => setEditing(server.id ?? null)} />
+          <ServerCard key={server.id} server={server} manage={{ companyId, onEdit: () => setEditing(server.id ?? null) }} />
         ),
       )}
     </>

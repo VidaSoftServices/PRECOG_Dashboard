@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
-import { ServersTab } from './ServersTab';
+import { PlatformServers, ServersTab } from './ServersTab';
 import { AppToastProvider } from '@/components/ToastProvider';
 import * as authStore from '@/auth/authStore';
 import { setLanguage } from '@/lib/language';
@@ -52,14 +52,16 @@ function mockApi(servers: ServerDto[], overrides: Record<string, { status: numbe
   return calls;
 }
 
-function renderTab() {
+const PLATFORM_LIST = '/api/Platform/Companies/5/Servers';
+
+function renderTab(platform = true) {
   authStore.setSession({ token: 'abc', principalType: 'User', expiresAt: new Date(Date.now() + 60_000).toISOString() });
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <FluentProvider theme={webLightTheme}>
       <QueryClientProvider client={queryClient}>
         <AppToastProvider>
-          <ServersTab />
+          {platform ? <PlatformServers companyId={5} /> : <ServersTab />}
         </AppToastProvider>
       </QueryClientProvider>
     </FluentProvider>,
@@ -107,7 +109,7 @@ describe('ServersTab', () => {
     await user.type(screen.getByLabelText('Last Device id'), '2999');
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
-    await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.path === '/api/Servers')).toBe(true));
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.path === PLATFORM_LIST)).toBe(true));
     const post = calls.find((c) => c.method === 'POST')!;
     expect(post.hasKey).toBe(true);
     expect(post.body).toEqual({
@@ -120,7 +122,7 @@ describe('ServersTab', () => {
       deviceIdTo: 2999,
       notes: null,
     });
-    await waitFor(() => expect(calls.filter((c) => c.method === 'GET' && c.path === '/api/Servers').length).toBeGreaterThan(1));
+    await waitFor(() => expect(calls.filter((c) => c.method === 'GET' && c.path === PLATFORM_LIST).length).toBeGreaterThan(1));
   });
 
   it('refuses a bad address before any request is made', async () => {
@@ -138,7 +140,7 @@ describe('ServersTab', () => {
   });
 
   it("shows the API's refusal of an overlapping range, in Hungarian with the name and numbers in place", async () => {
-    mockApi([SERVER], { 'PUT /api/Servers/7': { status: 409, body: 'The Device id range overlaps the range of the server Plant B (2000-2999).' } });
+    mockApi([SERVER], { 'PUT /api/Platform/Companies/5/Servers/7': { status: 409, body: 'The Device id range overlaps the range of the server Plant B (2000-2999).' } });
     setLanguage('hu');
     const user = userEvent.setup();
     renderTab();
@@ -158,6 +160,19 @@ describe('ServersTab', () => {
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Delete server' }));
 
-    await waitFor(() => expect(calls.some((c) => c.method === 'DELETE' && c.path === '/api/Servers/7')).toBe(true));
+    await waitFor(() => expect(calls.some((c) => c.method === 'DELETE' && c.path === `${PLATFORM_LIST}/7`)).toBe(true));
+  });
+
+  it("shows a Company's own people the servers read-only: no add, edit or delete, and only the Company's own list is read", async () => {
+    const calls = mockApi([{ ...SERVER, deviceCount: 3 }]);
+    renderTab(false);
+
+    expect(await screen.findByText('Plant A')).toBeInTheDocument();
+    expect(screen.getByText('https://plant-a.example.test:8443')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add a server' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit server' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete server' })).not.toBeInTheDocument();
+    expect(screen.getByText(/registered by the platform administrator/)).toBeInTheDocument();
+    expect(calls.every((c) => c.method === 'GET' && c.path === '/api/Servers')).toBe(true);
   });
 });

@@ -6,7 +6,7 @@ import type { components } from '@/api/schema.generated';
 export type ServerDto = components['schemas']['ServerDto'];
 export type SaveServerRequest = components['schemas']['SaveServerRequest'];
 
-/** The PRECOG servers of the caller's Company (Admins and Readers may read; only Admins change the registry). */
+/** The PRECOG servers of the caller's Company (Admins and Readers may read; only the platform administrator changes the registry). */
 export function useServers() {
   return useQuery({
     queryKey: queryKeys.servers,
@@ -14,32 +14,49 @@ export function useServers() {
   });
 }
 
-export function useCreateServer() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (body: SaveServerRequest) => unwrap(await apiClient.POST('/api/Servers', { body })),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.servers }),
+/** The servers of any Company, for the platform administrator (VSSSysAdmin) who alone manages the registry. */
+export function usePlatformServers(companyId: number) {
+  return useQuery({
+    queryKey: queryKeys.platformServers(companyId),
+    queryFn: async ({ signal }) =>
+      unwrap(await apiClient.GET('/api/Platform/Companies/{companyId}/Servers', { params: { path: { companyId } }, signal })),
   });
 }
 
-export function useUpdateServer() {
+/** After a registry change: the platform list, the Company's own (read) list and the Device lists (they show the server's name). */
+function useRefreshServers(companyId: number) {
   const queryClient = useQueryClient();
+  return () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.platformServers(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.servers });
+    queryClient.invalidateQueries({ queryKey: queryKeys.devices });
+  };
+}
+
+export function useCreatePlatformServer(companyId: number) {
+  const refresh = useRefreshServers(companyId);
+  return useMutation({
+    mutationFn: async (body: SaveServerRequest) =>
+      unwrap(await apiClient.POST('/api/Platform/Companies/{companyId}/Servers', { params: { path: { companyId } }, body })),
+    onSuccess: refresh,
+  });
+}
+
+export function useUpdatePlatformServer(companyId: number) {
+  const refresh = useRefreshServers(companyId);
   return useMutation({
     mutationFn: async ({ serverId, body }: { serverId: number; body: SaveServerRequest }) =>
-      unwrap(await apiClient.PUT('/api/Servers/{serverId}', { params: { path: { serverId } }, body })),
-    // the Devices list shows the server's name, so it is refreshed with it
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.servers });
-      queryClient.invalidateQueries({ queryKey: queryKeys.devices });
-    },
+      unwrap(await apiClient.PUT('/api/Platform/Companies/{companyId}/Servers/{serverId}', { params: { path: { companyId, serverId } }, body })),
+    onSuccess: refresh,
   });
 }
 
-export function useDeleteServer() {
-  const queryClient = useQueryClient();
+export function useDeletePlatformServer(companyId: number) {
+  const refresh = useRefreshServers(companyId);
   return useMutation({
-    mutationFn: async (serverId: number) => unwrap(await apiClient.DELETE('/api/Servers/{serverId}', { params: { path: { serverId } } })),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.servers }),
+    mutationFn: async (serverId: number) =>
+      unwrap(await apiClient.DELETE('/api/Platform/Companies/{companyId}/Servers/{serverId}', { params: { path: { companyId, serverId } } })),
+    onSuccess: refresh,
   });
 }
 

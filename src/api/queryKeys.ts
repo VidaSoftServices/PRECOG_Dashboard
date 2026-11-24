@@ -13,6 +13,7 @@ export const queryKeys = {
   platformCompanies: ['platform', 'companies'] as const,
   platformMembers: (companyId: number) => ['platform', 'companies', companyId, 'members'] as const,
   platformInvitations: (companyId: number) => ['platform', 'companies', companyId, 'invitations'] as const,
+  platformServers: (companyId: number) => ['platform', 'companies', companyId, 'servers'] as const,
 
   sensorMetadata: ['sensorMetadata'] as const,
   sensorTypes: ['sensorTypes'] as const,

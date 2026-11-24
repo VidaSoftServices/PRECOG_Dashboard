@@ -51,6 +51,8 @@ export const HU_SERVERS: Record<string, string> = {
   'Device {0} is outside the Device id range of this server ({1}-{2}).': 'A(z) {0}. eszköz a szerver eszközazonosító-tartományán ({1}–{2}) kívül esik.',
   'A Company can have at most {0} servers.': 'Egy cégnek legfeljebb {0} szervere lehet.',
   'Something went wrong.': 'Valami hiba történt.',
+  'The servers of your Company. They are registered by the platform administrator; each Device says on its own page which server it lives on.':
+    'A cég szerverei. A platform adminisztrátor veszi fel őket; minden eszköz a saját oldalán mutatja, melyik szerveren él.',
 
   // Routing of a Device's requests to its own server
   'Some servers of your Company could not be read': 'A cég néhány szervere nem olvasható',

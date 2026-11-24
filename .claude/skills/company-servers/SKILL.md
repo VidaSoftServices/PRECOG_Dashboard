@@ -1,6 +1,6 @@
 ---
 name: company-servers
-description: The Company's server registry in the Dashboard: the Servers tab of Company Settings (add / edit / delete a server, address, port, TLS, reserved Device id range), the Server selector and name on the Device page, the form checks and the Hungarian texts of the API's refusals, and the routing of a Device's requests to its own server (deviceRouting.ts, the routing middleware, loadCompanyDevices, DeviceRoutingGate). Use when working on, asking about or changing servers, ServersTab, useServers, serverForm.ts, the Device's server or routing between servers.
+description: The Company's server registry in the Dashboard: the platform administrator's Servers section on the Companies page (add by IP address or DNS name / edit / delete a server; a Company's own people see the Servers tab read-only, address, port, TLS, reserved Device id range), the Server selector and name on the Device page, the form checks and the Hungarian texts of the API's refusals, and the routing of a Device's requests to its own server (deviceRouting.ts, the routing middleware, loadCompanyDevices, DeviceRoutingGate). Use when working on, asking about or changing servers, ServersTab, useServers, serverForm.ts, the Device's server or routing between servers.
 ---
 
 # The Company's servers: registry and Device id ranges (Dashboard)
