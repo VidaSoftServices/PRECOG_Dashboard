@@ -5,16 +5,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
 import { ExportSensorMapButton } from './ExportSensorMapButton';
 import * as authStore from '@/auth/authStore';
-import { fetchMock } from '@/test/mockFetch';
-import { CATALOG_DTO } from '@/test/sensorCatalog';
 
 const DEVICE = { id: 4, deviceName: 'Press 7', externalDeviceId: 'ext-4' };
 
-function renderButton(sensors: { id?: number | null; externalSensorId?: string | null }[], catalogOk = true) {
+function renderButton(sensors: { id?: number | null; externalSensorId?: string | null }[]) {
   authStore.setSession({ token: 'abc', principalType: 'User', expiresAt: new Date(Date.now() + 60_000).toISOString() });
-  fetchMock().mockImplementation(async () =>
-    catalogOk ? new Response(JSON.stringify(CATALOG_DTO), { status: 200, headers: { 'content-type': 'application/json' } }) : new Response('boom', { status: 500 }),
-  );
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <FluentProvider theme={webLightTheme}>
@@ -56,7 +51,7 @@ describe('ExportSensorMapButton', () => {
         { id: 14, externalSensorId: 'my_custom_tag' },
       ]);
       const button = screen.getByRole('button', { name: 'Export sensor for hardware' });
-      await waitFor(() => expect(button).toBeEnabled()); // waits for the catalog
+      await waitFor(() => expect(button).toBeEnabled());
 
       await user.click(button);
 
@@ -71,8 +66,8 @@ describe('ExportSensorMapButton', () => {
       expect(text).toContain('#define PRECOG_SENSOR_ID_VELOCITY_RMS_X_EQ_1');
       expect(text).toMatch(/PRECOG_SENSOR_ID_VELOCITY_RMS_X_EQ_1\s+12\s+\/\* velocity_rms_x_eq_1 \*\//);
       expect(text).toMatch(/PRECOG_SENSOR_ID_VELOCITY_RMS_X_MAX_1\s+13\s+\/\* velocity_rms_x_max_1 \*\//);
-      expect(text).not.toContain('MY_CUSTOM_TAG'); // not a firmware channel
-      expect(text).toContain('// Skipped, not a firmware channel (1): my_custom_tag');
+      expect(text).toMatch(/PRECOG_SENSOR_ID_MY_CUSTOM_TAG\s+14\s+\/\* my_custom_tag \*\//); // nothing is filtered out
+      expect(text).not.toContain('Skipped');
       expect(text).toContain('#pragma once');
     } finally {
       download.restore();
@@ -85,9 +80,8 @@ describe('ExportSensorMapButton', () => {
     expect(screen.getByRole('button', { name: 'Export sensor for hardware' })).toBeDisabled();
   });
 
-  it('stays disabled while the catalog is unavailable - which names are firmware channels is not guessed', async () => {
-    renderButton([{ id: 1, externalSensorId: 'velocity_rms_x_eq_1' }], false);
-    await new Promise((r) => setTimeout(r, 100));
-    expect(screen.getByRole('button', { name: 'Export sensor for hardware' })).toBeDisabled();
+  it('does not need the metric catalog: it is enabled at once when the Device has Sensors', () => {
+    renderButton([{ id: 1, externalSensorId: 'velocity_rms_x_eq_1' }]);
+    expect(screen.getByRole('button', { name: 'Export sensor for hardware' })).toBeEnabled();
   });
 });
