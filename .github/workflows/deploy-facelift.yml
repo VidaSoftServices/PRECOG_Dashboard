@@ -187,6 +187,23 @@ jobs:
               throw "Unexpected Compose project: $composeProject"
           }
 
+          # The container must also answer: nginx's /healthz and the page itself on the host port the Cloudflare tunnel uses.
+          $served = $false
+          for ($i = 0; $i -lt 15 -and -not $served; $i++) {
+              try {
+                  $health = Invoke-WebRequest -UseBasicParsing -TimeoutSec 5 "http://localhost:8030/healthz"
+                  $page = Invoke-WebRequest -UseBasicParsing -TimeoutSec 5 "http://localhost:8030/login"
+                  $served = ($health.StatusCode -eq 200) -and ($page.StatusCode -eq 200)
+              } catch {
+                  Start-Sleep -Seconds 2
+              }
+          }
+
+          if (-not $served) {
+              docker logs --tail 50 dashboard
+              throw "The dashboard container does not answer on http://localhost:8030."
+          }
+
           Write-Host "Dashboard deployment completed successfully."
           Write-Host "Compose project: $composeProject"
           Write-Host "Container: dashboard"
