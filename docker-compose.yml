@@ -9,6 +9,17 @@ services:
     container_name: dashboard
     ports:
       - "8030:3000"
-    environment:
-      - NODE_ENV=production
     restart: unless-stopped
+    # The same check as the image's HEALTHCHECK: `docker ps` shows healthy / unhealthy, `docker inspect dashboard` the last answers.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    # nginx request and error log (`docker logs dashboard`), kept to 5 x 10 MB.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
