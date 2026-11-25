@@ -24,6 +24,7 @@ import { ArrowDownload24Regular, DocumentArrowUp24Regular } from '@fluentui/reac
 import { ErrorState } from '@/components/states/ErrorState';
 import { useAppToast } from '@/components/ToastProvider';
 import { useImportSensors, useSensors, type SensorImportOutcome } from '@/api/hooks/sensors';
+import { deviceFilePart } from '@/lib/deviceFileName';
 import { useSensorMetadata } from '@/api/hooks/sensorMetadata';
 import {
   DIRECTIONS,
@@ -113,11 +114,14 @@ const MAX_LISTED = 20;
  */
 export function SensorImportDialog({
   deviceId,
+  externalDeviceId,
   applicationMode,
   open,
   onClose,
 }: {
   deviceId: number;
+  /** The Device ID (externalDeviceId) for the file names of the exports. */
+  externalDeviceId?: string | null;
   applicationMode: string | null | undefined;
   open: boolean;
   onClose: () => void;
@@ -212,7 +216,7 @@ export function SensorImportDialog({
       const sensor = byExternalId.get(r.externalSensorId.toLowerCase());
       return sensor?.id == null ? [] : [{ externalSensorId: sensor.externalSensorId ?? r.externalSensorId, sensorId: sensor.id, name: sensor.name ?? '' }];
     });
-    downloadTextFile(`sensor-ids-device-${deviceId}.csv`, buildSensorIdMapCsv(entries));
+    downloadTextFile(`sensor-ids-${deviceFilePart(deviceId, externalDeviceId)}.csv`, buildSensorIdMapCsv(entries));
   };
 
   const created = outcomes?.filter((o) => o.status === 'created').length ?? 0;
@@ -248,7 +252,7 @@ export function SensorImportDialog({
               >
                 {t('Download Data sets')}</Button>
               {/* Every Sensor of the Device as a sheet this dialog takes back: edit it in Excel and import it to change many Sensors at once. */}
-              <ExportAllSensorsButton deviceId={deviceId} sensors={sensorsQuery.data ?? []} />
+              <ExportAllSensorsButton deviceId={deviceId} externalDeviceId={externalDeviceId} sensors={sensorsQuery.data ?? []} />
               <Button icon={<DocumentArrowUp24Regular />} onClick={() => fileRef.current?.click()} disabled={running}>
                 {t('Choose .csv file')}</Button>
               <input

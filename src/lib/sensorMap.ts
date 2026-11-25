@@ -1,3 +1,4 @@
+import { deviceFilePart } from './deviceFileName';
 /**
  * Builds the text of the Vibration_Duo firmware's `include/sensor_map.h` from the Sensors that exist on a Device right
  * now: one `#define PRECOG_SENSOR_ID_<TAG> <id>` per Sensor, with the numeric, Device-scoped SensorId the API reports.
@@ -65,7 +66,7 @@ export function buildSensorMap(sensors: SensorMapSensor[], info: SensorMapInfo):
   return { text: lines.join('\n'), mapped: ordered.length };
 }
 
-/** The file name offered for the download. */
-export function sensorMapFileName(deviceId: number): string {
-  return `sensor_map-device-${deviceId}.txt`;
+/** The file name offered for the download: the Device's number and its Device ID (externalDeviceId), e.g. "sensor_map-device-2-KS4.txt". */
+export function sensorMapFileName(deviceId: number, externalDeviceId?: string | null): string {
+  return `sensor_map-${deviceFilePart(deviceId, externalDeviceId)}.txt`;
 }

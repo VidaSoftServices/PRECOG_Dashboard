@@ -32,7 +32,7 @@ export function ExportSensorMapButton({
       externalDeviceId: device.externalDeviceId ?? '',
       generatedAt: new Date(),
     });
-    downloadTextFile(sensorMapFileName(device.id), text, 'text/plain;charset=utf-8');
+    downloadTextFile(sensorMapFileName(device.id, device.externalDeviceId), text, 'text/plain;charset=utf-8');
   };
 
   return (

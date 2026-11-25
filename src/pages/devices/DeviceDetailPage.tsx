@@ -174,7 +174,7 @@ function NewSensorDialog({
       }}
     >
       <div className={styles.form}>
-        <Field label={t('External Sensor ID')} required hint={t('A unique tag name for this Sensor within the Device - used by the uploader.')}>
+        <Field label={t('Sensor ID')} required hint={t('A unique tag name for this Sensor within the Device - used by the uploader.')}>
           <Input value={externalSensorId} onChange={(_, d) => setExternalSensorId(d.value)} />
         </Field>
         <Field label={t('Name')}>
@@ -201,7 +201,7 @@ function NewSensorDialog({
   );
 }
 
-function EditSensorDialog({
+export function EditSensorDialog({
   deviceId,
   sensor,
   open,
@@ -254,6 +254,10 @@ function EditSensorDialog({
       onCancel={onClose}
     >
       <div className={styles.form}>
+        {/* The Sensor ID names the Sensor in telemetry, sheets and the firmware map: shown, not editable here. */}
+        <Field label={t('Sensor ID')}>
+          <Input value={sensor.externalSensorId ?? ''} readOnly />
+        </Field>
         <Field label={t('Name')}>
           <Input value={name} onChange={(_, d) => setName(d.value)} />
         </Field>
@@ -724,7 +728,7 @@ export function DeviceDetailPage() {
                   <Body1Strong>{sensor.name || sensor.externalSensorId}</Body1Strong>
                   <br />
                   <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-                    {t('External Sensor ID')}: {sensor.externalSensorId}
+                    {t('Sensor ID')}: {sensor.externalSensorId}
                   </Text>
                   <br />
                   <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
@@ -857,13 +861,14 @@ export function DeviceDetailPage() {
       )}
 
       {isAdmin && importDescriptionsOpen && (
-        <DescriptionsDialog deviceId={id} deviceName={deviceQuery.data?.deviceName || deviceQuery.data?.externalDeviceId || `Device ${id}`} open={importDescriptionsOpen} onClose={() => setImportDescriptionsOpen(false)} />
+        <DescriptionsDialog deviceId={id} externalDeviceId={deviceQuery.data?.externalDeviceId} deviceName={deviceQuery.data?.deviceName || deviceQuery.data?.externalDeviceId || `Device ${id}`} open={importDescriptionsOpen} onClose={() => setImportDescriptionsOpen(false)} />
       )}
-      {isAdmin && manageSetpointsOpen && <ManageSetpointsDialog deviceId={id} open={manageSetpointsOpen} onClose={() => setManageSetpointsOpen(false)} />}
+      {isAdmin && manageSetpointsOpen && <ManageSetpointsDialog deviceId={id} externalDeviceId={deviceQuery.data?.externalDeviceId} open={manageSetpointsOpen} onClose={() => setManageSetpointsOpen(false)} />}
 
       {isAdmin && importSensorsOpen && (
         <SensorImportDialog
           deviceId={id}
+          externalDeviceId={deviceQuery.data?.externalDeviceId}
           applicationMode={device.applicationMode}
           open={importSensorsOpen}
           onClose={() => setImportSensorsOpen(false)}
@@ -921,7 +926,7 @@ export function DeviceDetailPage() {
       )}
 
       {isAdmin && bulkAggregationOpen && (
-        <BulkAggregationDialog deviceId={id} sensors={sensorsQuery.data ?? []} open onClose={() => setBulkAggregationOpen(false)} />
+        <BulkAggregationDialog deviceId={id} externalDeviceId={deviceQuery.data?.externalDeviceId} sensors={sensorsQuery.data ?? []} open onClose={() => setBulkAggregationOpen(false)} />
       )}
 
       {isAdmin && recalcSensorId !== null && (

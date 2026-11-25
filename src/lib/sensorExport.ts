@@ -1,5 +1,6 @@
 import { SCALES, SETPOINT_COLUMNS, TEMPLATE_HEADERS, csvField, type SetpointColumn } from '@/lib/sensorImport';
 import { isRawPolicy } from '@/lib/policies';
+import { deviceFilePart } from './deviceFileName';
 
 /** The columns of the Sensor export - exactly the template's columns (see TEMPLATE_HEADERS), in the same order, "(optional)" included. */
 export const SENSOR_EXPORT_HEADERS = TEMPLATE_HEADERS;
@@ -115,6 +116,7 @@ export function buildSensorsExportCsv(
   return BOM + [SENSOR_EXPORT_HEADERS.join(','), ...rows].join('\r\n') + '\r\n';
 }
 
-export function sensorsExportFileName(deviceId: number): string {
-  return `sensors-device-${deviceId}.csv`;
+/** The file name of the export: the Device's number and its Device ID (externalDeviceId), e.g. "sensors-device-2-KS4.csv". */
+export function sensorsExportFileName(deviceId: number, externalDeviceId?: string | null): string {
+  return `sensors-${deviceFilePart(deviceId, externalDeviceId)}.csv`;
 }

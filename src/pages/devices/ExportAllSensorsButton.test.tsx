@@ -20,7 +20,7 @@ function renderButton(sensors = SENSORS) {
     <FluentProvider theme={webLightTheme}>
       <QueryClientProvider client={queryClient}>
         <AppToastProvider>
-          <ExportAllSensorsButton deviceId={4} sensors={sensors} />
+          <ExportAllSensorsButton deviceId={4} externalDeviceId="KS4" sensors={sensors} />
         </AppToastProvider>
       </QueryClientProvider>
     </FluentProvider>,
@@ -76,7 +76,7 @@ describe('ExportAllSensorsButton', { timeout: 20_000 }, () => {
       const user = userEvent.setup();
       renderButton();
       await user.click(screen.getByRole('button', { name: 'Export all sensors' }));
-      await waitFor(() => expect(download.names).toEqual(['sensors-device-4.csv']));
+      await waitFor(() => expect(download.names).toEqual(['sensors-device-4-KS4.csv']));
       expect(gets.sort()).toEqual(['/api/Devices/4/AggregationPolicies', '/api/Devices/4/Setpoints']);
       const lines = (await readBlob(download.blobs[0]!)).replace(/^\uFEFF/, '').trim().split('\r\n');
       expect(lines[0]).toBe(

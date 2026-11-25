@@ -20,6 +20,7 @@ import { ArrowDownload24Regular, ArrowUpload24Regular, Delete24Regular, Document
 import { useAppToast } from '@/components/ToastProvider';
 import { ErrorState } from '@/components/states/ErrorState';
 import { useSensors } from '@/api/hooks/sensors';
+import { deviceFilePart } from '@/lib/deviceFileName';
 import { useDeleteDescriptions, useDeviceDescriptions, useImportDescriptions } from '@/api/hooks/sensorDescriptions';
 import { downloadTextFile } from '@/lib/downloadFile';
 import { useT } from '@/lib/language';
@@ -43,7 +44,7 @@ const MAX_LISTED = 12;
  * stored by the API (so it is remembered); the stored texts can be exported as the same kind of sheet and removed. One Sensor's texts can also be
  * edited by hand in its Edit dialog. Shown beside the enlarged chart of Live Monitoring and Smart Analytics.
  */
-export function DescriptionsDialog({ deviceId, deviceName, open, onClose }: { deviceId: number; deviceName: string; open: boolean; onClose: () => void }) {
+export function DescriptionsDialog({ deviceId, deviceName, externalDeviceId, open, onClose }: { deviceId: number; deviceName: string; /** The Device ID (externalDeviceId) for the file names of the exports. */ externalDeviceId?: string | null; open: boolean; onClose: () => void }) {
   const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
@@ -87,7 +88,7 @@ export function DescriptionsDialog({ deviceId, deviceName, open, onClose }: { de
 
   const exportSheet = () => {
     const sheet = buildDescriptionSheet(storedRows.map((r) => ({ sensorName: r.externalSensorId, language: r.language, description: r.description })));
-    downloadTextFile(`descriptions-device-${deviceId}.csv`, sheet);
+    downloadTextFile(`descriptions-${deviceFilePart(deviceId, externalDeviceId)}.csv`, sheet);
   };
 
   const removeAll = async () => {
@@ -128,8 +129,8 @@ export function DescriptionsDialog({ deviceId, deviceName, open, onClose }: { de
               </Button>
             </div>
 
+            <Text className={styles.muted}>{t('Download a template (one measuring point, 162 indicators, English and Hungarian):')}</Text>
             <div className={styles.row}>
-              <Text className={styles.muted}>{t('Download a template (one measuring point, 162 indicators, English and Hungarian):')}</Text>
               <Button as="a" href="/templates/description-template-pump-162.csv" download icon={<ArrowDownload24Regular />}>
                 {t('Template: pump')}
               </Button>

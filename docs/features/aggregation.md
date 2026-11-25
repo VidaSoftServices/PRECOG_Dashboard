@@ -57,3 +57,5 @@ The Sensor Policies page's **New aggregation level** form (`NewPolicyForm` in `S
 ## Anomaly of a bucket on the chart (2026-11-19)
 
 `GET .../AggregationPolicies/{policyId}/Values` now returns `anomaly` per bucket (0 / 1 warning / 2 critical, null = not evaluated); the Dashboard's `bucketToPoint` passes it to the chart, which draws an anomalous bucket with a large yellow / red marker like a raw reading (`smart-analytics.md`, "Anomaly markers on the charts").
+
+- 2026-11-25: the downloaded file names carry the Device ID (externalDeviceId) next to the number, e.g. `sensors-device-2-KS4.csv` (`deviceFilePart`, `src/lib/deviceFileName.ts`: unsafe characters become `_`, at most 60 kept, only the number without a Device ID); the Device page passes `externalDeviceId` to the dialogs (no extra request). The Add Device form labels it "Device ID" (was "External Device ID"). Test: `deviceFileName.test.ts`.

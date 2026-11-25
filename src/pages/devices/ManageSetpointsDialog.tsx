@@ -62,7 +62,7 @@ const MAX_OPERATION_LINES = 200;
  * all its setpoints; a Sensor that does not appear is not touched. Everything is validated and previewed before the first request.
  * See lib/setpointSheet.ts for the exact rules.
  */
-export function ManageSetpointsDialog({ deviceId, open, onClose }: { deviceId: number; open: boolean; onClose: () => void }) {
+export function ManageSetpointsDialog({ deviceId, externalDeviceId, open, onClose }: { deviceId: number; /** The Device ID (externalDeviceId) for the file names of the exports. */ externalDeviceId?: string | null; open: boolean; onClose: () => void }) {
   const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
@@ -136,7 +136,7 @@ export function ManageSetpointsDialog({ deviceId, open, onClose }: { deviceId: n
     try {
       const intervals = await fetchDeviceSetpoints(queryClient, deviceId);
       const rows = (intervals ?? []).flatMap((s) => (s.id != null && s.sensorId != null && s.validFrom ? [{ ...s, id: s.id, sensorId: s.sensorId, validFrom: s.validFrom }] : []));
-      downloadTextFile(setpointsExportFileName(deviceId), buildSetpointsExportCsv(sheetSensors, rows));
+      downloadTextFile(setpointsExportFileName(deviceId, externalDeviceId), buildSetpointsExportCsv(sheetSensors, rows));
     } catch (e) {
       setExportError(e);
     } finally {

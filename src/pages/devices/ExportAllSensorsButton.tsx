@@ -15,7 +15,7 @@ import { useT } from '@/lib/language';
  * policy values and the setpoints come from two Device-wide requests, read fresh when the button is pressed; nothing is sent anywhere.
  * The full setpoint history (every interval) is the "Manage Setpoints" export.
  */
-export function ExportAllSensorsButton({ deviceId, sensors }: { deviceId: number; sensors: readonly ExportSensor[] }) {
+export function ExportAllSensorsButton({ deviceId, externalDeviceId, sensors }: { deviceId: number; /** The Device ID (externalDeviceId) for the file names of the exports. */ externalDeviceId?: string | null; sensors: readonly ExportSensor[] }) {
   const t = useT();
   const queryClient = useQueryClient();
   const toast = useAppToast();
@@ -26,7 +26,7 @@ export function ExportAllSensorsButton({ deviceId, sensors }: { deviceId: number
     try {
       // Two Device-wide reads (the raw policies and every setpoint interval), not one request per Sensor.
       const [policies, setpoints] = await Promise.all([fetchDeviceAggregationPolicies(queryClient, deviceId), fetchDeviceSetpoints(queryClient, deviceId)]);
-      downloadTextFile(sensorsExportFileName(deviceId), buildSensorsExportCsv(sensors, policies ?? [], setpoints ?? []));
+      downloadTextFile(sensorsExportFileName(deviceId, externalDeviceId), buildSensorsExportCsv(sensors, policies ?? [], setpoints ?? []));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t('The export failed.'), t('Export failed'));
     } finally {

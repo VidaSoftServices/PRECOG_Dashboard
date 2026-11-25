@@ -55,7 +55,7 @@ describe('ExportSensorMapButton', () => {
 
       await user.click(button);
 
-      expect(download.names).toEqual(['sensor_map-device-4.txt']);
+      expect(download.names).toEqual(['sensor_map-device-4-ext-4.txt']); // the number and the Device ID
       expect(download.blobs[0]!.type).toBe('text/plain;charset=utf-8');
       const text = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();

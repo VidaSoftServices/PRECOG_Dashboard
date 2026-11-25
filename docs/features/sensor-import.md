@@ -115,3 +115,8 @@ History: until 2026-11-24 only catalog metrics of measurement point 1 and 2 were
 - **A new Sensor's first setpoint** is saved in the background while the next Sensor is created.
 - **429:** the requests share one gate (`RateGate` in `src/api/rateLimited.ts`): one rate-limited request makes all the others wait for its Retry-After too; retries are unchanged (4 times, at most 60 s). 401/403 and the Stop button stop everything.
 Tests: `sensors.import.test.ts` (one read per Device, per-Sensor reads for few rows, concurrency <= 6 and sheet order, sequential creation with side setpoints, shared 429 wait), `SensorImportDialog.test.tsx`, `sensorExport.test.ts`.
+
+- 2026-11-25: the Device page's Sensor rows and the Add Sensor form label the `externalSensorId` **"Sensor ID"** (was "External Sensor ID"); see sensor-metadata.md.
+
+- 2026-11-25: the downloaded file names carry the Device ID (externalDeviceId) next to the number, e.g. `sensors-device-2-KS4.csv` (`deviceFilePart`, `src/lib/deviceFileName.ts`: unsafe characters become `_`, at most 60 kept, only the number without a Device ID); the Device page passes `externalDeviceId` to the dialogs (no extra request). The Add Device form labels it "Device ID" (was "External Device ID"). Test: `deviceFileName.test.ts`.
+- 2026-11-25: the same for "Export sensor for hardware" (`sensor_map-device-2-KS4.txt`) and the Sensor ID map (`sensor-ids-device-2-KS4.csv`).

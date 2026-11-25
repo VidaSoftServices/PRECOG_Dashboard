@@ -1,3 +1,4 @@
+import { deviceFilePart } from './deviceFileName';
 import {
   SETPOINT_COLUMNS,
   csvField,
@@ -94,8 +95,9 @@ export function buildSetpointsExportCsv(sensors: readonly { id: number; external
   return BOM + [SETPOINT_SHEET_HEADERS.join(','), ...lines].join('\r\n') + '\r\n';
 }
 
-export function setpointsExportFileName(deviceId: number): string {
-  return `setpoints-device-${deviceId}.csv`;
+/** The file name of the export: the Device's number and its Device ID (externalDeviceId), e.g. "setpoints-device-2-KS4.csv". */
+export function setpointsExportFileName(deviceId: number, externalDeviceId?: string | null): string {
+  return `setpoints-${deviceFilePart(deviceId, externalDeviceId)}.csv`;
 }
 
 // ---- import: parsing -------------------------------------------------------------------------------------------------------------

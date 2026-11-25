@@ -48,7 +48,7 @@ describe('MetricDefinitionCard', () => {
     renderCard(sensorFor('velocity_rms_x_eq'));
 
     expect(screen.getByText('Velocity RMS X (equivalent RMS)')).toBeInTheDocument();
-    expect(screen.getByText('Sensor name')).toBeInTheDocument(); // not "Machine name"
+    expect(screen.getByText('Sensor ID')).toBeInTheDocument(); // not "Sensor name" or "Machine name"
     expect(screen.queryByText('Machine name')).not.toBeInTheDocument();
     expect(screen.getByText('velocity_rms_x_eq_1')).toBeInTheDocument();
     expect(screen.getByText(/^mm\/s/)).toBeInTheDocument();

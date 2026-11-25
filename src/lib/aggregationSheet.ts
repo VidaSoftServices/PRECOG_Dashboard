@@ -1,6 +1,7 @@
 import { SCALES, csvField, detectDelimiter, normalizeHeader, parseBoolean, splitDelimited } from '@/lib/sensorImport';
 import { AGGREGATION_FUNCTION_OPTIONS, DEFAULT_MIN_EVALUATION_PERCENT, TIME_SCALE_OPTIONS } from '@/lib/aggregationOptions';
 import { isRawPolicy } from '@/lib/policies';
+import { deviceFilePart } from './deviceFileName';
 
 /**
  * The aggregation sheet: one row per (Sensor, aggregation level), read and written as CSV, so the same level can be given to many Sensors
@@ -267,8 +268,9 @@ export function buildAggregationExportCsv(policies: readonly ExportAggregationPo
   return BOM + [AGGREGATION_SHEET_HEADERS.join(','), ...lines].join('\r\n') + '\r\n';
 }
 
-export function aggregationExportFileName(deviceId: number): string {
-  return `aggregation-device-${deviceId}.csv`;
+/** The file name of the export: the Device's number and its Device ID (externalDeviceId), e.g. "aggregation-device-2-KS4.csv". */
+export function aggregationExportFileName(deviceId: number, externalDeviceId?: string | null): string {
+  return `aggregation-${deviceFilePart(deviceId, externalDeviceId)}.csv`;
 }
 
 /**

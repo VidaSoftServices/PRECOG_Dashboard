@@ -48,7 +48,7 @@ export function MetricDefinitionCard({ sensor }: { sensor: SensorDto }) {
         <Text className={styles.label}>{t('Display name')}</Text>
         <Text>{sensor.name || '—'}</Text>
 
-        <Text className={styles.label}>{t('Sensor name')}</Text>
+        <Text className={styles.label}>{t('Sensor ID')}</Text>
         <Text className={styles.technical}>{sensor.externalSensorId}</Text>
 
         <Text className={styles.label}>{t('Unit')}</Text>

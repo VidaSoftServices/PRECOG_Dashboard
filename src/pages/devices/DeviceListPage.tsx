@@ -92,7 +92,7 @@ function NewDeviceDialog({ open, onClose }: { open: boolean; onClose: () => void
         <DialogBody>
           <DialogTitle>{t('Add Device')}</DialogTitle>
           <DialogContent className={styles.formGrid}>
-            <Field label={t('External Device ID')} required hint={t('A unique identifier for this Device in your fleet.')}>
+            <Field label={t('Device ID')} required hint={t('A unique identifier for this Device in your fleet.')}>
               <Input value={externalDeviceId} onChange={(_, d) => setExternalDeviceId(d.value)} />
             </Field>
             <Field label={t('Name')}>
