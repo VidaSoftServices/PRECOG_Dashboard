@@ -18,7 +18,7 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import { Delete24Regular, ShieldKeyhole24Regular, Settings24Regular, ChartMultiple24Regular, AddCircle24Regular, Edit24Regular, Wrench24Regular, TableArrowUp24Regular, TargetEdit24Regular, DocumentText24Regular, ArrowSync24Regular, DataBarVertical24Regular } from '@fluentui/react-icons';
+import { Delete24Regular, ShieldKeyhole24Regular, Settings24Regular, ArrowUpload24Regular, AddCircle24Regular, Edit24Regular, Wrench24Regular, TableArrowUp24Regular, TargetEdit24Regular, DocumentText24Regular, ArrowSync24Regular, DataBarVertical24Regular } from '@fluentui/react-icons';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
@@ -42,7 +42,6 @@ import { useSetSensorMaintenance } from '@/api/hooks/maintenance';
 import { MaintenanceAllDialog } from './MaintenanceAllDialog';
 import { EndMaintenanceDialog } from './EndMaintenanceDialog';
 import { MaintenanceHistoryCard } from './MaintenanceHistoryCard';
-import { FirmwareCard } from './FirmwareCard';
 import { RecalculateDialog } from './RecalculateDialog';
 import { BulkAggregationDialog } from './BulkAggregationDialog';
 import { isDeleteOnly, isRecalculable } from '@/lib/recalculation';
@@ -685,8 +684,8 @@ export function DeviceDetailPage() {
               >
                 {t('Maintenance (all Sensors)')}</Button>
             )}
-            <Button icon={<ChartMultiple24Regular />} onClick={() => navigate(`/analytics?deviceId=${id}`)}>
-              {t('Analyze')}</Button>
+            <Button icon={<ArrowUpload24Regular />} onClick={() => navigate(`/devices/${id}/firmware`)}>
+              {t('Firmware')}</Button>
           </>
         }
       />
@@ -790,7 +789,6 @@ export function DeviceDetailPage() {
       )}
 
       {sensorsQuery.data && sensorsQuery.data.length > 0 && <MaintenanceHistoryCard deviceId={id} sensors={sensorsQuery.data} isAdmin={isAdmin} />}
-      <FirmwareCard deviceId={id} device={deviceQuery.data ?? {}} isAdmin={isAdmin} />
 
       {isAdmin && (
         <div style={{ marginTop: tokens.spacingVerticalXL }}>

@@ -78,7 +78,6 @@ export const HU_DEVICES: Record<string, string> = {
   'Manage Setpoints': 'Célérték-beállítások kezelése',
   'Recalc all': 'Mindent újraszámol',
   'Maintenance (all Sensors)': 'Karbantartás (minden szenzor)',
-  Analyze: 'Elemzés',
   'No sensors configured': 'Nincs beállított szenzor',
   Recalc: 'Újraszámolás',
   Calculate: 'Számítás',

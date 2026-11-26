@@ -74,7 +74,7 @@ describe('FirmwareCard', { timeout: 20_000 }, () => {
     expect(screen.getByText(/uploaded release: 1\.0\.0/)).toBeInTheDocument();
     expect(screen.getByText(/1\.1\.0 \(bbbbbbbbbbbb\)/)).toBeInTheDocument();       // the assignment
     expect(screen.getByText('waiting for the Device')).toBeInTheDocument();         // assigned sha differs from the running one
-    expect(screen.getByText(/all good/)).toBeInTheDocument();                       // the log of the last report
+    expect(screen.getByText(/all good/)).toBeInTheDocument();                       // the log of the last problem
     expect(screen.getByText('new filter')).toBeInTheDocument();
     expect(screen.getByRole('table', { name: 'Reports of the Device' })).toBeInTheDocument();
   });
@@ -116,10 +116,10 @@ describe('FirmwareCard', { timeout: 20_000 }, () => {
     renderCard(true);
     await screen.findByRole('table', { name: 'Uploaded firmware' });
     const upload = screen.getByRole('button', { name: 'Upload' });
-    expect(upload).toBeDisabled();                                                  // no file, no version
+    expect(upload).toBeDisabled();                                                  // no file
     const file = new File([new Uint8Array([1, 2, 3, 4])], 'firmware.bin', { type: 'application/octet-stream' });
     await user.upload(screen.getByLabelText('Firmware file (firmware.bin)'), file);
-    await user.type(screen.getByLabelText('Version label'), '1.2.0');
+    await user.type(screen.getByLabelText('Version label (optional)'), '1.2.0');
     await user.type(screen.getByLabelText('Note (optional)'), 'filter fix');
     expect(upload).toBeEnabled();
     await user.click(upload);
@@ -155,5 +155,20 @@ describe('FirmwareCard', { timeout: 20_000 }, () => {
     expect(await screen.findByText('No firmware was uploaded for this Device yet.')).toBeInTheDocument();
     expect(screen.getByText('No report yet')).toBeInTheDocument();
     expect(screen.getByText('(no version label)')).toBeInTheDocument();
+  });
+
+  it('uploads without a version label: the API takes the one the firmware carries', async () => {
+    const sent = mockApi();
+    const user = userEvent.setup();
+    renderCard(true);
+    await screen.findByRole('table', { name: 'Uploaded firmware' });
+    const upload = screen.getByRole('button', { name: 'Upload' });
+    await user.upload(screen.getByLabelText('Firmware file (firmware.bin)'), new File([new Uint8Array([1, 2, 3])], 'firmware.bin'));
+    expect(upload).toBeEnabled();                                                   // a file is enough
+    await user.click(upload);
+    await waitFor(() => expect(sent.some((s) => s.method === 'POST')).toBe(true));
+    const post = sent.find((s) => s.method === 'POST')!;
+    expect(post.body).toContain('name="file"');
+    expect(post.body).not.toContain('name="version"');
   });
 });

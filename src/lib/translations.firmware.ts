@@ -2,8 +2,8 @@
 export const HU_FIRMWARE: Record<string, string> = {
   Firmware: 'Firmware',
   'Loading the firmware...': 'A firmware betöltése...',
-  'The Device checks for a new firmware every 30 minutes. If a new firmware is not online within 10 minutes, the previous one is put back.':
-    'Az eszköz 30 percenként megnézi, van-e új firmware. Ha az új firmware 10 percen belül nem kerül online, az előzőt visszaállítja.',
+  'The Device learns of a new firmware from its heartbeat (about 30 seconds). If a new firmware is not online within 10 minutes, the previous one is put back.':
+    'Az eszköz a heartbeatjéből (kb. 30 másodperc) értesül az új firmware-ről. Ha az új firmware 10 percen belül nem kerül online, az előzőt visszaállítja.',
   Running: 'Fut',
   '(no version label)': '(nincs verziócímke)',
   'uploaded release: {0}': 'feltöltött kiadás: {0}',
@@ -12,9 +12,11 @@ export const HU_FIRMWARE: Record<string, string> = {
   Assigned: 'Kijelölt',
   none: 'nincs',
   'waiting for the Device': 'az eszközre vár',
-  'Log of the last report': 'Az utolsó jelentés naplója',
+  'Log of the last problem': 'Az utolsó hiba naplója',
   'Firmware file (firmware.bin)': 'Firmware-fájl (firmware.bin)',
-  'Version label': 'Verziócímke',
+  'Version label (optional)': 'Verziócímke (nem kötelező)',
+  'Left empty, the version the firmware itself carries is used (FIRMWARE_VERSION of its secrets.h).':
+    'Üresen hagyva a firmware saját verziója kerül be (a secrets.h FIRMWARE_VERSION sora).',
   'Note (optional)': 'Megjegyzés (nem kötelező)',
   'Uploading...': 'Feltöltés...',
   Upload: 'Feltöltés',
@@ -36,9 +38,9 @@ export const HU_FIRMWARE: Record<string, string> = {
   State: 'Állapot',
   'Install this firmware on the Device?': 'Telepíted ezt a firmware-t az eszközre?',
   Install: 'Telepítés',
-  'The Device installs it at its next check (within 30 minutes)': 'Az eszköz a következő ellenőrzésekor (30 percen belül) telepíti',
-  'Version {0} ({1}) is downloaded by the Device within 30 minutes, checked, installed, and the Device restarts (a minute without measurement).':
-    'A(z) {0} ({1}) verziót az eszköz 30 percen belül letölti, ellenőrzi, telepíti, majd újraindul (kb. egy percig nem mér).',
+  'The Device learns of it with its next heartbeat and installs it': 'Az eszköz a következő heartbeatjében értesül róla, és telepíti',
+  'Version {0} ({1}) is downloaded by the Device within a minute or two, checked, installed, and the Device restarts (a minute without measurement).':
+    'A(z) {0} ({1}) verziót az eszköz egy-két percen belül letölti, ellenőrzi, telepíti, majd újraindul (kb. egy percig nem mér).',
   'If the new firmware does not get online within 10 minutes (for example a wrong configuration), the Device puts the previous firmware back and reports what happened here.':
     'Ha az új firmware 10 percen belül nem kerül online (például hibás beállítás miatt), az eszköz visszaállítja az előző firmware-t, és itt jelenti, mi történt.',
   'Type the Device name to confirm: {0}': 'A megerősítéshez írd be az eszköz nevét: {0}',

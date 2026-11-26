@@ -50,6 +50,10 @@ export const router = createBrowserRouter([
             ],
           },
           {
+            path: 'devices/:deviceId/firmware',
+            lazy: () => import('@/pages/devices/FirmwarePage').then((m) => ({ Component: m.FirmwarePage })),
+          },
+          {
             path: 'devices/:deviceId/sensors/:sensorId/policies',
             lazy: () =>
               import('@/pages/devices/SensorPoliciesPage').then((m) => ({ Component: m.SensorPoliciesPage })),

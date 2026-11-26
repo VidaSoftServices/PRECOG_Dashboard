@@ -94,7 +94,7 @@ interface FirmwareCardProps {
 /**
  * The Device's firmware (remote update, docs/features/firmware-update.md): what it runs, what happened at its last update, the uploaded releases
  * and - for an Admin - upload, install and delete. Everyone with access to the Device sees the state. The Device checks for a new release every
- * 30 minutes, installs it, and puts the previous firmware back by itself when the new one does not get online within 10 minutes.
+ * ~30 s (its heartbeat tells it), installs it, and puts the previous firmware back by itself when the new one does not get online within 10 minutes.
  */
 export function FirmwareCard({ deviceId, device, isAdmin }: FirmwareCardProps) {
   const s = useStyles();
@@ -122,12 +122,12 @@ export function FirmwareCard({ deviceId, device, isAdmin }: FirmwareCardProps) {
   const runningRelease = releases.find((r) => r.id === report.runningReleaseId);
   const waiting = assigned != null && assigned.sha256 !== report.runningSha256;
   const confirmName = deleteConfirmationName(device);
-  const canUpload = isAdmin && file != null && version.trim() !== '' && !upload.isPending;
+  const canUpload = isAdmin && file != null && !upload.isPending;
 
   const doUpload = () => {
     if (!file) return;
     upload.mutate(
-      { file, version: version.trim(), note: note.trim() || undefined },
+      { file, version: version.trim() || undefined, note: note.trim() || undefined },
       {
         onSuccess: () => {
           toast.success(t('Firmware uploaded'));
@@ -145,7 +145,7 @@ export function FirmwareCard({ deviceId, device, isAdmin }: FirmwareCardProps) {
       <div className={s.header}>
         <Body1Strong>{t('Firmware')}</Body1Strong>
         <Text size={200} className={s.muted}>
-          {t('The Device checks for a new firmware every 30 minutes. If a new firmware is not online within 10 minutes, the previous one is put back.')}
+          {t('The Device learns of a new firmware from its heartbeat (about 30 seconds). If a new firmware is not online within 10 minutes, the previous one is put back.')}
         </Text>
       </div>
 
@@ -169,7 +169,7 @@ export function FirmwareCard({ deviceId, device, isAdmin }: FirmwareCardProps) {
 
       {report.detail && (
         <details>
-          <summary>{t('Log of the last report')}</summary>
+          <summary>{t('Log of the last problem')}</summary>
           <pre className={s.log}>{report.detail}</pre>
         </details>
       )}
@@ -185,7 +185,7 @@ export function FirmwareCard({ deviceId, device, isAdmin }: FirmwareCardProps) {
               onChange={(e) => setFile(e.target.files && e.target.files[0] ? e.target.files[0] : null)}
             />
           </Field>
-          <Field label={t('Version label')}>
+          <Field label={t('Version label (optional)')} hint={t('Left empty, the version the firmware itself carries is used (FIRMWARE_VERSION of its secrets.h).')}>
             <Input value={version} onChange={(_, d) => setVersion(d.value)} placeholder="1.4.2" />
           </Field>
           <Field label={t('Note (optional)')}>
@@ -291,14 +291,14 @@ export function FirmwareCard({ deviceId, device, isAdmin }: FirmwareCardProps) {
           if (!installing) return;
           assign.mutate(installing.id ?? null, {
             onSuccess: () => {
-              toast.success(t('The Device installs it at its next check (within 30 minutes)'));
+              toast.success(t('The Device learns of it with its next heartbeat and installs it'));
               setInstalling(null);
             },
           });
         }}
       >
         <Text block>
-          {t('Version {0} ({1}) is downloaded by the Device within 30 minutes, checked, installed, and the Device restarts (a minute without measurement).', installing?.version ?? '', shortSha(installing?.sha256))}
+          {t('Version {0} ({1}) is downloaded by the Device within a minute or two, checked, installed, and the Device restarts (a minute without measurement).', installing?.version ?? '', shortSha(installing?.sha256))}
         </Text>
         <Text block>{t('If the new firmware does not get online within 10 minutes (for example a wrong configuration), the Device puts the previous firmware back and reports what happened here.')}</Text>
         <Field label={t('Type the Device name to confirm: {0}', confirmName)}>

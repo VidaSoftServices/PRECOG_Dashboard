@@ -28,7 +28,8 @@ export function useDeviceFirmware(deviceId: number) {
 
 export interface FirmwareUploadForm {
   file: File;
-  version: string;
+  /** Optional: left out, the API uses the label the firmware itself carries (its FIRMWARE_VERSION). */
+  version?: string;
   note?: string;
 }
 
@@ -46,7 +47,7 @@ export function useUploadFirmware(deviceId: number) {
             const data = body as FirmwareUploadForm;
             const fd = new FormData();
             fd.append('file', data.file, data.file.name);
-            fd.append('version', data.version);
+            if (data.version) fd.append('version', data.version);
             if (data.note) fd.append('note', data.note);
             return fd;
           },
