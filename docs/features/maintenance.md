@@ -1,10 +1,19 @@
 # Sensor maintenance mode, maintenance history and baselines
 
-What the Dashboard shows and lets an Admin do about maintenance: the maintenance pill and warning bar for every level, the per-Sensor and "Maintenance (all Sensors)" switches (Admin only), the two-step end dialog that asks the maintenance kind, the maintenance history card with "Change kind" and "Start a new baseline", and the maintenance markers drawn on the charts.
+What the Dashboard shows and lets an Admin do about maintenance: the maintenance pill and warning bar for every level, the per-Sensor switch and, on the Device's Maintenance page, the all-Sensors switch (Admin only), the two-step end dialog that asks the maintenance kind, the maintenance history card with "Change kind" and "Start a new baseline", and the maintenance markers drawn on the charts.
 
 Related: the API side of this feature is in [../../../PRECOG_API/docs/features/maintenance.md](../../../PRECOG_API/docs/features/maintenance.md).
 
 The text below was moved verbatim from `CLAUDE.md` (Dashboard) on 2026-11-19; dates and "superseded" notes are the original ones. Keep this file up to date with every change to the feature.
+
+## The Maintenance page of a Device (2026-11-26)
+
+The **Maintenance** button in the header of the Device page (every level; it replaced the Admin-only *Maintenance (all Sensors)* button) opens `/devices/:deviceId/maintenance` (`MaintenancePage.tsx`), which holds everything about maintenance of the **whole machine** (the user's decision, a UI change only):
+
+* **All Sensors** card: "N of M Sensor(s) ... are in maintenance mode now" with the maintenance pill, one sentence on what maintenance does, and for an Admin one button that opens `MaintenanceAllDialog`; it is named after what can be done (*Start maintenance on all Sensors* / *End maintenance on all Sensors* / *Start or end on all Sensors…*).
+* The **maintenance history** card (it moved here from the bottom of the Device page), with "Change kind" and "Start a new baseline" for an Admin, and the recalculation progress those two start.
+
+Unchanged: the per-Sensor Maintenance / End maintenance buttons, the pills and the warning bar on the Device page ("N Sensors are in maintenance mode"). Where the sections below say the Device page for the all-Sensors switch or the history, this page is meant. Tests: `MaintenancePage.test.tsx`.
 
 ## Sensor maintenance mode
 

@@ -50,6 +50,10 @@ export const router = createBrowserRouter([
             ],
           },
           {
+            path: 'devices/:deviceId/maintenance',
+            lazy: () => import('@/pages/devices/MaintenancePage').then((m) => ({ Component: m.MaintenancePage })),
+          },
+          {
             path: 'devices/:deviceId/firmware',
             lazy: () => import('@/pages/devices/FirmwarePage').then((m) => ({ Component: m.FirmwarePage })),
           },

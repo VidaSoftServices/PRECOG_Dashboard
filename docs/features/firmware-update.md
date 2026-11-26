@@ -4,17 +4,19 @@ The **Firmware** button in the header of the Device page (it replaced the *Analy
 
 ## What the card shows (any level with access to the Device)
 
-* **Running**: the version label the Device reported, the first 12 characters of the **SHA-256 of its own flash image** (identifies the real build; "uploaded release: x" when that hash equals an uploaded release), the state of its last report as a pill with icon and text (running, checking, downloading, staged, confirmed, rolled back, rejected, failed - never colour alone) and the time, and the **log of the last problem** (a rollback, a rejection or a failed update: the reason and the loader log; only the last one exists, the API keeps no log of good updates; plain text in a `<pre>`, never HTML).
-* **Assigned**: the release the Device was told to install, with "waiting for the Device" while its running hash differs.
+* **Last report** (first line): the state of the Device's last report as a pill with icon and text (running, checking, downloading, staged, confirmed, rolled back, rejected, failed - never colour alone) and the time.
+* A small table (`Running and assigned firmware`) with the columns **Running** and **Assigned** and the rows **Version** and **SHA-256** (the first 12 characters). Running is what the Device reported: its version label and the **SHA-256 of its own flash image** (identifies the real build; a note under the version only when it says more: "not one of the uploaded releases", or the label of the matching upload when that differs). Assigned is the release the Device was told to install ("none" without one), with "waiting for the Device" while the running hash differs.
+* **Log of the last problem** (a rollback, a rejection or a failed update: the reason and the loader log; only the last one exists, the API keeps no log of good updates; plain text in a `<pre>`, never HTML).
 * **Reports of the Device**: the timeline table (`Reports of the Device`), newest first.
 * **Uploaded firmware**: the table of releases (version, note, SHA-256 start, size, who and when).
 * The card polls every 15 s while open (`useDeviceFirmware`): an update takes minutes and the Admin watches it. A Device learns of an assignment from its next heartbeat (about 30 seconds) and installs it within a minute or two; the card says so.
 
 ## Admin only (a Reader sees none of these controls, not even disabled)
 
-* **Upload**: file input (`Firmware file (firmware.bin)`), `Version label (optional)`, optional `Note`; the button is disabled until a file is chosen. The label is optional because the firmware carries its own FIRMWARE_VERSION in the image and the API reads it (empty field: that label; none: `build-` + the start of the SHA-256; a typed label wins) - the field is not sent when empty. Sent as multipart (`useUploadFirmware`, a `FormData` built by a `bodySerializer`; the generated body type is bypassed with a cast). Nothing is installed by the upload.
+* **Upload**: file input (`Firmware file (firmware.bin)`) and an optional `Note`; the button is disabled until a file is chosen. **There is no version label to type** (removed 2026-11-26, the user's decision): the firmware carries its own FIRMWARE_VERSION in the image and the API reads it (a firmware without one: `build-` + the start of the SHA-256). Sent as multipart (`useUploadFirmware`, a `FormData` built by a `bodySerializer`; the generated body type is bypassed with a cast). Nothing is installed by the upload.
 * **Install on this Device**: per release, opens a `ConfirmDialog` where the **Device name must be typed**; then `PUT .../Firmware/Assign`. The dialog states that the Device learns of it with its next heartbeat and installs it within a minute or two and rolls back by itself within 10 minutes if the new firmware does not get online. Assigning an older release is a downgrade.
 * **Delete**: per release, disabled for the assigned one (the API answers 409), confirmed in a dialog.
+* **Remove the assignment** (shown while a release is assigned) has a **tooltip** that says what it is for: it only withdraws the choice (`PUT .../Assign` with `releaseId: null`); the Device keeps running what it runs, nothing is installed or put back. It calls off an installation that has not restarted the Device yet (a running download is then refused by the API and reported as failed), keeps a Device that was updated over USB from being put back to the assigned release, and makes that release deletable.
 
 ## Code
 

@@ -119,8 +119,6 @@ export const HU_DYNAMIC: Record<string, string> = {
   'Recalculate {0} from the start': '{0} újraszámolása az elejétől',
   'Calculation for {0}': '{0} számítása',
   'Visibility of {0} in Live Monitoring and Smart Analytics': '{0} láthatósága az Élő megfigyelésben és az Elemzésben',
-  'Disabling…': 'Letiltás…',
-  'Disable Device': 'Eszköz letiltása',
   'All data of "{0}" permanently deleted ({1} telemetry rows, {2} Issue(s), {3} model version(s); {4} Sensor(s) now empty).': '"{0}" minden adata véglegesen törölve ({1} telemetriasor, {2} probléma, {3} modellverzió; {4} szenzor most üres).',
   'Device "{0}" permanently deleted ({1} Sensor(s), {2} telemetry rows, {3} Issue(s)).': '"{0}" eszköz véglegesen törölve ({1} szenzor, {2} telemetriasor, {3} probléma).',
   'Device created': 'Eszköz létrehozva',

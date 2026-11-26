@@ -56,6 +56,13 @@ export const HU_MAINTENANCE: Record<string, string> = {
   'I understand: this changes the baseline the Sensors are measured against.': 'Értem: ez megváltoztatja, mihez méri a rendszer a szenzorokat.',
   'I understand: the baseline of the Sensors stays as it is.': 'Értem: a szenzorok alapvonala nem változik.',
 
+  // The Maintenance page of a Device
+  '{0} of {1} Sensor(s) of this Device are in maintenance mode now.': '{1} szenzorból {0} van most karbantartás módban ezen az eszközön.',
+  'While a Sensor is in maintenance, the values the Device sends for it are accepted but ignored: they are not stored and not analysed.':
+    'Amíg egy szenzor karbantartás módban van, az eszköz által küldött értékeit a rendszer elfogadja, de figyelmen kívül hagyja: nem tárolja és nem elemzi őket.',
+  'Start maintenance on all Sensors': 'Karbantartás indítása minden szenzoron',
+  'End maintenance on all Sensors': 'Karbantartás lezárása minden szenzoron',
+  'Start or end on all Sensors…': 'Indítás vagy lezárás minden szenzoron…',
   // Maintenance history
   'Maintenance history': 'Karbantartási előzmények',
   'Sensor of the maintenance history': 'A karbantartási előzmények szenzora',

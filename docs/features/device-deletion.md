@@ -2,6 +2,8 @@
 
 The Device page's Danger zone: "Delete device..." and "Delete all data...", both a two-step dialog (warning, then the Device name typed exactly) shared through `TypeNameConfirmDialog`.
 
+**The editor of the Device page (2026-11-26, the user's decision).** While editing, **Save** and **Close** stand side by side in the header (top right). Save asks only "Are you sure you want to save the changes of this Device?" (no name to type; it adds that the aggregated values are recalculated when the time zone changes). Beside the general settings (name, time zone, server) the **Danger zone** is its own soft orange section (below them on a narrow screen) with two boxes: the **Enabled** switch with an explanation (switching off asks first, switching on is immediate; it replaced the *Disable Device* button and its text at the bottom of the page) and the two permanent deletions. Tests: `DeviceDetailEdit.test.tsx`.
+
 Related: the API side of this feature is in [../../../PRECOG_API/docs/features/device-deletion.md](../../../PRECOG_API/docs/features/device-deletion.md).
 
 The text below was moved verbatim from `CLAUDE.md` (Dashboard) on 2026-11-19; dates and "superseded" notes are the original ones. Keep this file up to date with every change to the feature.

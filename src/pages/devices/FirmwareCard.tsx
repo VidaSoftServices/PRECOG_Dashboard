@@ -13,6 +13,7 @@ import {
   TableHeaderCell,
   TableRow,
   Text,
+  Tooltip,
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
@@ -43,7 +44,12 @@ import { deleteConfirmationName } from './DeleteDeviceDialog';
 const useStyles = makeStyles({
   card: { marginTop: tokens.spacingVerticalL, display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalM },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: tokens.spacingHorizontalS, flexWrap: 'wrap' },
-  summary: { display: 'grid', gridTemplateColumns: 'max-content 1fr', columnGap: tokens.spacingHorizontalL, rowGap: tokens.spacingVerticalXS },
+  lastReport: { display: 'flex', alignItems: 'center', columnGap: tokens.spacingHorizontalM, rowGap: tokens.spacingVerticalXS, flexWrap: 'wrap' },
+  versions: { maxWidth: '640px', border: `1px solid ${tokens.colorNeutralStroke2}`, borderRadius: tokens.borderRadiusMedium },
+  rowLabel: { width: '96px' },
+  // On a narrow screen the uploads table scrolls sideways instead of squeezing its columns into each other.
+  releases: { minWidth: '720px' },
+  versionCell: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: tokens.spacingHorizontalS, rowGap: tokens.spacingVerticalXXS, paddingTop: tokens.spacingVerticalXS, paddingBottom: tokens.spacingVerticalXS },
   muted: { color: tokens.colorNeutralForeground3 },
   scroll: { overflowX: 'auto' },
   mono: { fontFamily: tokens.fontFamilyMonospace },
@@ -106,7 +112,6 @@ export function FirmwareCard({ deviceId, device, isAdmin }: FirmwareCardProps) {
   const remove = useDeleteFirmwareRelease(deviceId);
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [version, setVersion] = useState('');
   const [note, setNote] = useState('');
   const [installing, setInstalling] = useState<FirmwareReleaseDto | null>(null);
   const [typedName, setTypedName] = useState('');
@@ -121,18 +126,19 @@ export function FirmwareCard({ deviceId, device, isAdmin }: FirmwareCardProps) {
   const assigned = releases.find((r) => r.id === data.assignedReleaseId);
   const runningRelease = releases.find((r) => r.id === report.runningReleaseId);
   const waiting = assigned != null && assigned.sha256 !== report.runningSha256;
+  // Where the running build comes from, only when it says more than the version above it.
+  const runningNote = !report.runningSha256 ? null : !runningRelease ? t('not one of the uploaded releases') : runningRelease.version !== report.runningVersion ? t('uploaded release: {0}', runningRelease.version ?? '') : null;
   const confirmName = deleteConfirmationName(device);
   const canUpload = isAdmin && file != null && !upload.isPending;
 
   const doUpload = () => {
     if (!file) return;
     upload.mutate(
-      { file, version: version.trim() || undefined, note: note.trim() || undefined },
+      { file, note: note.trim() || undefined },
       {
         onSuccess: () => {
           toast.success(t('Firmware uploaded'));
           setFile(null);
-          setVersion('');
           setNote('');
           if (fileRef.current) fileRef.current.value = '';
         },
@@ -149,22 +155,44 @@ export function FirmwareCard({ deviceId, device, isAdmin }: FirmwareCardProps) {
         </Text>
       </div>
 
-      <div className={s.summary}>
-        <Text className={s.muted}>{t('Running')}</Text>
-        <Text>
-          {report.runningVersion || t('(no version label)')}{' '}
-          <span className={`${s.mono} ${s.muted}`}>{shortSha(report.runningSha256)}</span>{' '}
-          {report.runningSha256 && (runningRelease ? <Text className={s.muted}>({t('uploaded release: {0}', runningRelease.version ?? '')})</Text> : <Text className={s.muted}>({t('not one of the uploaded releases')})</Text>)}
-        </Text>
+      <div className={s.lastReport}>
         <Text className={s.muted}>{t('Last report')}</Text>
-        <Text>
-          <FirmwareStateBadge state={report.state} /> {report.reportedAt ? formatDateTime(report.reportedAt) : ''}
-        </Text>
-        <Text className={s.muted}>{t('Assigned')}</Text>
-        <Text>
-          {assigned ? `${assigned.version} (${shortSha(assigned.sha256)})` : t('none')}{' '}
-          {waiting && <Badge appearance="tint" color="brand">{t('waiting for the Device')}</Badge>}
-        </Text>
+        <FirmwareStateBadge state={report.state} />
+        {report.reportedAt && <Text>{formatDateTime(report.reportedAt)}</Text>}
+      </div>
+
+      <div className={s.scroll}>
+        <Table aria-label={t('Running and assigned firmware')} size="small" className={s.versions}>
+          <TableHeader>
+            <TableRow>
+              <TableHeaderCell className={s.rowLabel} />
+              <TableHeaderCell>{t('Running')}</TableHeaderCell>
+              <TableHeaderCell>{t('Assigned')}</TableHeaderCell>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow>
+              <TableCell className={`${s.rowLabel} ${s.muted}`}>{t('Version')}</TableCell>
+              <TableCell>
+                <div className={s.versionCell}>
+                  <Text weight="semibold">{report.runningVersion || t('(no version label)')}</Text>
+                  {runningNote && <Text size={200} className={s.muted}>{runningNote}</Text>}
+                </div>
+              </TableCell>
+              <TableCell>
+                <div className={s.versionCell}>
+                  <Text weight="semibold">{assigned ? assigned.version : t('none')}</Text>
+                  {waiting && <Badge appearance="tint" color="brand">{t('waiting for the Device')}</Badge>}
+                </div>
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell className={`${s.rowLabel} ${s.muted}`}>SHA-256</TableCell>
+              <TableCell className={s.mono}>{shortSha(report.runningSha256)}</TableCell>
+              <TableCell className={s.mono}>{shortSha(assigned?.sha256)}</TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
       </div>
 
       {report.detail && (
@@ -185,9 +213,6 @@ export function FirmwareCard({ deviceId, device, isAdmin }: FirmwareCardProps) {
               onChange={(e) => setFile(e.target.files && e.target.files[0] ? e.target.files[0] : null)}
             />
           </Field>
-          <Field label={t('Version label (optional)')} hint={t('Left empty, the version the firmware itself carries is used (FIRMWARE_VERSION of its secrets.h).')}>
-            <Input value={version} onChange={(_, d) => setVersion(d.value)} placeholder="1.4.2" />
-          </Field>
           <Field label={t('Note (optional)')}>
             <Input value={note} onChange={(_, d) => setNote(d.value)} maxLength={500} />
           </Field>
@@ -204,7 +229,7 @@ export function FirmwareCard({ deviceId, device, isAdmin }: FirmwareCardProps) {
         <Text className={s.muted}>{t('No firmware was uploaded for this Device yet.')}</Text>
       ) : (
         <div className={s.scroll}>
-          <Table aria-label={t('Uploaded firmware')} size="small">
+          <Table aria-label={t('Uploaded firmware')} size="small" className={s.releases}>
             <TableHeader>
               <TableRow>
                 <TableHeaderCell>{t('Version')}</TableHeaderCell>
@@ -251,9 +276,11 @@ export function FirmwareCard({ deviceId, device, isAdmin }: FirmwareCardProps) {
 
       {isAdmin && assigned && (
         <div>
-          <Button size="small" onClick={() => assign.mutate(null, { onSuccess: () => toast.success(t('Assignment removed')) })}>
-            {t('Remove the assignment')}
-          </Button>
+          <Tooltip content={t('Withdraws the choice of which firmware this Device should run. The Device keeps running what it runs now: nothing is installed or put back. Use it to call off an installation (a running download stops and is reported as failed; once the Device has restarted to install, it is too late), so that a Device updated over USB is not put back to the assigned release, or before deleting that release.')} relationship="description" positioning="above-start">
+            <Button size="small" onClick={() => assign.mutate(null, { onSuccess: () => toast.success(t('Assignment removed')) })}>
+              {t('Remove the assignment')}
+            </Button>
+          </Tooltip>
         </div>
       )}
 

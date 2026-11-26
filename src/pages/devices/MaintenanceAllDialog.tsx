@@ -15,7 +15,7 @@ const useStyles = makeStyles({
 type Choice = 'start' | 'end';
 
 /**
- * "Maintenance (all Sensors)": switches maintenance mode on or off for EVERY Sensor of the Device in one request
+ * "Maintenance mode: all Sensors" (opened from the Device's Maintenance page): switches maintenance mode on or off for EVERY Sensor of the Device in one request
  * (`PUT /api/Devices/{deviceId}/Maintenance` - a Device may have hundreds of Sensors, and the per-Sensor call is rate limited to 30 per
  * minute). Starting says plainly that data sent meanwhile is lost and needs an explicit acknowledgement; ending needs none. A choice
  * that would change nothing (everything already in maintenance, or nothing in maintenance) is disabled. Sensors that already have the

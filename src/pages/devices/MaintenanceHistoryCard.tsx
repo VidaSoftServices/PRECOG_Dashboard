@@ -37,6 +37,8 @@ const useStyles = makeStyles({
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: tokens.spacingHorizontalS, flexWrap: 'wrap' },
   actions: { display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center', flexWrap: 'wrap' },
   scroll: { overflowX: 'auto' },
+  // On a narrow screen the table scrolls sideways instead of squeezing its columns into each other.
+  table: { minWidth: '720px' },
   muted: { color: tokens.colorNeutralForeground3 },
   note: { whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
 });
@@ -151,7 +153,7 @@ export function MaintenanceHistoryCard({ deviceId, sensors, isAdmin }: { deviceI
       )}
       {visible.length > 0 && (
         <div className={styles.scroll}>
-          <Table size="small" aria-label={t('Maintenance history')}>
+          <Table size="small" aria-label={t('Maintenance history')} className={styles.table}>
             <TableHeader>
               <TableRow>
                 <TableHeaderCell>{t('Sensor')}</TableHeaderCell>

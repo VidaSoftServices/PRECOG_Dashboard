@@ -28,8 +28,6 @@ export function useDeviceFirmware(deviceId: number) {
 
 export interface FirmwareUploadForm {
   file: File;
-  /** Optional: left out, the API uses the label the firmware itself carries (its FIRMWARE_VERSION). */
-  version?: string;
   note?: string;
 }
 
@@ -47,7 +45,6 @@ export function useUploadFirmware(deviceId: number) {
             const data = body as FirmwareUploadForm;
             const fd = new FormData();
             fd.append('file', data.file, data.file.name);
-            if (data.version) fd.append('version', data.version);
             if (data.note) fd.append('note', data.note);
             return fd;
           },
@@ -57,7 +54,7 @@ export function useUploadFirmware(deviceId: number) {
   });
 }
 
-/** Tells the Device which release to run (`null` removes the assignment). The Device installs it at its next check (every 30 minutes). */
+/** Tells the Device which release to run (`null` removes the assignment). The Device learns of it from its next heartbeat (about 30 seconds). */
 export function useAssignFirmware(deviceId: number) {
   const queryClient = useQueryClient();
   return useMutation({

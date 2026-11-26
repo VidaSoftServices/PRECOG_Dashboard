@@ -125,6 +125,9 @@ const useStyles = makeStyles({
   },
 });
 
+/** Sub pages of a Device whose breadcrumb shows a (translated) name instead of the path segment. */
+const SEGMENT_LABELS: Record<string, string> = { maintenance: 'Maintenance', firmware: 'Firmware' };
+
 function useCrumbs(): { label: string; path: string }[] {
   const location = useLocation();
   const segments = location.pathname.split('/').filter(Boolean);
@@ -135,7 +138,7 @@ function useCrumbs(): { label: string; path: string }[] {
   for (const segment of segments) {
     acc += `/${segment}`;
     const entry = navEntries.find((e) => e.path === acc);
-    crumbs.push({ label: entry?.label ?? decodeURIComponent(segment), path: acc });
+    crumbs.push({ label: entry?.label ?? SEGMENT_LABELS[segment] ?? decodeURIComponent(segment), path: acc });
   }
   return crumbs;
 }

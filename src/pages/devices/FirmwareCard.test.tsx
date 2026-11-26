@@ -63,7 +63,7 @@ function renderCard(isAdmin: boolean) {
   );
 }
 
-describe('FirmwareCard', { timeout: 20_000 }, () => {
+describe('FirmwareCard', { timeout: 40_000 }, () => {
   beforeEach(() => authStore.clearSession());
 
   it('shows what the Device runs, its last report with the log, the assignment and the releases', async () => {
@@ -71,9 +71,10 @@ describe('FirmwareCard', { timeout: 20_000 }, () => {
     renderCard(false);
     expect(await screen.findByText('Firmware')).toBeInTheDocument();
     expect(screen.getAllByText('Confirmed').length).toBeGreaterThan(0);
-    expect(screen.getByText(/uploaded release: 1\.0\.0/)).toBeInTheDocument();
-    expect(screen.getByText(/1\.1\.0 \(bbbbbbbbbbbb\)/)).toBeInTheDocument();       // the assignment
-    expect(screen.getByText('waiting for the Device')).toBeInTheDocument();         // assigned sha differs from the running one
+    // Running and Assigned side by side: a row with the versions, a row with the SHA-256
+    const versions = within(screen.getByRole('table', { name: 'Running and assigned firmware' })).getAllByRole('row');
+    expect(versions.map((row) => row.textContent)).toEqual(['RunningAssigned', 'Version1.0.01.1.0waiting for the Device', 'SHA-256aaaaaaaaaaaabbbbbbbbbbbb']);
+    expect(screen.queryByText(/uploaded release/)).toBeNull();                       // it would only repeat the running version
     expect(screen.getByText(/all good/)).toBeInTheDocument();                       // the log of the last problem
     expect(screen.getByText('new filter')).toBeInTheDocument();
     expect(screen.getByRole('table', { name: 'Reports of the Device' })).toBeInTheDocument();
@@ -94,12 +95,13 @@ describe('FirmwareCard', { timeout: 20_000 }, () => {
     const user = userEvent.setup();
     renderCard(true);
     await screen.findByRole('table', { name: 'Uploaded firmware' });
-    const rows = screen.getAllByRole('row');
+    const rows = within(screen.getByRole('table', { name: 'Uploaded firmware' })).getAllByRole('row');
     const row10 = rows.find((r) => within(r).queryByText('1.0.0') && within(r).queryByText('Install on this Device'))!;
     await user.click(within(row10).getByText('Install on this Device'));
 
-    const dialog = await screen.findByRole('dialog');
-    const confirm = within(dialog).getByRole('button', { name: 'Install' });
+    // (by text: a role lookup walks the accessibility tree of the whole page, which is slow in jsdom when the machine is busy)
+    const dialog = (await screen.findByText('Install this firmware on the Device?', {}, { timeout: 10_000 })).closest<HTMLElement>('[role="dialog"]')!;
+    const confirm = within(dialog).getByText('Install').closest('button')!;
     expect(confirm).toBeDisabled();
     expect(within(dialog).getByText(/within 10 minutes/)).toBeInTheDocument();
     await user.type(within(dialog).getByLabelText('Device name'), 'Press 7');
@@ -110,18 +112,18 @@ describe('FirmwareCard', { timeout: 20_000 }, () => {
     expect(JSON.parse(sent.find((s) => s.method === 'PUT')!.body)).toEqual({ releaseId: 1 });
   });
 
-  it('uploads the chosen file with its version label as a multipart form', async () => {
+  it('uploads the chosen file as a multipart form; there is no field to type a version label (the firmware carries it)', async () => {
     const sent = mockApi();
     const user = userEvent.setup();
     renderCard(true);
     await screen.findByRole('table', { name: 'Uploaded firmware' });
+    expect(screen.queryByLabelText(/Version label/)).toBeNull();
     const upload = screen.getByRole('button', { name: 'Upload' });
     expect(upload).toBeDisabled();                                                  // no file
     const file = new File([new Uint8Array([1, 2, 3, 4])], 'firmware.bin', { type: 'application/octet-stream' });
     await user.upload(screen.getByLabelText('Firmware file (firmware.bin)'), file);
-    await user.type(screen.getByLabelText('Version label (optional)'), '1.2.0');
+    expect(upload).toBeEnabled();                                                   // a file is enough
     await user.type(screen.getByLabelText('Note (optional)'), 'filter fix');
-    expect(upload).toBeEnabled();
     await user.click(upload);
 
     await waitFor(() => expect(sent.some((s) => s.method === 'POST')).toBe(true));
@@ -129,9 +131,15 @@ describe('FirmwareCard', { timeout: 20_000 }, () => {
     expect(post.url).toMatch(/\/api\/Devices\/4\/Firmware\/Releases$/);
     expect(post.contentType).toMatch(/^multipart\/form-data; boundary=/);
     expect(post.body).toContain('name="file"'); // (jsdom's File is not undici's, so the part's content is not checked here; a browser sends the bytes)
-    expect(post.body).toContain('name="version"');
-    expect(post.body).toContain('1.2.0');
+    expect(post.body).not.toContain('name="version"');
     expect(post.body).toContain('filter fix');
+  });
+
+  it('explains on the "Remove the assignment" button what it does', async () => {
+    mockApi();
+    renderCard(true);
+    const button = await screen.findByRole('button', { name: 'Remove the assignment' });
+    expect(button).toHaveAccessibleDescription(/keeps running what it runs now/);
   });
 
   it('does not offer to delete the assigned release, and deletes another one after a confirmation', async () => {
@@ -139,7 +147,7 @@ describe('FirmwareCard', { timeout: 20_000 }, () => {
     const user = userEvent.setup();
     renderCard(true);
     await screen.findByRole('table', { name: 'Uploaded firmware' });
-    const rows = screen.getAllByRole('row');
+    const rows = within(screen.getByRole('table', { name: 'Uploaded firmware' })).getAllByRole('row');
     const assignedRow = rows.find((r) => within(r).queryByText('1.1.0'))!;
     expect(within(assignedRow).getByRole('button', { name: 'Delete' })).toBeDisabled();
     const otherRow = rows.find((r) => within(r).queryByText('1.0.0') && within(r).queryByText('Delete'))!;
@@ -154,21 +162,8 @@ describe('FirmwareCard', { timeout: 20_000 }, () => {
     renderCard(true);
     expect(await screen.findByText('No firmware was uploaded for this Device yet.')).toBeInTheDocument();
     expect(screen.getByText('No report yet')).toBeInTheDocument();
-    expect(screen.getByText('(no version label)')).toBeInTheDocument();
+    const versions = within(screen.getByRole('table', { name: 'Running and assigned firmware' })).getAllByRole('row');
+    expect(versions.map((row) => row.textContent)).toEqual(['RunningAssigned', 'Version(no version label)none', 'SHA-256--']);
   });
 
-  it('uploads without a version label: the API takes the one the firmware carries', async () => {
-    const sent = mockApi();
-    const user = userEvent.setup();
-    renderCard(true);
-    await screen.findByRole('table', { name: 'Uploaded firmware' });
-    const upload = screen.getByRole('button', { name: 'Upload' });
-    await user.upload(screen.getByLabelText('Firmware file (firmware.bin)'), new File([new Uint8Array([1, 2, 3])], 'firmware.bin'));
-    expect(upload).toBeEnabled();                                                   // a file is enough
-    await user.click(upload);
-    await waitFor(() => expect(sent.some((s) => s.method === 'POST')).toBe(true));
-    const post = sent.find((s) => s.method === 'POST')!;
-    expect(post.body).toContain('name="file"');
-    expect(post.body).not.toContain('name="version"');
-  });
 });

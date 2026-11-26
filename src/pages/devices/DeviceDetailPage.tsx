@@ -16,9 +16,10 @@ import {
   MessageBar,
   MessageBarBody,
   makeStyles,
+  mergeClasses,
   tokens,
 } from '@fluentui/react-components';
-import { Delete24Regular, ShieldKeyhole24Regular, Settings24Regular, ArrowUpload24Regular, AddCircle24Regular, Edit24Regular, Wrench24Regular, TableArrowUp24Regular, TargetEdit24Regular, DocumentText24Regular, ArrowSync24Regular, DataBarVertical24Regular } from '@fluentui/react-icons';
+import { Delete24Regular, ShieldKeyhole24Regular, Settings24Regular, ArrowUpload24Regular, AddCircle24Regular, Edit24Regular, Wrench24Regular, TableArrowUp24Regular, TargetEdit24Regular, DocumentText24Regular, ArrowSync24Regular, DataBarVertical24Regular, Dismiss24Regular } from '@fluentui/react-icons';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingState } from '@/components/states/LoadingState';
 import { ErrorState } from '@/components/states/ErrorState';
@@ -39,9 +40,7 @@ import { useSensors, useCreateSensor, useUpdateSensor, type SensorDto } from '@/
 import { useSensorDescriptionTexts, useUpdateSensorDescriptions } from '@/api/hooks/sensorDescriptions';
 import { MAX_DESCRIPTION_TEXT } from '@/lib/descriptionSheet';
 import { useSetSensorMaintenance } from '@/api/hooks/maintenance';
-import { MaintenanceAllDialog } from './MaintenanceAllDialog';
 import { EndMaintenanceDialog } from './EndMaintenanceDialog';
-import { MaintenanceHistoryCard } from './MaintenanceHistoryCard';
 import { RecalculateDialog } from './RecalculateDialog';
 import { BulkAggregationDialog } from './BulkAggregationDialog';
 import { isDeleteOnly, isRecalculable } from '@/lib/recalculation';
@@ -82,6 +81,29 @@ const useStyles = makeStyles({
     gap: tokens.spacingVerticalM,
     maxWidth: '420px',
   },
+  editLayout: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0, 420px) minmax(0, 420px)',
+    gap: tokens.spacingHorizontalL,
+    alignItems: 'start',
+    marginBottom: tokens.spacingVerticalL,
+    '@media (max-width: 899px)': { gridTemplateColumns: 'minmax(0, 420px)' },
+  },
+  // A soft orange tint (a mix, so it stays soft in the light and in the dark theme).
+  danger: {
+    backgroundColor: `color-mix(in srgb, ${tokens.colorStatusWarningBackground2} 45%, ${tokens.colorNeutralBackground1})`,
+    border: `1px solid ${tokens.colorStatusWarningBorder1}`,
+  },
+  dangerBox: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacingVerticalS,
+    padding: tokens.spacingVerticalM,
+    backgroundColor: tokens.colorNeutralBackground1,
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusMedium,
+  },
+  dangerButtons: { display: 'flex', gap: tokens.spacingHorizontalS, flexWrap: 'wrap' },
   form: {
     display: 'flex',
     flexDirection: 'column',
@@ -451,6 +473,7 @@ export function DeviceDetailPage() {
   const [nameDraft, setNameDraft] = useState('');
   const [zoneDraft, setZoneDraft] = useState(DEFAULT_DEVICE_TIME_ZONE);
   const [disableConfirmOpen, setDisableConfirmOpen] = useState(false);
+  const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteDataOpen, setDeleteDataOpen] = useState(false);
   const [addSensorOpen, setAddSensorOpen] = useState(false);
@@ -459,7 +482,6 @@ export function DeviceDetailPage() {
   const [importDescriptionsOpen, setImportDescriptionsOpen] = useState(false);
   const [editingSensorId, setEditingSensorId] = useState<number | null>(null);
   const [maintenanceSensorId, setMaintenanceSensorId] = useState<number | null>(null);
-  const [maintenanceAllOpen, setMaintenanceAllOpen] = useState(false);
   const [visibilitySensorId, setVisibilitySensorId] = useState<number | null>(null);
   const [processingSensorId, setProcessingSensorId] = useState<number | null>(null);
   const [recalcSensorId, setRecalcSensorId] = useState<number | null>(null);
@@ -506,9 +528,18 @@ export function DeviceDetailPage() {
         actions={
           isAdmin && (
             <>
-              <Button icon={<Settings24Regular />} onClick={editing ? saveEdit : startEdit} disabled={updateDevice.isPending}>
+              <Button
+                icon={<Settings24Regular />}
+                appearance={editing ? 'primary' : 'secondary'}
+                onClick={editing ? () => setSaveConfirmOpen(true) : startEdit}
+                disabled={updateDevice.isPending}
+              >
                 {editing ? (updateDevice.isPending ? t('Saving…') : t('Save')) : t('Edit')}
               </Button>
+              {editing && (
+                <Button icon={<Dismiss24Regular />} onClick={() => setEditing(false)}>
+                  {t('Close')}</Button>
+              )}
               <Button
                 icon={<ShieldKeyhole24Regular />}
                 onClick={() => navigate(`/devices/${id}/principal`)}
@@ -520,73 +551,78 @@ export function DeviceDetailPage() {
       />
 
       {editing && (
-        <Card className={styles.card} style={{ marginBottom: tokens.spacingVerticalL, maxWidth: '420px' }}>
-          <div className={styles.editForm}>
-            <Field label={t('Name')}>
-              <Input value={nameDraft} onChange={(_, d) => setNameDraft(d.value)} />
-            </Field>
-            <Field
-              label={t('Time zone')}
-              hint={t('Where the days of this machine start and end (midnight to midnight). Every aggregation level of the Device follows it. Changing it recalculates the aggregated values from the stored readings; the readings themselves are not touched.')}
-            >
-              <Select value={zoneDraft} onChange={(_, d) => setZoneDraft(d.value)}>
-                {zones.map((z) => (
-                  <option key={z.value} value={z.value}>
-                    {z.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field
-              label={t('Server')}
-              hint={
-                hasSensors
-                  ? t('The server can no longer be changed: this Device already has Sensors, so its data is on its server.')
-                  : t('The registered server of the Company this Device lives on. A server with a reserved Device id range only accepts Devices inside it.')
-              }
-            >
-              <Select
-                value={device.serverId == null ? '' : String(device.serverId)}
-                disabled={assignServer.isPending || hasSensors}
-                onChange={(_, d) =>
-                  assignServer.mutate(d.value === '' ? null : Number(d.value), { onSuccess: () => toast.success(t('Device server updated')) })
+        <div className={styles.editLayout}>
+          <Card className={styles.card}>
+            <div className={styles.editForm}>
+              <Field label={t('Name')}>
+                <Input value={nameDraft} onChange={(_, d) => setNameDraft(d.value)} />
+              </Field>
+              <Field
+                label={t('Time zone')}
+                hint={t('Where the days of this machine start and end (midnight to midnight). Every aggregation level of the Device follows it. Changing it recalculates the aggregated values from the stored readings; the readings themselves are not touched.')}
+              >
+                <Select value={zoneDraft} onChange={(_, d) => setZoneDraft(d.value)}>
+                  {zones.map((z) => (
+                    <option key={z.value} value={z.value}>
+                      {z.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field
+                label={t('Server')}
+                hint={
+                  hasSensors
+                    ? t('The server can no longer be changed: this Device already has Sensors, so its data is on its server.')
+                    : t('The registered server of the Company this Device lives on. A server with a reserved Device id range only accepts Devices inside it.')
                 }
               >
-                <option value="">{t('No server')}</option>
-                {(serversQuery.data ?? []).map((sv) => (
-                  <option key={sv.id} value={String(sv.id)}>
-                    {sv.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            {assignServer.isError && <ServerErrorBar error={assignServer.error} />}
-            <Field label={t('Enabled')}>
+                <Select
+                  value={device.serverId == null ? '' : String(device.serverId)}
+                  disabled={assignServer.isPending || hasSensors}
+                  onChange={(_, d) =>
+                    assignServer.mutate(d.value === '' ? null : Number(d.value), { onSuccess: () => toast.success(t('Device server updated')) })
+                  }
+                >
+                  <option value="">{t('No server')}</option>
+                  {(serversQuery.data ?? []).map((sv) => (
+                    <option key={sv.id} value={String(sv.id)}>
+                      {sv.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              {assignServer.isError && <ServerErrorBar error={assignServer.error} />}
+              {updateDevice.isError && <ErrorState error={updateDevice.error} />}
+            </div>
+          </Card>
+
+          <Card className={mergeClasses(styles.card, styles.danger)} aria-label={t('Danger zone')} role="region">
+            <Body1Strong as="h2">{t('Danger zone')}</Body1Strong>
+            <div className={styles.dangerBox}>
               <Switch
                 checked={device.enabled ?? false}
                 label={device.enabled ? t('Enabled') : t('Disabled')}
-                onChange={(_, d) =>
-                  updateDevice.mutate(
-                    { enabled: d.checked },
-                    { onSuccess: () => toast.success(d.checked ? t('Device enabled') : t('Device disabled')) },
-                  )
-                }
+                disabled={updateDevice.isPending}
+                onChange={(_, d) => {
+                  // Switching off asks first; switching on is harmless and done at once.
+                  if (!d.checked) setDisableConfirmOpen(true);
+                  else updateDevice.mutate({ enabled: true }, { onSuccess: () => toast.success(t('Device enabled')) });
+                }}
               />
-            </Field>
-            {updateDevice.isError && <ErrorState error={updateDevice.error} />}
-            <Button appearance="secondary" onClick={() => setEditing(false)}>
-              {t('Close')}</Button>
-            <Divider />
-            <div className={styles.editForm}>
-              <Body1Strong>{t('Danger zone')}</Body1Strong>
-              <Text size={200}>{t('Permanently delete all data of the device - measurements, Issues, models (the device, its Sensors and their settings stay) - or the whole device with everything of it. Neither can be undone.')}</Text>
-              <Button icon={<Delete24Regular />} onClick={() => setDeleteDataOpen(true)}>
-                {t('Delete all data…')}</Button>
-              <Button icon={<Delete24Regular />} onClick={() => setDeleteOpen(true)}>
-                {t('Delete device…')}</Button>
+              <Text size={200}>{t('A disabled Device accepts no telemetry and its scheduled retraining pauses. All of its data is kept, and it can be switched on again at any time.')}</Text>
             </div>
-          </div>
-        </Card>
+            <div className={styles.dangerBox}>
+              <Text size={200}>{t('Permanently delete all data of the device - measurements, Issues, models (the device, its Sensors and their settings stay) - or the whole device with everything of it. Neither can be undone.')}</Text>
+              <div className={styles.dangerButtons}>
+                <Button icon={<Delete24Regular />} onClick={() => setDeleteDataOpen(true)}>
+                  {t('Delete all data…')}</Button>
+                <Button icon={<Delete24Regular />} onClick={() => setDeleteOpen(true)}>
+                  {t('Delete device…')}</Button>
+              </div>
+            </div>
+          </Card>
+        </div>
       )}
 
       <div className={styles.grid}>
@@ -676,14 +712,8 @@ export function DeviceDetailPage() {
                 {t('Bulk aggregation')}</Button>
             )}
             {isAdmin && <ExportSensorMapButton device={device} sensors={sensorsQuery.data ?? []} />}
-            {isAdmin && (
-              <Button
-                icon={<Wrench24Regular />}
-                onClick={() => setMaintenanceAllOpen(true)}
-                disabled={(sensorsQuery.data ?? []).length === 0}
-              >
-                {t('Maintenance (all Sensors)')}</Button>
-            )}
+            <Button icon={<Wrench24Regular />} onClick={() => navigate(`/devices/${id}/maintenance`)}>
+              {t('Maintenance')}</Button>
             <Button icon={<ArrowUpload24Regular />} onClick={() => navigate(`/devices/${id}/firmware`)}>
               {t('Firmware')}</Button>
           </>
@@ -788,22 +818,22 @@ export function DeviceDetailPage() {
         </Card>
       )}
 
-      {sensorsQuery.data && sensorsQuery.data.length > 0 && <MaintenanceHistoryCard deviceId={id} sensors={sensorsQuery.data} isAdmin={isAdmin} />}
-
-      {isAdmin && (
-        <div style={{ marginTop: tokens.spacingVerticalXL }}>
-          <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-            {t('Disabling keeps all of the Device\'s data and can be undone. To remove a Device and all of its data for good, use Edit, then Delete device.')}</Text>
-          <br />
-          <Button
-            appearance="secondary"
-            disabled={!device.enabled || disableDevice.isPending}
-            onClick={() => setDisableConfirmOpen(true)}
-          >
-            {disableDevice.isPending ? t('Disabling…') : t('Disable Device')}
-          </Button>
-        </div>
-      )}
+      <ConfirmDialog
+        open={saveConfirmOpen}
+        title={t('Save the changes?')}
+        confirmLabel="Save"
+        busy={updateDevice.isPending}
+        onConfirm={() => {
+          // A refused save keeps the editor open with the error in it.
+          void saveEdit()
+            .catch(() => undefined)
+            .finally(() => setSaveConfirmOpen(false));
+        }}
+        onCancel={() => setSaveConfirmOpen(false)}
+      >
+        <Text block>{t('Are you sure you want to save the changes of this Device?')}</Text>
+        {zoneDraft !== deviceZone && <Text block>{t('The time zone changes: the aggregated values are recalculated from the stored readings.')}</Text>}
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={disableConfirmOpen}
@@ -811,15 +841,17 @@ export function DeviceDetailPage() {
         intent="destructive"
         confirmLabel="Disable"
         busy={disableDevice.isPending}
-        onConfirm={async () => {
-          await disableDevice.disable();
-          toast.success(t('Device disabled'));
-          setDisableConfirmOpen(false);
+        onConfirm={() => {
+          void disableDevice
+            .disable()
+            .then(() => toast.success(t('Device disabled')))
+            .catch(() => undefined)
+            .finally(() => setDisableConfirmOpen(false));
         }}
         onCancel={() => setDisableConfirmOpen(false)}
       >
         <Text>
-          {t('The Device stops accepting telemetry and its scheduled retraining eligibility pauses. There is no permanent delete - re-enable it later to resume normal operation.')}</Text>
+          {t('The Device stops accepting telemetry and its scheduled retraining pauses. Its data is kept; switch it on again to resume normal operation.')}</Text>
       </ConfirmDialog>
 
       {isAdmin && (
@@ -902,16 +934,6 @@ export function DeviceDetailPage() {
           sensor={processingSensor}
           open={processingSensorId !== null}
           onClose={() => setProcessingSensorId(null)}
-        />
-      )}
-
-      {isAdmin && (
-        <MaintenanceAllDialog
-          key={`all-${sensorsInMaintenance}-${sensorsQuery.data?.length ?? 0}`}
-          deviceId={id}
-          sensors={sensorsQuery.data ?? []}
-          open={maintenanceAllOpen}
-          onClose={() => setMaintenanceAllOpen(false)}
         />
       )}
 
