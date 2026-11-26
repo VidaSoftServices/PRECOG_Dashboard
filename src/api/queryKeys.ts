@@ -35,6 +35,7 @@ export const queryKeys = {
   sensor: (deviceId: number, sensorId: number) => ['devices', deviceId, 'sensors', sensorId] as const,
   recalculation: (deviceId: number) => ['devices', deviceId, 'recalculation'] as const,
   maintenances: (deviceId: number) => ['devices', deviceId, 'maintenances'] as const,
+  firmware: (deviceId: number) => ['devices', deviceId, 'firmware'] as const,
   calculatedUpTo: (deviceId: number) => ['devices', deviceId, 'calculatedUpTo'] as const,
 
   aggregationPolicies: (deviceId: number, sensorId: number) =>

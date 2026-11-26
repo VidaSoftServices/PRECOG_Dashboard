@@ -5,6 +5,7 @@ import { HU_FRAGMENTS } from './translations.fragments';
 import { HU_DYNAMIC } from './translations.dynamic';
 import { HU_STATUS } from './translations.status';
 import { HU_MAINTENANCE } from './translations.maintenance';
+import { HU_FIRMWARE } from './translations.firmware';
 import { HU_ACCOUNTS } from './translations.accounts';
 import { HU_SERVERS } from './translations.servers';
 import { HU_PLATFORM_PEOPLE } from './translations.platformPeople';
@@ -18,6 +19,7 @@ export const HU: Record<string, string> = {
   ...HU_DYNAMIC,
   ...HU_STATUS,
   ...HU_MAINTENANCE,
+  ...HU_FIRMWARE,
   ...HU_ACCOUNTS,
   ...HU_SERVERS,
   ...HU_PLATFORM_PEOPLE,

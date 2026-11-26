@@ -42,6 +42,7 @@ import { useSetSensorMaintenance } from '@/api/hooks/maintenance';
 import { MaintenanceAllDialog } from './MaintenanceAllDialog';
 import { EndMaintenanceDialog } from './EndMaintenanceDialog';
 import { MaintenanceHistoryCard } from './MaintenanceHistoryCard';
+import { FirmwareCard } from './FirmwareCard';
 import { RecalculateDialog } from './RecalculateDialog';
 import { BulkAggregationDialog } from './BulkAggregationDialog';
 import { isDeleteOnly, isRecalculable } from '@/lib/recalculation';
@@ -789,6 +790,7 @@ export function DeviceDetailPage() {
       )}
 
       {sensorsQuery.data && sensorsQuery.data.length > 0 && <MaintenanceHistoryCard deviceId={id} sensors={sensorsQuery.data} isAdmin={isAdmin} />}
+      <FirmwareCard deviceId={id} device={deviceQuery.data ?? {}} isAdmin={isAdmin} />
 
       {isAdmin && (
         <div style={{ marginTop: tokens.spacingVerticalXL }}>
