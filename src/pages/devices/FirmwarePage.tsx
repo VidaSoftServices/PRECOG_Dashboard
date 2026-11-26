@@ -5,6 +5,7 @@ import { ErrorState } from '@/components/states/ErrorState';
 import { useAuth } from '@/auth/AuthContext';
 import { useDevice } from '@/api/hooks/devices';
 import { useT } from '@/lib/language';
+import { DebugLogCard } from './DebugLogCard';
 import { FirmwareCard } from './FirmwareCard';
 
 /**
@@ -30,6 +31,7 @@ export function FirmwarePage() {
         description={`${t('Firmware')} · ${device.externalDeviceId}`}
       />
       <FirmwareCard deviceId={id} device={device} isAdmin={isAdmin} />
+      {isAdmin && <DebugLogCard deviceId={id} deviceLabel={device.deviceName || device.externalDeviceId || String(id)} />}
     </>
   );
 }

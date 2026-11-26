@@ -25,3 +25,7 @@ The **Firmware** button in the header of the Device page (it replaced the *Analy
 * The upload, the assignment and the delete are Company Admin operations on the server too; the card hides them for Readers anyway.
 * The firmware log is device-supplied text: always rendered as text.
 * No firmware byte is ever read or parsed in the browser: the SHA-256, the layout checks and the loader mark are checked by the API and the Device.
+
+## Debug log card (2026-11-26)
+
+On the Firmware page, below the Firmware card, an Admin sees the **Debug log** card (`DebugLogCard.tsx`, `useDeviceDebug` / `useSetDeviceDebug` in `src/api/hooks/deviceDebug.ts`): a duration (30 minutes, 1, 3 or 6 hours), **Switch on / Switch off**, **Download** (a .txt of the lines on screen) and **Clear the view**, a state badge (*On, N min left* / *Off*) and the console text of the Device (a scrolling `<pre>`, plain text, newest at the bottom). It polls `GET .../Debug?after=<last seq>` every 5 s while on (15 s while off) and collects the new lines (at most 1000 on screen; a new session or a restart of the numbering empties the view). **The Device only connects outwards**: it learns of the switch from its next heartbeat (about 30 seconds) and posts the text itself; the text is kept in the API's memory only (nothing in a database) and ends with the mode. Tests: `DebugLogCard.test.tsx`.

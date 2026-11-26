@@ -36,6 +36,7 @@ export const queryKeys = {
   recalculation: (deviceId: number) => ['devices', deviceId, 'recalculation'] as const,
   maintenances: (deviceId: number) => ['devices', deviceId, 'maintenances'] as const,
   firmware: (deviceId: number) => ['devices', deviceId, 'firmware'] as const,
+  deviceDebug: (deviceId: number) => ['devices', deviceId, 'debug'] as const,
   calculatedUpTo: (deviceId: number) => ['devices', deviceId, 'calculatedUpTo'] as const,
 
   aggregationPolicies: (deviceId: number, sensorId: number) =>
