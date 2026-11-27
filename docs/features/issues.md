@@ -123,3 +123,7 @@ The Telemetry chart of the Issue detail page (and its enlarged window) uses `det
 ## The Issue chart names the aggregation it shows (2026-11-20)
 
 Under "Telemetry" the Issue detail page always writes **Aggregation shown: ...** (test id `issue-chart-level`): the level that raised the Issue (e.g. "1 day · 95th percentile", with a note that the chart shows that level's values) or "Raw readings". It appears only once the level is known, so it never says "Raw readings" while the policy list is still loading. Test: `IssueDetailPage.test.tsx`.
+
+## Automatic grouping of aggregation levels (2026-11-27)
+
+The API groups the earlier, not yet reviewed Issues of a Sensor's lower aggregation levels under the Issue of a higher level (see the API's `aggregation.md`, "The highest level wins"). The list shows the one canonical Issue; its detail page shows the group, where an Admin can ungroup a member. No Dashboard change.

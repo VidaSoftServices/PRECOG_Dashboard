@@ -63,3 +63,7 @@ The Sensor Policies page's **New aggregation level** form (`NewPolicyForm` in `S
 ## The raw switch next to the levels (2026-11-27)
 
 The raw level's card on the Policies page has its own **Calculate** field (`Sensor.processingEnabled`, see `calculation-switch.md`); each level's Calculate is independent of it.
+
+## The highest level wins (2026-11-27)
+
+An API rule: before a lower level opens an Issue the higher levels are recalculated, and an earlier unreviewed lower-level Issue is grouped under the higher one. No Dashboard change.
