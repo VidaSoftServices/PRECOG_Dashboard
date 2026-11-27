@@ -711,7 +711,10 @@ export function DeviceDetailPage() {
                     {sensor.direction} {sensor.sensorType ? `· ${sensor.sensorType}` : ''}{' '}
                     {sensor.unitLabel ?? sensor.unitCode ? `(${sensor.unitLabel ?? sensor.unitCode})` : ''}
                   </Text>
-                  <CalculatedUpToNote loaded={calculatedUpTo.data !== undefined} calculatedUpTo={calculatedUpToBySensor.get(sensor.id ?? -1)} />
+                  {/* Raw calculation off: the time it stopped at says nothing - the "Raw calculation off" mark beside it is the whole answer. */}
+                  {sensor.processingEnabled !== false && (
+                    <CalculatedUpToNote loaded={calculatedUpTo.data !== undefined} calculatedUpTo={calculatedUpToBySensor.get(sensor.id ?? -1)} />
+                  )}
                   <SensorRecalculationNote status={recalcStatus.data} sensorId={sensor.id} />
                 </div>
                 <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center' }}>
