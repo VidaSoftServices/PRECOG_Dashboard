@@ -241,6 +241,22 @@ export function useChangePlatformUserCompany() {
   });
 }
 
+/**
+ * Sets a new password for a person (platform administrator only). The password is held only by the dialog that sends it: `gcTime: 0` and the dialog's `reset()` keep it
+ * out of the mutation cache.
+ */
+export function useSetPlatformUserPassword() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { userId: number; password: string }) =>
+      unwrap(await apiClient.PUT('/api/Platform/Users/{userId}/Password', { params: { path: { userId: vars.userId } }, body: { password: vars.password } })),
+    gcTime: 0,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['platform'] });
+    },
+  });
+}
+
 export function useSetPlatformUserEnabled() {
   const queryClient = useQueryClient();
   return useMutation({

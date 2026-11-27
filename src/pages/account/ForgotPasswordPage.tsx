@@ -11,7 +11,7 @@ const useStyles = makeStyles({
 
 /**
  * "Forgot your password?": asks for the e-mail address and always answers the same - whether the address belongs to an account is never told, here or in
- * the API. Only a User created in PRECOG gets a link (a User synchronized from WordPress or Entra ID keeps the password at its source).
+ * the API. Every enabled User with a password gets a link (a Microsoft Entra ID User keeps the password at its source).
  */
 export function ForgotPasswordPage() {
   const t = useT();

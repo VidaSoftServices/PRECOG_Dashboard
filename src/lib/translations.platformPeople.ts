@@ -52,6 +52,16 @@ export const HU_PLATFORM_PEOPLE: Record<string, string> = {
   'No company': 'Nincs cég',
   '{0} is removed. A person with a history is deactivated instead of deleted.': '{0} el lesz távolítva. Az előzménnyel rendelkező embert törlés helyett inaktiválja a rendszer.',
 
+  // A new password set by the platform administrator
+  'Set new password': 'Új jelszó megadása',
+  'Set password': 'Jelszó beállítása',
+  'Repeat the new password': 'Az új jelszó még egyszer',
+  'The new password was set': 'Az új jelszó beállítva',
+  '{0} signs in with the user name {1} (or the e-mail address) and the password you type here. The old password stops working at once. Tell the new password to the person in a safe way.':
+    '{0} a(z) {1} felhasználónévvel (vagy az e-mail címével) és az itt megadott jelszóval lép be. A régi jelszó azonnal megszűnik. Az új jelszót biztonságos módon közöld az illetővel.',
+  'This User signs in with Microsoft Entra ID: it has no password here.': 'Ez a felhasználó Microsoft Entra ID-val lép be: itt nincs jelszava.',
+  'This User cannot sign in (it has no login name): invite the person again instead.': 'Ez a felhasználó nem tud belépni (nincs belépési neve): inkább hívd meg újra.',
+
   // The states of a person
   'You have no access yet': 'Még nincs hozzáférésed',
   'Your sign-in is valid, but you have not been given a role in your company yet. Ask your company administrator to make you a Reader or an Administrator.':

@@ -98,3 +98,10 @@ The Companies list shows each Company's uploaded logo as a small picture (24 px 
   - **People list**: paged by the API, so the API sorts: `GET /api/Platform/Users?sortBy=name|loginName|email|company|state|lastLogin|created&descending=` (default: by name; ties fall back to the User id so a page boundary never repeats or skips a row; an unknown `sortBy` is 400). The Dashboard offers Name, User name, E-mail address, Company and State; the unsorted list is shown as sorted by name.
 - Tests: `tableSort.test.ts`, `PlatformCompaniesPage.test.tsx` (sort of the companies and of the members, the user name column), `PlatformUsersPage.test.tsx` (user name column, the sort sent to the API); API: `PlatformCompanyAndUserManagementTests` ("TheUserList_ShowsTheLoginName_SearchesIt_AndSortsByAnyColumn...").
 - Moving a person to another company still takes every role and Device access away (they arrive without a role); a Reader additionally needs explicit Device grants (Company Settings -> Readers) to see any Device.
+
+## Set new password, and the reset for the old WordPress list (2026-11-26)
+
+- **People page** (VSSSysAdmin): **Set new password** on every person who has a user name and does not sign in with Microsoft Entra ID (`SetPasswordDialog`). The password is typed twice, checked with `checkNewPassword` (also against the user name), sent with `PUT /api/Platform/Users/{userId}/Password`, held only in the dialog (`gcTime: 0`, `reset()` on close). The dialog says which user name the person signs in with. Hook: `useSetPlatformUserPassword`.
+- **Forgot password** now works for the people of the old WordPress list too (an API fix, see the API doc): until 2026-11-26 the page answered "a link is on its way" but no e-mail went to them.
+- Tests: `PlatformUsersPage.test.tsx`.
+

@@ -39,6 +39,7 @@ import { useAppToast } from '@/components/ToastProvider';
 import { WordPressBadge } from '@/components/people/WordPressBadge';
 import { useLastAdminConfirm } from '@/components/people/useLastAdminConfirm';
 import { SortHeaderCell } from '@/components/SortHeaderCell';
+import { SetPasswordDialog } from './SetPasswordDialog';
 import { nextSort, type SortState } from '@/lib/tableSort';
 import { EmptyState } from '@/components/states/EmptyState';
 import { ErrorState } from '@/components/states/ErrorState';
@@ -142,8 +143,8 @@ function ChangeCompanyDialog({ user, onClose }: { user: PlatformUser | null; onC
 }
 
 /**
- * The platform administrator's (VSSSysAdmin) People list: every User of every Company in one place, filtered by company, role and state, with the three things only
- * it may do - change a User's company, disable / enable it, remove it. It shows names, e-mail addresses, roles and states - never a Company's data.
+ * The platform administrator's (VSSSysAdmin) People list: every User of every Company in one place, filtered by company, role and state, with the things only
+ * it may do - change a User's company, set a new password, disable / enable it, remove it. It shows names, e-mail addresses, roles and states - never a Company's data.
  */
 export function PlatformUsersPage() {
   const t = useT();
@@ -157,6 +158,7 @@ export function PlatformUsersPage() {
   const removeWithoutCompany = useRemovePlatformUserWithoutCompany();
   const { attempt, dialog } = useLastAdminConfirm();
   const [moving, setMoving] = useState<PlatformUser | null>(null);
+  const [settingPassword, setSettingPassword] = useState<PlatformUser | null>(null);
   const [disabling, setDisabling] = useState<PlatformUser | null>(null);
   const [removing, setRemoving] = useState<PlatformUser | null>(null);
 
@@ -259,6 +261,9 @@ export function PlatformUsersPage() {
                   <TableCell>
                     <div className={styles.actions}>
                       <Button size="small" onClick={() => setMoving(u)}>{t('Change company')}</Button>
+                      {u.origin !== 'EntraId' && u.loginName && (
+                        <Button size="small" onClick={() => setSettingPassword(u)}>{t('Set new password')}</Button>
+                      )}
                       {u.enabled ? (
                         <Button size="small" onClick={() => setDisabling(u)}>{t('Disable')}</Button>
                       ) : (
@@ -293,6 +298,7 @@ export function PlatformUsersPage() {
       {(setEnabled.isError || remove.isError || removeWithoutCompany.isError) && <RefusalBar error={setEnabled.error ?? remove.error ?? removeWithoutCompany.error} />}
 
       <ChangeCompanyDialog user={moving} onClose={() => setMoving(null)} />
+      <SetPasswordDialog user={settingPassword} onClose={() => setSettingPassword(null)} />
 
       <ConfirmDialog
         open={disabling !== null}

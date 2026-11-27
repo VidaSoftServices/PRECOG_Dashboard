@@ -190,4 +190,40 @@ describe('PlatformUsersPage', () => {
     await waitFor(() => expect(calls.some((c) => c.method === 'DELETE' && c.path === '/api/Platform/Users/13')).toBe(true));
     expect(calls.some((c) => c.method === 'DELETE' && c.path.includes('/Members/'))).toBe(false);
   });
+
+  it('sets a new password: typed twice, checked, sent once, and gone when the dialog closes', async () => {
+    const calls = mockApi({ 'PUT /api/Platform/Users/11/Password': [{ status: 204 }] });
+    const user = userEvent.setup();
+    renderPage();
+
+    const row = (await screen.findByText('anna@example.test')).closest('tr')!;
+    await user.click(within(row).getByRole('button', { name: 'Set new password' }));
+    const dialog = await screen.findByRole('dialog', {}, { timeout: 10_000 });
+    expect(within(dialog).getByText(/signs in with the user name anna\.login/)).toBeInTheDocument();
+
+    // a wrong repetition is refused here, nothing is sent
+    await user.type(within(dialog).getByLabelText(/^New password/), 'a-brand-new-password-7');
+    await user.type(within(dialog).getByLabelText(/^Repeat the new password/), 'a-brand-new-password-8');
+    await user.click(within(dialog).getByRole('button', { name: 'Set password' }));
+    expect(within(dialog).getByText('The passwords do not match.')).toBeInTheDocument();
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false);
+
+    await user.clear(within(dialog).getByLabelText(/^Repeat the new password/));
+    await user.type(within(dialog).getByLabelText(/^Repeat the new password/), 'a-brand-new-password-7');
+    await user.click(within(dialog).getByRole('button', { name: 'Set password' }));
+
+    await waitFor(() => expect(calls.some((c) => c.method === 'PUT' && c.path === '/api/Platform/Users/11/Password')).toBe(true));
+    expect(calls.find((c) => c.path === '/api/Platform/Users/11/Password')!.body).toEqual({ password: 'a-brand-new-password-7' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('offers no new password to a person who cannot sign in with one', async () => {
+    mockApi();
+    renderPage();
+    // Béla has no user name here; Anna has one
+    const bela = (await screen.findByText('bela@example.test')).closest('tr')!;
+    expect(within(bela).queryByRole('button', { name: 'Set new password' })).toBeNull();
+    const anna = screen.getByText('anna@example.test').closest('tr')!;
+    expect(within(anna).getByRole('button', { name: 'Set new password' })).toBeInTheDocument();
+  });
 });
