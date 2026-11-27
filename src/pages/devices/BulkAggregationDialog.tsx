@@ -112,7 +112,7 @@ const MAX_LISTED_PROBLEMS = 50;
  * score, time zone), so a sheet edited and imported again takes effect; one that already has exactly those settings is left as it is (Exists).
  * Company Admin only.
  */
-export function BulkAggregationDialog({ deviceId, externalDeviceId, sensors, open, onClose }: { deviceId: number; /** The Device ID (externalDeviceId) for the file names of the exports. */ externalDeviceId?: string | null; sensors: readonly SensorDto[]; open: boolean; onClose: () => void }) {
+export function BulkAggregationDialog({ deviceId, fileDeviceName, sensors, open, onClose }: { deviceId: number; /** The Device's name, for the file names of the downloads. */ fileDeviceName?: string | null; sensors: readonly SensorDto[]; open: boolean; onClose: () => void }) {
   const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
@@ -175,7 +175,7 @@ export function BulkAggregationDialog({ deviceId, externalDeviceId, sensors, ope
     setExporting(true);
     try {
       const policies = await fetchDeviceAggregationPolicies(queryClient, deviceId);
-      downloadTextFile(aggregationExportFileName(deviceId, externalDeviceId), buildAggregationExportCsv(policies ?? [], sensors));
+      downloadTextFile(aggregationExportFileName(deviceId, fileDeviceName), buildAggregationExportCsv(policies ?? [], sensors));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t('The export failed.'), t('Export failed'));
     } finally {

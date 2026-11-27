@@ -96,7 +96,7 @@ describe('DescriptionsDialog', { timeout: 20_000 }, () => {
       const button = screen.getByRole('button', { name: 'Export descriptions' });
       await waitFor(() => expect(button).toBeEnabled());
       await user.click(button);
-      await waitFor(() => expect(download.names).toEqual(['descriptions-device-4.csv']));
+      await waitFor(() => expect(download.names).toEqual(['descriptions-device-4-Pump_1.csv']));
       const text = (await readBlob(download.blobs[0]!)).replace(/^\uFEFF/, '');
       expect(text.split('\r\n')[0]).toBe('SensorName,Language,Description');
       expect(text).toContain('temp_a,EN,"## Temp\n\nIt shows, with a comma"');

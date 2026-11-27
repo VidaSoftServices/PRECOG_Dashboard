@@ -58,4 +58,8 @@ The Sensor Policies page's **New aggregation level** form (`NewPolicyForm` in `S
 
 `GET .../AggregationPolicies/{policyId}/Values` now returns `anomaly` per bucket (0 / 1 warning / 2 critical, null = not evaluated); the Dashboard's `bucketToPoint` passes it to the chart, which draws an anomalous bucket with a large yellow / red marker like a raw reading (`smart-analytics.md`, "Anomaly markers on the charts").
 
-- 2026-11-25: the downloaded file names carry the Device ID (externalDeviceId) next to the number, e.g. `sensors-device-2-KS4.csv` (`deviceFilePart`, `src/lib/deviceFileName.ts`: unsafe characters become `_`, at most 60 kept, only the number without a Device ID); the Device page passes `externalDeviceId` to the dialogs (no extra request). The Add Device form labels it "Device ID" (was "External Device ID"). Test: `deviceFileName.test.ts`.
+- 2026-11-27 (the user's rule; replaces the 2026-11-25 "Device ID" version): every downloaded file about a Device ends with the Device's **name** after the number, e.g. `aggregation-device-1-Test_Device.csv`, `sensors-device-2-KS4.csv` (also setpoints, descriptions, the Sensor ID map and "Export sensor for hardware"). `deviceFilePart` (`src/lib/deviceFileName.ts`): letters (accented too), digits, `.`, `_`, `-` stay, anything else becomes `_`, at most 60 characters; an unnamed Device uses its Device ID. The two empty templates keep their fixed names.
+
+## The raw switch next to the levels (2026-11-27)
+
+The raw level's card on the Policies page has its own **Calculate** field (`Sensor.processingEnabled`, see `calculation-switch.md`); each level's Calculate is independent of it.

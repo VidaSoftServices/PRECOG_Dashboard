@@ -88,7 +88,7 @@ export function RecalculateDialog({
     : t('Everything calculated for {0} Sensor(s) of this Device is deleted. Sensors with calculation on are calculated again, starting from each Sensor’s first stored value.', eligible.length);
   if (singleDeleteOnly)
     intro =
-      t('Calculation is switched off for this Sensor, so its calculated values and unreviewed Issues are only deleted - nothing is calculated (this frees their space). Switching calculation on later calculates everything again.');
+      t('The raw calculation of this Sensor is switched off, so its raw calculated values and unreviewed raw Issues are only deleted - nothing is calculated (this frees their space). The aggregation levels are not touched. Switching the raw calculation on later calculates everything again.');
   else if (single) intro = t('Everything calculated for this Sensor is deleted and calculated again, starting from its first stored value.');
 
   return (
@@ -127,7 +127,7 @@ export function RecalculateDialog({
           <ul className={styles.list}>
             <li>{t('all stored values (training data is unchanged, no retraining is started)')}</li>
             <li>{t('Issues a person has reviewed (Reviewed fault / Reviewed false positive) - they are not deleted and not duplicated')}</li>
-            <li>{t('setpoints, policies and every setting')}{singleDeleteOnly ? t('; the aggregated values (they are built from the stored values whether calculation is on or off)') : ''}</li>
+            <li>{t('setpoints, policies and every setting')}{singleDeleteOnly ? t('; the aggregation levels and their Issues (they have their own switches)') : ''}</li>
           </ul>
         </div>
         {!singleDeleteOnly && (
@@ -137,7 +137,7 @@ export function RecalculateDialog({
         {!single && deleteOnly > 0 && (
           <MessageBar intent="warning">
             <MessageBarBody>
-              {deleteOnly} {t('Sensor(s) have calculation switched off: they are only deleted from, nothing is calculated for them (')}{recalculated} {t('Sensor(s) are recalculated). Switching their calculation on later calculates everything.')}</MessageBarBody>
+              {deleteOnly} {t('Sensor(s) have the raw calculation switched off: only their raw results are deleted, nothing is calculated for them (')}{recalculated} {t('Sensor(s) are recalculated). Switching their raw calculation on later calculates everything.')}</MessageBarBody>
           </MessageBar>
         )}
         {!single && left > 0 && (

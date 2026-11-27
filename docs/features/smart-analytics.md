@@ -125,3 +125,7 @@ This replaces the "lists every level that ANY Sensor of the Device has" behaviou
 ## Target and tolerance toggle (2026-11-20)
 
 After the End date of the toolbar there is a **Target and tolerance** toggle button (eye icon, `aria-pressed`; on by default). Off, the chart draws no Target and no Tolerance line - the single and bidirectional (Above / Below) ones of a Single Sensor, the per-series ones of Multi Sensor and Compare Devices - while the readings, the average line and the control limits (UCL3 / UCL2 / LCL2 / LCL3) stay. The state lives in `SmartAnalyticsPage` and is passed to every mode; the enlarged window draws the same chart, so it follows the toggle (`showTargetTolerance` prop of `TelemetryChart`, default true; the enlarged chart receives the same props). Tests: `TelemetryChart.lines.test.tsx`, `SmartAnalyticsPage.test.tsx`.
+
+## The "calculation off" mark (2026-11-27)
+
+The Sensor lists ("Sensor (choose one)", the multi-Sensor list, their filter) no longer carry it. The **Aggregation** choice does: "Raw readings · Calculation off" when the raw calculation of every chosen Sensor is off, and each level whose calculation is off, as before. The two-Device rows mark their raw row.

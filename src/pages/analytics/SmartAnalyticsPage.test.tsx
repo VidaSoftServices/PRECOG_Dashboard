@@ -116,12 +116,12 @@ describe('SmartAnalyticsPage and hidden Sensors', { timeout: 40_000 }, () => {
     expect(screen.getByText(/2 Sensors/)).toHaveTextContent('(1 hidden on the Device page)');
   });
 
-  it('lists a Sensor whose calculation is switched off with a "Calculation off" marker; a calculating one has none', async () => {
+  it('does not mark a Sensor with the raw calculation off in the Sensor list', async () => {
     mockApi({ 4: [{ ...sensor(1, 'RMS A', true), processingEnabled: false }, sensor(2, 'RMS C', true)] });
     renderPage('/analytics?deviceId=4');
 
-    expect(await screen.findByRole('radio', { name: /RMS A.*Calculation off/ })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: /RMS C/ })).not.toHaveAccessibleName(/Calculation off/);
+    expect(await screen.findByRole('radio', { name: /RMS A/ })).not.toHaveAccessibleName(/calculation off/i);
+    expect(screen.getByRole('radio', { name: /RMS C/ })).not.toHaveAccessibleName(/calculation off/i);
   });
 
   it('single Sensor: never starts with a hidden Sensor selected, even when it is the first one', async () => {

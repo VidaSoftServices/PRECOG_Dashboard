@@ -4,6 +4,14 @@ The "Calculate" switch per Sensor on the Device page and what it means: data sto
 
 Related: the API side of this feature is in [../../../PRECOG_API/docs/features/calculation-switch.md](../../../PRECOG_API/docs/features/calculation-switch.md).
 
+> **2026-11-27 (the user's decision): the switch is the RAW calculation switch and lives on the Sensor's Policies page.** Read the older text below with these changes:
+>
+> - **Where:** the Policies page, on the raw level's card ("Actual · Native · Raw (raw)"), field **Calculate** (`RawCalculationDialog` confirms either direction; Admin only). The Device page's per-Sensor "Calculate" switch and `ProcessingDialog` are gone. Bulk: the **Calculate** column of Import Sensors (no separate button).
+> - **What it governs:** the raw values only. Every aggregation level has its own switch and is evaluated independently.
+> - **Wording:** the marking is "Raw calculation off" (`ProcessingOffPill`; the Recalc dialog and progress texts say raw). Live Monitoring uses "Calculation off" on a card that shows raw readings of a Sensor with nothing calculated.
+> - **Smart Analytics:** the Sensor lists carry no mark any more; the **Aggregation** choice marks "Raw readings · Calculation off" (all chosen Sensors raw-off), like the levels (`AggregationSelect` `rawCalculationOff`, also in Live Monitoring's large window). The two-Device rows keep the mark on their raw row.
+> - Tests: `RecalculateDialog.test.tsx`, `RecalculationProgress.test.tsx`, `AggregationSelect.test.tsx`, `SmartAnalyticsPage.test.tsx`, `LiveMonitoringPage.test.tsx`, `maintenance.test.tsx`.
+
 The text below was moved verbatim from `CLAUDE.md` (Dashboard) on 2026-11-19; dates and "superseded" notes are the original ones. Keep this file up to date with every change to the feature.
 
 ## Per-Sensor calculation switch

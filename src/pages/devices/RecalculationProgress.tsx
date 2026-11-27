@@ -130,9 +130,9 @@ export function RecalculationProgress({ deviceId, isAdmin }: { deviceId: number;
         <MessageBarBody>
           <MessageBarTitle>{title}</MessageBarTitle>
           {kind === 'DeleteOnly'
-            ? t('{0} unreviewed Issue(s) deleted, {1} reviewed Issue(s) kept; nothing was calculated (calculation is switched off).', deletedIssues, keptIssues)
+            ? t('{0} unreviewed raw Issue(s) deleted, {1} reviewed Issue(s) kept; nothing was calculated (the raw calculation is switched off).', deletedIssues, keptIssues)
             : t('{0} of {1} values evaluated; {2} unreviewed Issue(s) replaced, {3} reviewed Issue(s) kept.', (data.doneReadings ?? 0).toLocaleString(), (data.totalReadings ?? 0).toLocaleString(), deletedIssues, keptIssues)}
-          {kind === 'Recalculate' && deleteOnly > 0 && t(' {0} Sensor(s) with calculation off were only deleted from.', deleteOnly)}
+          {kind === 'Recalculate' && deleteOnly > 0 && t(' {0} Sensor(s) with the raw calculation off were only deleted from.', deleteOnly)}
           {levelsReset > 0 && t(' {0} aggregation level(s) are being aggregated again in the background.', levelsReset)}
           {skipped.length > 0 && <Text block>{t('Left out:')}{' '}{skipped.map((s) => `${s.name} (${s.note})`).join('; ')}</Text>}
           {failed.length > 0 && <Text block>{t('Not finished:')}{' '}{failed.map((s) => `${s.name} (${s.note})`).join('; ')}</Text>}
@@ -192,7 +192,7 @@ export function SensorRecalculationNote({ status, sensorId }: { status: Recalcul
   const working = ACTIVE_RECALCULATION_PHASES.includes(entry.phase ?? '');
   const catchUp = entry.kind === 'CatchUp';
   let text = t('Waiting for its turn: 0 %');
-  if (entry.phase === 'Done' && entry.kind === 'DeleteOnly') text = t('Calculated values deleted (calculation off)');
+  if (entry.phase === 'Done' && entry.kind === 'DeleteOnly') text = t('Raw calculated values deleted (raw calculation off)');
   else if (entry.phase === 'Done') text = catchUp ? t('Caught up: 100 %') : t('Recalculated: 100 %');
   else if (working && entry.kind === 'DeleteOnly') text = t('Deleting the calculated values');
   else if (working) text = `${catchUp ? 'Catching up' : 'Recalculating'}: ${percent} % (${done.toLocaleString()} / ${total.toLocaleString()})`;

@@ -66,7 +66,7 @@ export function buildSensorMap(sensors: SensorMapSensor[], info: SensorMapInfo):
   return { text: lines.join('\n'), mapped: ordered.length };
 }
 
-/** The file name offered for the download: the Device's number and its Device ID (externalDeviceId), e.g. "sensor_map-device-2-KS4.txt". */
-export function sensorMapFileName(deviceId: number, externalDeviceId?: string | null): string {
-  return `sensor_map-${deviceFilePart(deviceId, externalDeviceId)}.txt`;
+/** The file name of the download: the Device's number and its name, e.g. "sensor_map-device-2-KS4.txt". */
+export function sensorMapFileName(deviceId: number, deviceName?: string | null): string {
+  return `sensor_map-${deviceFilePart(deviceId, deviceName)}.txt`;
 }

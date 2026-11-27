@@ -114,14 +114,14 @@ const MAX_LISTED = 20;
  */
 export function SensorImportDialog({
   deviceId,
-  externalDeviceId,
+  fileDeviceName,
   applicationMode,
   open,
   onClose,
 }: {
   deviceId: number;
-  /** The Device ID (externalDeviceId) for the file names of the exports. */
-  externalDeviceId?: string | null;
+  /** The Device's name, for the file names of the downloads. */
+  fileDeviceName?: string | null;
   applicationMode: string | null | undefined;
   open: boolean;
   onClose: () => void;
@@ -216,7 +216,7 @@ export function SensorImportDialog({
       const sensor = byExternalId.get(r.externalSensorId.toLowerCase());
       return sensor?.id == null ? [] : [{ externalSensorId: sensor.externalSensorId ?? r.externalSensorId, sensorId: sensor.id, name: sensor.name ?? '' }];
     });
-    downloadTextFile(`sensor-ids-${deviceFilePart(deviceId, externalDeviceId)}.csv`, buildSensorIdMapCsv(entries));
+    downloadTextFile(`sensor-ids-${deviceFilePart(deviceId, fileDeviceName)}.csv`, buildSensorIdMapCsv(entries));
   };
 
   const created = outcomes?.filter((o) => o.status === 'created').length ?? 0;
@@ -252,7 +252,7 @@ export function SensorImportDialog({
               >
                 {t('Download Data sets')}</Button>
               {/* Every Sensor of the Device as a sheet this dialog takes back: edit it in Excel and import it to change many Sensors at once. */}
-              <ExportAllSensorsButton deviceId={deviceId} externalDeviceId={externalDeviceId} sensors={sensorsQuery.data ?? []} />
+              <ExportAllSensorsButton deviceId={deviceId} fileDeviceName={fileDeviceName} sensors={sensorsQuery.data ?? []} />
               <Button icon={<DocumentArrowUp24Regular />} onClick={() => fileRef.current?.click()} disabled={running}>
                 {t('Choose .csv file')}</Button>
               <input
@@ -313,7 +313,7 @@ export function SensorImportDialog({
               <Field label={t('Raw lookback')}>
                 <Input type="number" min="1" value={defaults.rawLookback} onChange={(_, d) => setDefault('rawLookback', d.value)} disabled={running} />
               </Field>
-              <Field label={t('Calculate')} hint={t('Off: data is stored and trained on, nothing is calculated.')}>
+              <Field label={t('Calculate')} hint={t('The raw calculation. Off: the data is stored; the raw values are not analysed or trained on. The aggregation levels have their own switches.')}>
                 <Select
                   value={defaults.processingEnabled ? 'on' : 'off'}
                   onChange={(_, d) => setDefault('processingEnabled', d.value === 'on')}

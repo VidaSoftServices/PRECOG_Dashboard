@@ -155,7 +155,7 @@ describe('RecalculationProgress', { timeout: 20_000 }, () => {
     );
     renderProgress();
     expect(await screen.findByText('Calculated values deleted')).toBeInTheDocument();
-    expect(screen.getByText(/4 unreviewed Issue\(s\) deleted, 1 reviewed Issue\(s\) kept; nothing was calculated/)).toBeInTheDocument();
+    expect(screen.getByText(/4 unreviewed raw Issue\(s\) deleted, 1 reviewed Issue\(s\) kept; nothing was calculated/)).toBeInTheDocument();
   });
 
   it('an old finished run is not shown again when the page is opened later', async () => {
@@ -231,7 +231,7 @@ describe('SensorRecalculationNote', () => {
     expect(screen.getByText('Caught up: 100 %')).toBeInTheDocument();
     b.unmount();
     show(s, 3);
-    expect(screen.getByText('Calculated values deleted (calculation off)')).toBeInTheDocument();
+    expect(screen.getByText('Raw calculated values deleted (raw calculation off)')).toBeInTheDocument();
   });
 
   it('says why a Sensor was left out, shows nothing for a Sensor that is not in the run, and goes quiet a while after the run ended', () => {

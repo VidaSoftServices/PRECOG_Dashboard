@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  Badge,
   Card,
   Text,
   Body1Strong,
@@ -35,6 +36,7 @@ import { useDevices, useDevice } from '@/api/hooks/devices';
 import { useSensors } from '@/api/hooks/sensors';
 import { useDeviceAggregationPolicies } from '@/api/hooks/deviceConfiguration';
 import { useAggregatedPoints } from '@/api/hooks/aggregatedPoints';
+import { useRecentLevelAnomalies } from '@/api/hooks/recentAnomalies';
 import { AggregationSelect } from '@/components/AggregationSelect';
 import { levelsOfSensor, pickLevel, type LevelPreference } from '@/lib/aggregationLevels';
 import { useTelemetryTrailingPeriods, useTelemetryTrailingWithLimits, familyFor, isCurveFamily, type TelemetryPoint } from '@/api/hooks/telemetry';
@@ -133,6 +135,10 @@ function SensorLiveCard({
   onStep,
   levelPreference,
   onLevelPreferenceChange,
+  showCalculatedLevel,
+  autoRefresh,
+  highlightAnomalies,
+  anomalousPolicyIds,
 }: {
   deviceId: number;
   sensor: SensorDto;
@@ -147,9 +153,20 @@ function SensorLiveCard({
   onEnlargedChange: (open: boolean) => void;
   /** -1 = the previous Sensor of the page, +1 = the next one. */
   onStep: (delta: -1 | 1) => void;
-  /** The aggregation chosen in the large window (undefined = raw readings); kept by the page so it stays while the arrow keys move between Sensors - a Sensor without that very level gets the closest one. */
-  levelPreference: LevelPreference | undefined;
-  onLevelPreferenceChange: (preference: LevelPreference | undefined) => void;
+  /**
+   * The aggregation chosen in the large window: a level, 'raw' (the raw readings), or undefined (nothing chosen: what the card shows). Kept by the page so it
+   * stays while the arrow keys move between Sensors - a Sensor without that very level gets the closest one.
+   */
+  levelPreference: LevelPreference | 'raw' | undefined;
+  onLevelPreferenceChange: (preference: LevelPreference | 'raw') => void;
+  /** "Show calculated level": a Sensor whose raw values are not calculated shows its first (shortest) calculated aggregation level instead. */
+  showCalculatedLevel: boolean;
+  /** The page is refreshing (not paused, tab visible): the aggregated card chart is re-read too. */
+  autoRefresh: boolean;
+  /** "Highlight anomalies": a Sensor with an anomaly among the card's values shows the FIRST level that has one (the raw readings first). */
+  highlightAnomalies: boolean;
+  /** The aggregation levels (policy ids) that have an anomaly among their newest values; undefined while unknown or not asked. */
+  anomalousPolicyIds: ReadonlySet<number> | undefined;
 }) {
   const t = useT();
   const styles = useStyles();
@@ -166,10 +183,25 @@ function SensorLiveCard({
   const setEnlarged = onEnlargedChange;
   useArrowStep(enlarged, onStep); // Up / Down: the previous / next Sensor of the page
   const [showInfo, setShowInfo] = useState(false);
-  // The aggregation levels this Sensor has (read only while the large window is open); a level the Sensor lacks falls back to the raw readings.
-  const policies = useDeviceAggregationPolicies(deviceId, enlarged && !curveFamily);
+  // The aggregation levels this Sensor has: needed while the large window is open, and on the card when its raw values are not calculated and "Show
+  // calculated level" is on (one request per Device, shared by every card). A level the Sensor lacks falls back to the raw readings.
+  const rawOff = sensor.processingEnabled === false;
+  const wantsCalculatedLevel = showCalculatedLevel && rawOff && !curveFamily;
+  // An anomaly among the card's raw readings (the newest 20 the card holds).
+  const rawAnomaly = highlightAnomalies && (trailing.data ?? []).some((point) => (point.anomaly ?? 0) > 0 || (point.anomalyAbove ?? 0) > 0 || (point.anomalyBelow ?? 0) > 0);
+  const policies = useDeviceAggregationPolicies(deviceId, (enlarged && !curveFamily) || wantsCalculatedLevel || (highlightAnomalies && !curveFamily));
   const levels = levelsOfSensor(policies.data, sensor.id);
-  const level = pickLevel(levels, levelPreference);
+  // "Highlight anomalies": the first level with an anomaly - the raw readings, else the shortest aggregation level that has one.
+  const anomalyLevel = highlightAnomalies && !rawAnomaly ? levels.find((l) => anomalousPolicyIds?.has(l.policyId)) : undefined;
+  const hasAnomaly = rawAnomaly || anomalyLevel !== undefined;
+  // What the card shows: the anomalous level; without an anomaly the raw readings - or, for a Sensor whose raw values are not calculated ("Show
+  // calculated level"), the FIRST level that is calculated (shortest bucket first).
+  const cardLevel = rawAnomaly ? undefined : (anomalyLevel ?? (wantsCalculatedLevel ? levels.find((l) => l.calculationEnabled) : undefined));
+  const level = levelPreference === 'raw' ? undefined : levelPreference ? pickLevel(levels, levelPreference) : cardLevel;
+  const cardAggregated = useAggregatedPoints({
+    deviceId, sensorId: sensor.id, policyId: cardLevel?.policyId, newest: cardLevel ? { count: 20, bucketMs: cardLevel.bucketMs } : undefined,
+    enabled: cardLevel !== undefined, refetchMs: autoRefresh ? 30_000 : undefined,
+  });
   // The control limits are not stored: the API calculates them when it reads, and the batched read the cards use leaves them out. The enlarged
   // chart therefore reads its own Sensor WITH the limits (every 5 s while the window is open, paused in a rate-limit cooldown).
   const limits = useTelemetryTrailingWithLimits({ family, deviceId, sensorId: sensor.id, periods: 20, enabled: enlarged && !curveFamily && level === undefined, paused: refreshDisabled });
@@ -189,10 +221,12 @@ function SensorLiveCard({
   // One definition for the card and the enlarged view, so the modal always shows exactly the data the card has (it moves with every refresh).
   // The enlarged chart draws every Target / Tolerance / UCL / LCL line the API has a value for (never computed here); a line it has none for is simply absent.
   const seriesOf = (points: TelemetryPoint[]) => [{ label: sensorLabel, points, bidirectional: sensor.direction === 'bidirectional', direction: sensor.direction, unitLabel: sensor.unitLabel }];
-  const chartSeries = seriesOf(trailing.data ?? []);
+  const levelSeries = (name: string, points: TelemetryPoint[]) => [{ label: name, points, bidirectional: false, direction: sensor.direction, unitLabel: sensor.unitLabel }];
+  const chartSeries = cardLevel ? levelSeries(`${sensorLabel} · ${t(cardLevel.label)}`, cardAggregated.data ?? []) : seriesOf(trailing.data ?? []);
+  const cardLatest = cardLevel ? cardAggregated.data?.[cardAggregated.data.length - 1] : latest;
   // The enlarged chart's own read carries the calculated control limits; until it has answered, the card's data (without them) is shown.
   const enlargedSeries = level
-    ? [{ label: `${sensorLabel} · ${t(level.label)}`, points: aggregated.data ?? [], bidirectional: false, direction: sensor.direction, unitLabel: sensor.unitLabel }]
+    ? levelSeries(`${sensorLabel} · ${t(level.label)}`, aggregated.data ?? [])
     : seriesOf(limits.data ?? trailing.data ?? []);
   // The big number of the window: the newest aggregated bucket (its start) while an aggregation is shown, otherwise the latest reading.
   const shownLatest = level ? aggregated.data?.[aggregated.data.length - 1] : latest;
@@ -244,19 +278,30 @@ function SensorLiveCard({
       ) : (
         <>
           <div className={styles.valueRow}>
-            <span className={styles.bigValue}>{latest?.actual ?? '—'}</span>
+            <span className={styles.bigValue}>{cardLatest?.actual ?? '—'}</span>
             <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-              {latest ? formatRelative(latest.measured) : t('no data')}
+              {cardLatest ? `${cardLevel ? `${t('bucket from')} ` : ''}${formatRelative(cardLatest.measured)}` : t('no data')}
             </Text>
           </div>
           {/* Clicking the chart opens it large (mouse convenience); the keyboard and screen-reader route is the "Enlarge" button above. */}
           <div className={styles.chartArea} onClick={() => setEnlarged(true)}>
             <TelemetryChart series={chartSeries} height={160} mode="single" timeAxis="time" compact />
-            {/* A Sensor whose calculation is switched off says so in the bottom right corner of its small chart. */}
-            {sensor.processingEnabled === false && (
+            {/* Bottom right corner: the aggregation level shown instead of the raw readings, or - when nothing of the Sensor is calculated, or the
+                calculated level is not asked for - that the calculation of what is shown is off. */}
+            {hasAnomaly ? (
               <div className={styles.calculationOff}>
-                <ProcessingOffPill processingEnabled={false} />
+                <Badge appearance="filled" color="danger">{t('Anomaly: {0}', cardLevel ? t(cardLevel.label) : t('Raw readings'))}</Badge>
               </div>
+            ) : cardLevel ? (
+              <div className={styles.calculationOff}>
+                <Badge appearance="tint" color="brand">{t(cardLevel.label)}</Badge>
+              </div>
+            ) : (
+              rawOff && (
+                <div className={styles.calculationOff}>
+                  <ProcessingOffPill processingEnabled={false} label="Calculation off" />
+                </div>
+              )
             )}
           </div>
         </>
@@ -268,7 +313,7 @@ function SensorLiveCard({
               action={
                 <div className={styles.headerActions}>
                   {/* Raw readings or one of the aggregation levels the Sensor has - only shown when there is a level. */}
-                  {levels.length > 0 && <AggregationSelect levels={levels} value={level?.key ?? ''} onChange={(key) => onLevelPreferenceChange(levels.find((l) => l.key === key))} />}
+                  {levels.length > 0 && <AggregationSelect levels={levels} value={level?.key ?? ''} onChange={(key) => onLevelPreferenceChange(levels.find((l) => l.key === key) ?? 'raw')} rawCalculationOff={rawOff} />}
                   {/* The same one-off refresh as the card's icon, so the enlarged chart can be refreshed without closing it. */}
                   <Button
                     appearance="subtle"
@@ -349,8 +394,12 @@ export function LiveMonitoringPage() {
   const [page, setPage] = useState(0);
   // The Sensor whose chart is open in the large window (the arrow keys step through the Sensors of the page).
   const [enlargedId, setEnlargedId] = useState<number | null>(null);
-  // The aggregation chosen in the large window ('' = raw readings); it stays while the arrow keys move to the next Sensor.
-  const [levelPreference, setLevelPreference] = useState<LevelPreference | undefined>(undefined);
+  // The aggregation chosen in the large window (undefined = nothing chosen: what the card shows); it stays while the arrow keys move to the next Sensor.
+  const [levelPreference, setLevelPreference] = useState<LevelPreference | 'raw' | undefined>(undefined);
+  // On by default: a Sensor whose raw values are not calculated shows its first calculated aggregation level.
+  const [showCalculatedLevel, setShowCalculatedLevel] = useState(true);
+  // Off by default.
+  const [highlightAnomalies, setHighlightAnomalies] = useState(false);
   const filter = useDebounced(filterText.trim().toLowerCase(), 500);
 
   const devicesQuery = useDevices();
@@ -382,6 +431,10 @@ export function LiveMonitoringPage() {
       .map((sensor) => ({ id: sensor.id!, family: familyFor(applicationMode, sensor.direction) }))
       .filter((s) => !isCurveFamily(s.family));
   }, [shown, applicationMode]);
+
+  // Which levels of the Sensors on screen have an anomaly (one request for the page, only while the highlighting is on).
+  const recentAnomalies = useRecentLevelAnomalies(selectedId, liveSensors.map((s) => s.id), highlightAnomalies, effectiveLive ? 30_000 : undefined);
+  const anomalousPolicyIds = useMemo(() => (highlightAnomalies && recentAnomalies.data ? new Set(recentAnomalies.data.map((a) => a.policyId!)) : undefined), [highlightAnomalies, recentAnomalies.data]);
 
   const schedule = useLiveMonitoringSchedule({
     active: effectiveLive && selectedId !== undefined,
@@ -456,6 +509,8 @@ export function LiveMonitoringPage() {
           ))}
         </Select>
         <Switch checked={live} onChange={(_, d) => setLive(d.checked)} label={live ? t('Refresh every {0} seconds', seconds) : t('Paused')} />
+        <Switch checked={showCalculatedLevel} onChange={(_, d) => setShowCalculatedLevel(d.checked)} label={t('Show calculated level')} />
+        <Switch checked={highlightAnomalies} onChange={(_, d) => setHighlightAnomalies(d.checked)} label={t('Highlight anomalies')} />
         {!pageVisible && live && (
           <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
             {t('Paused - tab not visible')}</Text>
@@ -519,7 +574,11 @@ export function LiveMonitoringPage() {
               onEnlargedChange={(open) => setEnlargedId(open ? sensor.id! : enlargedId === sensor.id ? null : enlargedId)}
               onStep={stepEnlarged}
               levelPreference={levelPreference}
-              onLevelPreferenceChange={(p) => setLevelPreference(p ? { key: p.key, bucketMs: p.bucketMs } : undefined)}
+              onLevelPreferenceChange={(p) => setLevelPreference(p === 'raw' ? 'raw' : { key: p.key, bucketMs: p.bucketMs })}
+              showCalculatedLevel={showCalculatedLevel}
+              autoRefresh={effectiveLive}
+              highlightAnomalies={highlightAnomalies}
+              anomalousPolicyIds={anomalousPolicyIds}
             />
           ))}
         </div>

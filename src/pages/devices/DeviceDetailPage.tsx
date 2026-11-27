@@ -330,58 +330,6 @@ function recalcButtonTitle(sensor: SensorDto): string {
   return 'Delete the calculated values and unreviewed Issues of this Sensor and calculate them again from its first value.';
 }
 
-/**
- * Switches one Sensor's calculation on or off (`Sensor.processingEnabled`).
- * Off: its data is still stored, but new values trigger no analysis, Issue detection or summary,
- * and the Sensor is no longer part of the model (the API leaves it out of the training and retrains the Device). On: everything not
- * calculated yet (the values stored while it was off, or left over by a Recalc
- * with calculation off) is calculated in the background, one value at a time,
- * exactly as the live calculation would have done (the API's catch-up; its
- * progress is the Device's recalculation progress). The change schedules retraining
- * (the Sensor enters or leaves the model). Confirmed because turning it off silences Issue detection for
- * that Sensor.
- */
-function ProcessingDialog({
-  deviceId,
-  sensor,
-  open,
-  onClose,
-}: {
-  deviceId: number;
-  sensor: SensorDto;
-  open: boolean;
-  onClose: () => void;
-}) {
-  const t = useT();
-  const toast = useAppToast();
-  const updateSensor = useUpdateSensor(deviceId, sensor.id!);
-  const turningOff = sensor.processingEnabled !== false;
-  const label = sensor.name || sensor.externalSensorId;
-
-  return (
-    <ConfirmDialog
-      open={open}
-      title={turningOff ? t('Stop calculating {0}?', label) : t('Resume calculating {0}?', label)}
-      confirmLabel={turningOff ? t('Stop calculation') : t('Resume calculation')}
-      intent={turningOff ? 'destructive' : 'normal'}
-      busy={updateSensor.isPending}
-      onConfirm={async () => {
-        await updateSensor.mutateAsync({ processingEnabled: !turningOff }); // also refreshes the recalculation progress (the catch-up)
-        toast.success(turningOff ? t('Calculation stopped: {0}', label) : t('Calculation resumed: {0}', label));
-        onClose();
-      }}
-      onCancel={onClose}
-    >
-      <Text>
-        {turningOff
-          ? t('New values for this Sensor will still be stored, but they will no longer trigger any calculation - no analysis and no Issues will be raised from this Sensor - and the Sensor leaves the model: it is no longer trained on, and the Device\'s model is retrained without it. Everything already calculated (analysis results, control limits) and every Issue that is already open is kept as it is; Recalc deletes them (and calculates nothing while calculation is off). Switching calculation on again calculates everything that was not calculated.')
-          : t('Everything not calculated yet - the values that arrived while calculation was off, and whatever a Recalc deleted - is calculated now in the background, in time order and in batches, as the live calculation catches up after a pause: anomalies and Issues. Issues a person has reviewed are kept and not duplicated. The progress is shown on this page; new values are calculated as usual when it has caught up. (A bidirectional Sensor or one in maintenance mode is calculated from now on only.)')}
-      </Text>
-      {updateSensor.isError && <ErrorState error={updateSensor.error} />}
-    </ConfirmDialog>
-  );
-}
-
 function MaintenanceDialog({
   deviceId,
   sensor,
@@ -483,7 +431,6 @@ export function DeviceDetailPage() {
   const [editingSensorId, setEditingSensorId] = useState<number | null>(null);
   const [maintenanceSensorId, setMaintenanceSensorId] = useState<number | null>(null);
   const [visibilitySensorId, setVisibilitySensorId] = useState<number | null>(null);
-  const [processingSensorId, setProcessingSensorId] = useState<number | null>(null);
   const [recalcSensorId, setRecalcSensorId] = useState<number | null>(null);
   const [recalcAllOpen, setRecalcAllOpen] = useState(false);
   const [bulkAggregationOpen, setBulkAggregationOpen] = useState(false);
@@ -499,7 +446,6 @@ export function DeviceDetailPage() {
 
   const editingSensor = sensorsQuery.data?.find((s) => s.id === editingSensorId) ?? null;
   const maintenanceSensor = sensorsQuery.data?.find((s) => s.id === maintenanceSensorId) ?? null;
-  const processingSensor = sensorsQuery.data?.find((s) => s.id === processingSensorId) ?? null;
   const visibilitySensor = sensorsQuery.data?.find((s) => s.id === visibilitySensorId) ?? null;
   const sensorsInMaintenance = (sensorsQuery.data ?? []).filter((s) => s.maintenanceMode).length;
 
@@ -786,14 +732,6 @@ export function DeviceDetailPage() {
                   )}
                   {isAdmin && (
                     <Switch
-                      aria-label={t('Calculation for {0}', sensor.name || sensor.externalSensorId)}
-                      label={t('Calculate')}
-                      checked={sensor.processingEnabled !== false}
-                      onChange={() => setProcessingSensorId(sensor.id!)}
-                    />
-                  )}
-                  {isAdmin && (
-                    <Switch
                       aria-label={t('Visibility of {0} in Live Monitoring and Smart Analytics', sensor.name || sensor.externalSensorId)}
                       label={t('Visible')}
                       checked={sensor.visible !== false}
@@ -893,14 +831,14 @@ export function DeviceDetailPage() {
       )}
 
       {isAdmin && importDescriptionsOpen && (
-        <DescriptionsDialog deviceId={id} externalDeviceId={deviceQuery.data?.externalDeviceId} deviceName={deviceQuery.data?.deviceName || deviceQuery.data?.externalDeviceId || `Device ${id}`} open={importDescriptionsOpen} onClose={() => setImportDescriptionsOpen(false)} />
+        <DescriptionsDialog deviceId={id} deviceName={deviceQuery.data?.deviceName || deviceQuery.data?.externalDeviceId || `Device ${id}`} open={importDescriptionsOpen} onClose={() => setImportDescriptionsOpen(false)} />
       )}
-      {isAdmin && manageSetpointsOpen && <ManageSetpointsDialog deviceId={id} externalDeviceId={deviceQuery.data?.externalDeviceId} open={manageSetpointsOpen} onClose={() => setManageSetpointsOpen(false)} />}
+      {isAdmin && manageSetpointsOpen && <ManageSetpointsDialog deviceId={id} fileDeviceName={deviceQuery.data?.deviceName || deviceQuery.data?.externalDeviceId} open={manageSetpointsOpen} onClose={() => setManageSetpointsOpen(false)} />}
 
       {isAdmin && importSensorsOpen && (
         <SensorImportDialog
           deviceId={id}
-          externalDeviceId={deviceQuery.data?.externalDeviceId}
+          fileDeviceName={deviceQuery.data?.deviceName || deviceQuery.data?.externalDeviceId}
           applicationMode={device.applicationMode}
           open={importSensorsOpen}
           onClose={() => setImportSensorsOpen(false)}
@@ -927,16 +865,6 @@ export function DeviceDetailPage() {
         />
       )}
 
-      {isAdmin && processingSensor && (
-        <ProcessingDialog
-          key={`${processingSensor.id}-${processingSensor.processingEnabled}`}
-          deviceId={id}
-          sensor={processingSensor}
-          open={processingSensorId !== null}
-          onClose={() => setProcessingSensorId(null)}
-        />
-      )}
-
       {isAdmin && (
         <RecalculateDialog
           key={`all-${recalcAllOpen}`}
@@ -948,7 +876,7 @@ export function DeviceDetailPage() {
       )}
 
       {isAdmin && bulkAggregationOpen && (
-        <BulkAggregationDialog deviceId={id} externalDeviceId={deviceQuery.data?.externalDeviceId} sensors={sensorsQuery.data ?? []} open onClose={() => setBulkAggregationOpen(false)} />
+        <BulkAggregationDialog deviceId={id} fileDeviceName={deviceQuery.data?.deviceName || deviceQuery.data?.externalDeviceId} sensors={sensorsQuery.data ?? []} open onClose={() => setBulkAggregationOpen(false)} />
       )}
 
       {isAdmin && recalcSensorId !== null && (

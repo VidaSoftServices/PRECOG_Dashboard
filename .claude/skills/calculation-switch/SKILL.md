@@ -1,6 +1,6 @@
 ---
 name: calculation-switch
-description: The per-Sensor calculation switch (Sensor.ProcessingEnabled, "Calculate"): data stored but not analysed, left out of the model since 2026-11-19, catch-up when switched on, delete-only Recalc when off, the Calculation off marking. Use when working on, asking about or changing the Calculate switch, processingEnabled, the calculation-off pill or delete-only Recalc.
+description: The raw calculation switch (Sensor.ProcessingEnabled, "Calculate" on the raw level of the Policies page): raw values stored but not analysed or trained on, aggregation levels evaluated by their own switches, catch-up when switched on, delete-only raw Recalc, the calculation-off marking. Use when working on, asking about or changing the Calculate switch, processingEnabled, the calculation-off pill or delete-only Recalc.
 ---
 
 # Per-Sensor calculation switch

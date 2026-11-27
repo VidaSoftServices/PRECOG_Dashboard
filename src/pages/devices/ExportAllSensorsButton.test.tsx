@@ -20,7 +20,7 @@ function renderButton(sensors = SENSORS) {
     <FluentProvider theme={webLightTheme}>
       <QueryClientProvider client={queryClient}>
         <AppToastProvider>
-          <ExportAllSensorsButton deviceId={4} externalDeviceId="KS4" sensors={sensors} />
+          <ExportAllSensorsButton deviceId={4} fileDeviceName="KS4" sensors={sensors} />
         </AppToastProvider>
       </QueryClientProvider>
     </FluentProvider>,

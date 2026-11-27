@@ -116,7 +116,7 @@ export function buildSensorsExportCsv(
   return BOM + [SENSOR_EXPORT_HEADERS.join(','), ...rows].join('\r\n') + '\r\n';
 }
 
-/** The file name of the export: the Device's number and its Device ID (externalDeviceId), e.g. "sensors-device-2-KS4.csv". */
-export function sensorsExportFileName(deviceId: number, externalDeviceId?: string | null): string {
-  return `sensors-${deviceFilePart(deviceId, externalDeviceId)}.csv`;
+/** The file name of the download: the Device's number and its name, e.g. "sensors-device-2-KS4.csv". */
+export function sensorsExportFileName(deviceId: number, deviceName?: string | null): string {
+  return `sensors-${deviceFilePart(deviceId, deviceName)}.csv`;
 }

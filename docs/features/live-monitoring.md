@@ -214,3 +214,12 @@ Live Monitoring: the "Calculation off" label of a Sensor sits in the bottom righ
 ## Anomaly markers (2026-11-19)
 
 The Live Monitoring charts (cards and the enlarged chart) mark an anomalous reading with a marker at least twice as large as a normal value's - warning yellow, critical red; not in the legend. See `smart-analytics.md` ("Anomaly markers on the charts").
+
+## "Show calculated level" and "Highlight anomalies" (2026-11-27)
+
+Two switches in the toolbar (page state, not stored).
+
+- **Show calculated level** - on by default. A Sensor whose raw values are not calculated (`processingEnabled === false`) shows on its card the **first calculated aggregation level** (shortest bucket first; newest 20 buckets, re-read every 30 s while the page refreshes), with the level's name in the corner and "bucket from" before the time. With no calculated level it shows the raw readings and **Calculation off**. A raw-calculated Sensor always shows raw readings.
+- **Highlight anomalies** - off by default. "There is an anomaly" (the user's choice, 2026-11-27) = one of the values **the card shows** is anomalous: the newest 20 raw readings, or a level's newest 20 buckets. The card then shows the **first level that has one** - raw first, then the shortest aggregation level - with a red "Anomaly: <level>" badge; a Sensor without an anomaly shows what "Show calculated level" gives. The raw anomalies come from the cards' own data; the levels' from ONE request for the page (`useRecentLevelAnomalies`, every 30 s, only while the switch is on).
+- The large window opens on what the card shows; choosing in its Aggregation list ("Raw readings" included) wins and stays while the arrow keys move between Sensors.
+- Tests: `LiveMonitoringPage.test.tsx`.

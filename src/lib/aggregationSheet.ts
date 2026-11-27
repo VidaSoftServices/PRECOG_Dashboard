@@ -268,9 +268,9 @@ export function buildAggregationExportCsv(policies: readonly ExportAggregationPo
   return BOM + [AGGREGATION_SHEET_HEADERS.join(','), ...lines].join('\r\n') + '\r\n';
 }
 
-/** The file name of the export: the Device's number and its Device ID (externalDeviceId), e.g. "aggregation-device-2-KS4.csv". */
-export function aggregationExportFileName(deviceId: number, externalDeviceId?: string | null): string {
-  return `aggregation-${deviceFilePart(deviceId, externalDeviceId)}.csv`;
+/** The file name of the download: the Device's number and its name, e.g. "aggregation-device-2-KS4.csv". */
+export function aggregationExportFileName(deviceId: number, deviceName?: string | null): string {
+  return `aggregation-${deviceFilePart(deviceId, deviceName)}.csv`;
 }
 
 /**

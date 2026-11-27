@@ -102,17 +102,16 @@ export function MaintenancePill({ maintenanceMode }: { maintenanceMode: boolean 
 }
 
 /**
- * Shown for a Sensor whose calculation switch is off: its data is stored and
- * used for model training, but new values trigger no analysis or Issue
- * detection. Icon + text, never color alone. Renders nothing for a Sensor that
+ * Shown for a Sensor whose RAW calculation is off: its data is stored, the raw values are not analysed or trained on (its aggregation levels have their own
+ * switches). Icon + text, never color alone. Renders nothing for a Sensor that
  * is calculating (the default), so the common case stays quiet.
  */
-export function ProcessingOffPill({ processingEnabled }: { processingEnabled: boolean | null | undefined }) {
+export function ProcessingOffPill({ processingEnabled, label = 'Raw calculation off' }: { processingEnabled: boolean | null | undefined; label?: 'Raw calculation off' | 'Calculation off' }) {
   const t = useT();
   if (processingEnabled !== false) return null;
   return (
     <Badge appearance="tint" color="informative" icon={<PauseCircle16Regular />}>
-      {t('Calculation off')}</Badge>
+      {label === 'Calculation off' ? t('Calculation off') : t('Raw calculation off')}</Badge>
   );
 }
 

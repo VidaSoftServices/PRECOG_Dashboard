@@ -30,7 +30,7 @@ const sensor = (id: number, name: string, visible?: boolean) => ({
 /** Every request the page made to the API: its path and its query string, in order. */
 const requests: { path: string; search: URLSearchParams }[] = [];
 
-function mockApi(sensors: unknown[]) {
+function mockApi(sensors: unknown[], policies: unknown[] = [], anomalies: unknown[] = []) {
   fetchMock().mockImplementation(async (input: RequestInfo | URL) => {
     const url = new URL((input as Request).url);
     const path = url.pathname;
@@ -49,6 +49,9 @@ function mockApi(sensors: unknown[]) {
       path === '/api/Devices' ? [DEVICE]
       : path === '/api/Devices/4' ? DEVICE
       : path === '/api/Devices/4/Sensors' ? sensors
+      : path === '/api/Devices/4/AggregationPolicies' ? policies
+      : path === '/api/Devices/4/AggregationPolicies/RecentAnomalies' ? anomalies
+      : path.endsWith('/Values') ? [{ bucketStart: '2026-10-20T22:00:00Z', bucketEnd: '2026-10-21T22:00:00Z', value: 4.2, sampleCount: 10, calculatedAt: '2026-10-21T10:00:00Z' }]
       // ONE request for every Sensor on screen: a flat list, every row carries its sensorId.
       : path === '/api/Continuous/MeasuredTrailingPeriodsBatch' ? url.searchParams.getAll('sensorIds').flatMap((id) => newestFirst(Number(id)))
       // the enlarged chart's own read of ONE Sensor, with its calculated control limits
@@ -101,7 +104,54 @@ describe('LiveMonitoringPage and hidden Sensors', { timeout: 30_000 }, () => {
     expect(screen.queryByRole('button', { name: 'Refresh RMS B (hidden)' })).not.toBeInTheDocument();
   });
 
-  it('marks a Sensor whose calculation is switched off with the "Calculation off" text; a calculating Sensor is not marked', async () => {
+  const DAILY = { id: 31, sensorId: 1, sourceDataKey: 'Actual', timeScale: 'days', aggregationFunction: 'avg', enabled: true, calculationEnabled: true };
+  const HOURLY_OFF = { id: 30, sensorId: 1, sourceDataKey: 'Actual', timeScale: 'hours', aggregationFunction: 'avg', enabled: true, calculationEnabled: false };
+
+  it('shows the first CALCULATED level of a Sensor whose raw values are not calculated, and the raw readings when the switch is turned off', async () => {
+    mockApi([{ ...sensor(1, 'RMS A', true), processingEnabled: false }], [HOURLY_OFF, DAILY]);
+    const user = userEvent.setup();
+    renderPage();
+
+    // the hourly level is not calculated, so the daily one is shown (read from its own policy), and the card says which level it is
+    expect(await screen.findByText('1 day · Average')).toBeInTheDocument();
+    await waitFor(() => expect(requests.some((r) => r.path === '/api/Devices/4/Sensors/1/AggregationPolicies/31/Values')).toBe(true));
+    expect(requests.some((r) => r.path.includes('/AggregationPolicies/30/Values'))).toBe(false);
+    expect(screen.queryByText('Calculation off')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('switch', { name: 'Show calculated level' }));
+    expect(await screen.findByText('Calculation off')).toBeInTheDocument();
+    expect(screen.queryByText('1 day · Average')).not.toBeInTheDocument();
+  });
+
+  it('"Highlight anomalies" is off by default; turned on it shows the first level that has an anomaly, in one request for the page', async () => {
+    const HOURLY = { ...HOURLY_OFF, calculationEnabled: true };
+    // only the daily level (31) has an anomaly among its newest values
+    mockApi([sensor(1, 'RMS A', true), sensor(2, 'RMS C', true)], [HOURLY, DAILY], [{ sensorId: 1, policyId: 31, newestAnomalousBucketStart: '2026-10-20T22:00:00Z' }]);
+    const user = userEvent.setup();
+    renderPage();
+    expect((await screen.findAllByText('RMS A')).length).toBeGreaterThan(0);
+    expect(requests.some((r) => r.path.endsWith('/RecentAnomalies'))).toBe(false);
+
+    await user.click(screen.getByRole('switch', { name: 'Highlight anomalies' }));
+    expect(await screen.findByText('Anomaly: 1 day · Average')).toBeInTheDocument();
+    const asked = requests.filter((r) => r.path.endsWith('/RecentAnomalies'));
+    expect(asked[0]!.search.getAll('sensorIds')).toEqual(['1', '2']);
+    expect(requests.some((r) => r.path === '/api/Devices/4/Sensors/1/AggregationPolicies/31/Values')).toBe(true);
+    expect(screen.getAllByText(/^Anomaly: /)).toHaveLength(1);   // the Sensor without an anomaly stays as it was
+
+    await user.click(screen.getByRole('switch', { name: 'Highlight anomalies' }));
+    await waitFor(() => expect(screen.queryByText(/^Anomaly: /)).not.toBeInTheDocument());
+  });
+
+  it('keeps the raw readings of a Sensor whose raw values are calculated', async () => {
+    mockApi([sensor(1, 'RMS A', true)], [DAILY]);
+    renderPage();
+    expect((await screen.findAllByText('RMS A')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('1 day · Average')).not.toBeInTheDocument();
+    expect(requests.some((r) => r.path.endsWith('/Values'))).toBe(false);
+  });
+
+  it('marks a Sensor with nothing calculated with the "Calculation off" text; a calculating Sensor is not marked', async () => {
     mockApi([{ ...sensor(1, 'RMS A', true), processingEnabled: false }, sensor(2, 'RMS C', true)]);
     renderPage();
 

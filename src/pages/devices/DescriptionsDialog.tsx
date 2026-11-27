@@ -44,7 +44,7 @@ const MAX_LISTED = 12;
  * stored by the API (so it is remembered); the stored texts can be exported as the same kind of sheet and removed. One Sensor's texts can also be
  * edited by hand in its Edit dialog. Shown beside the enlarged chart of Live Monitoring and Smart Analytics.
  */
-export function DescriptionsDialog({ deviceId, deviceName, externalDeviceId, open, onClose }: { deviceId: number; deviceName: string; /** The Device ID (externalDeviceId) for the file names of the exports. */ externalDeviceId?: string | null; open: boolean; onClose: () => void }) {
+export function DescriptionsDialog({ deviceId, deviceName, open, onClose }: { deviceId: number; deviceName: string; open: boolean; onClose: () => void }) {
   const t = useT();
   const styles = useStyles();
   const toast = useAppToast();
@@ -88,7 +88,7 @@ export function DescriptionsDialog({ deviceId, deviceName, externalDeviceId, ope
 
   const exportSheet = () => {
     const sheet = buildDescriptionSheet(storedRows.map((r) => ({ sensorName: r.externalSensorId, language: r.language, description: r.description })));
-    downloadTextFile(`descriptions-${deviceFilePart(deviceId, externalDeviceId)}.csv`, sheet);
+    downloadTextFile(`descriptions-${deviceFilePart(deviceId, deviceName)}.csv`, sheet);
   };
 
   const removeAll = async () => {

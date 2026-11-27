@@ -57,7 +57,7 @@ describe('RecalculateDialog', { timeout: 20_000 }, () => {
 
     expect(screen.getByText('Delete the calculated values of S3?')).toBeInTheDocument();
     expect(screen.getByText(/only deleted - nothing is calculated/)).toBeInTheDocument();
-    expect(screen.getByText(/Switching calculation on later calculates everything again/)).toBeInTheDocument();
+    expect(screen.getByText(/Switching the raw calculation on later calculates everything again/)).toBeInTheDocument();
     expect(screen.getByText(/anomaly scores and the control limits \(UCL3, UCL2, LCL2, LCL3\)/)).toBeInTheDocument(); // calculation off: the limits go too
     expect(screen.queryByText(/in time order, in batches/)).not.toBeInTheDocument();
     expect(screen.queryByText(/aggregated again/)).not.toBeInTheDocument();
@@ -109,7 +109,7 @@ describe('RecalculateDialog', { timeout: 20_000 }, () => {
     });
 
     expect(screen.getByText(/3 Sensor\(s\) of this Device is deleted/)).toBeInTheDocument();
-    expect(screen.getByText(/1 Sensor\(s\) have calculation switched off: they are only deleted from/)).toBeInTheDocument();
+    expect(screen.getByText(/1 Sensor\(s\) have the raw calculation switched off: only their raw results are deleted/)).toBeInTheDocument();
     expect(screen.getByText(/2 Sensor\(s\) are\s+recalculated/)).toBeInTheDocument();
     expect(screen.getByText(/1 Sensor\(s\) are left out because they are in maintenance mode/)).toBeInTheDocument();
     const confirm = screen.getByRole('button', { name: 'Recalculate 3 Sensor(s)' });

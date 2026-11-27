@@ -251,4 +251,41 @@ export const HU_DEVICES: Record<string, string> = {
   'ToleranceBelow': 'ToleranceBelow',
   'UnitCode': 'UnitCode',
   'ValidFrom': 'ValidFrom',
+
+  // The raw calculation switch (on the Policies page since 2026-11-27)
+  'Raw calculation off':
+    'Nyers számítás kikapcsolva',
+  'Stop the raw calculation of {0}?':
+    'Leállítod {0} nyers számítását?',
+  'Resume the raw calculation of {0}?':
+    'Folytatod {0} nyers számítását?',
+  'Raw calculation stopped: {0}':
+    'A nyers számítás leállítva: {0}',
+  'Raw calculation resumed: {0}':
+    'A nyers számítás folytatódik: {0}',
+  'The values keep being stored, but the raw (native) values are no longer analysed: no new raw anomalies or Issues, and the Sensor leaves the model (the Device\'s model is retrained without it). The aggregation levels are not affected - each is calculated by its own switch. Everything already calculated and every open Issue is kept; Recalc deletes the raw results (and calculates nothing while this is off).':
+    'Az értékek továbbra is tárolódnak, de a nyers (natív) értékeket a rendszer már nem elemzi: nincs új nyers anomália és Issue, és a Sensor kikerül a modellből (az eszköz modellje nélküle tanul újra). Az aggregációs szinteket ez nem érinti – mindegyiket a saját kapcsolója szerint számolja. Minden már kiszámolt eredmény és nyitott Issue megmarad; a Recalc törli a nyers eredményeket (és amíg ez ki van kapcsolva, semmit sem számol).',
+  'Everything of the raw values that was not calculated - what arrived while it was off, and whatever a Recalc deleted - is calculated now in the background, in time order and in batches: anomalies and Issues. Issues a person has reviewed are kept and not duplicated. The Sensor returns to the model. The progress is shown on the Device page. (A bidirectional Sensor or one in maintenance mode is calculated from now on only.)':
+    'A nyers értékek minden még ki nem számolt része – ami a kikapcsolt időben érkezett, és amit egy Recalc törölt – most a háttérben, időrendben és adagokban kiszámolódik: anomáliák és Issue-k. Az ember által már átnézett Issue-k megmaradnak és nem duplázódnak. A Sensor visszakerül a modellbe. A haladás az eszköz oldalán látszik. (Kétirányú vagy karbantartás alatt álló Sensornál csak mostantól számol.)',
+  'The raw values. Off: they are only stored - no anomaly, no Issue and no training from them. The other levels have their own switches.':
+    'A nyers értékek. Kikapcsolva csak tárolódnak – nincs belőlük anomália, Issue és tanítás. A többi szintnek saját kapcsolója van.',
+  'The raw calculation. Off: the data is stored; the raw values are not analysed or trained on. The aggregation levels have their own switches.':
+    'A nyers számítás. Kikapcsolva az adat tárolódik; a nyers értékeket a rendszer nem elemzi és nem tanul belőlük. Az aggregációs szinteknek saját kapcsolójuk van.',
+  'The raw calculation of this Sensor is switched off, so its raw calculated values and unreviewed raw Issues are only deleted - nothing is calculated (this frees their space). The aggregation levels are not touched. Switching the raw calculation on later calculates everything again.':
+    'Ennek a Sensornak a nyers számítása ki van kapcsolva, ezért a nyers eredményei és át nem nézett nyers Issue-i csak törlődnek – semmi sem számolódik (ez felszabadítja a helyüket). Az aggregációs szintekhez nem nyúl. A nyers számítás későbbi bekapcsolása mindent újra kiszámol.',
+  '; the aggregation levels and their Issues (they have their own switches)':
+    '; az aggregációs szintek és Issue-ik (saját kapcsolójuk van)',
+  'Sensor(s) have the raw calculation switched off: only their raw results are deleted, nothing is calculated for them (':
+    'Sensor nyers számítása ki van kapcsolva: csak a nyers eredményeik törlődnek, semmi sem számolódik náluk (',
+  'Sensor(s) are recalculated). Switching their raw calculation on later calculates everything.':
+    'Sensor újraszámolódik). A nyers számításuk későbbi bekapcsolása mindent kiszámol.',
+  '{0} unreviewed raw Issue(s) deleted, {1} reviewed Issue(s) kept; nothing was calculated (the raw calculation is switched off).':
+    '{0} át nem nézett nyers Issue törölve, {1} átnézett megmaradt; semmi sem számolódott (a nyers számítás ki van kapcsolva).',
+  ' {0} Sensor(s) with the raw calculation off were only deleted from.':
+    ' {0} kikapcsolt nyers számítású Sensornál csak törlés történt.',
+  'Raw calculated values deleted (raw calculation off)':
+    'A nyers eredmények törölve (a nyers számítás ki van kapcsolva)',
+  'Show calculated level': 'A számolt szint mutatása',
+  'Highlight anomalies': 'Anomáliák kiemelése',
+  'Anomaly: {0}': 'Anomália: {0}',
 };

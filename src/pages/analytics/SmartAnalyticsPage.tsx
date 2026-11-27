@@ -116,9 +116,14 @@ function TruncationNotice({ labels, lengths }: { labels: string[]; lengths: numb
   );
 }
 
-/** A Sensor whose calculation is switched off (no analysis, no Issues, not part of the model) is marked with the text "Calculation off". */
+/** In the two-Device mode a row without a level is the raw readings of the Sensor: marked when its raw calculation is off (the Sensor lists themselves carry no mark). */
 function calculationOffSuffix(sensor: { processingEnabled?: boolean | null }, t: (text: string) => string): string {
-  return sensor.processingEnabled === false ? ` · ${t('Calculation off')}` : '';
+  return sensor.processingEnabled === false ? ` · ${t('Raw calculation off')}` : '';
+}
+
+/** True when every one of the chosen Sensors has its raw calculation off. */
+function allRawOff(sensors: readonly { id?: number; processingEnabled?: boolean | null }[], chosen: readonly number[]): boolean {
+  return chosen.length > 0 && chosen.every((id) => sensors.find((s) => s.id === id)?.processingEnabled === false);
 }
 
 /** Most Sensors one overlay chart draws (Multi Sensor mode); Single Sensor mode draws exactly one. */
@@ -173,7 +178,7 @@ function SensorAnalytics({
   // A Sensor hidden with the Device page's "Visible" switch is not offered here (an Issue that involves it still shows it elsewhere).
   const { shown: sensors, hiddenCount } = useMemo(() => splitShownSensors(sensorsQuery.data), [sensorsQuery.data]);
   // The filter searches what a row shows (name, direction, "Calculation off") and the external id, every word of it.
-  const visibleSensors = filterByLabel(sensors, sensorFilter, (s) => `${s.name || s.externalSensorId} (${s.direction})${calculationOffSuffix(s, t)} ${s.name ?? ''} ${s.externalSensorId ?? ''}`);
+  const visibleSensors = filterByLabel(sensors, sensorFilter, (s) => `${s.name || s.externalSensorId} (${s.direction}) ${s.name ?? ''} ${s.externalSensorId ?? ''}`);
   const effectiveSelection = chooseSensors(sensors, selectedSensorIds, multi);
   const primarySensor = sensors.find((s) => s.id === effectiveSelection[0]);
   // The imported descriptions of the chosen Sensors (none imported = empty, and neither the side card nor the modal text appears).
@@ -316,7 +321,7 @@ function SensorAnalytics({
               // Up / Down: the previous / next Sensor of the list (one Sensor on the chart; in Multi Sensor mode with several chosen the arrows do nothing).
               onStep={effectiveSelection.length === 1 ? stepSensor : undefined}
               // The aggregation can also be changed in the large window, at its top right.
-              titleAction={levelsAvailable.length > 0 ? <AggregationSelect levels={levelsAvailable} value={levelKey} onChange={onLevelKeyChange} /> : undefined}
+              titleAction={levelsAvailable.length > 0 ? <AggregationSelect levels={levelsAvailable} value={levelKey} onChange={onLevelKeyChange} rawCalculationOff={allRawOff(sensors, effectiveSelection)} /> : undefined}
               title={series.map((s) => s.label).join(' · ') || t('Telemetry')}
               series={series}
               describedSensors={describedSensors}
@@ -355,7 +360,7 @@ function SensorAnalytics({
               visibleSensors.map((sensor) => (
                 <Checkbox
                   key={sensor.id}
-                  label={`${sensor.name || sensor.externalSensorId} (${sensor.direction})${calculationOffSuffix(sensor, t)}`}
+                  label={`${sensor.name || sensor.externalSensorId} (${sensor.direction})`}
                   checked={effectiveSelection.includes(sensor.id!)}
                   onChange={(_, d) => {
                     setSelectedSensorIds((prev) => {
@@ -373,7 +378,7 @@ function SensorAnalytics({
               // Single Sensor: exactly one is chosen; picking another replaces it.
               <RadioGroup aria-label={t('Sensor')} value={String(effectiveSelection[0] ?? '')} onChange={(_, d) => setSelectedSensorIds([Number(d.value)])}>
                 {visibleSensors.map((sensor) => (
-                  <Radio key={sensor.id} value={String(sensor.id)} label={`${sensor.name || sensor.externalSensorId} (${sensor.direction})${calculationOffSuffix(sensor, t)}`} />
+                  <Radio key={sensor.id} value={String(sensor.id)} label={`${sensor.name || sensor.externalSensorId} (${sensor.direction})`} />
                 ))}
               </RadioGroup>
             )}
@@ -745,7 +750,7 @@ export function SmartAnalyticsPage() {
         {mode !== 'compare' && toolbarLevels.length > 0 && (
           <div className={styles.column}>
             <Text size={200}>{t('Aggregation')}</Text>
-            <AggregationSelect levels={toolbarLevels} value={effectiveLevelKey} onChange={setLevelKey} />
+            <AggregationSelect levels={toolbarLevels} value={effectiveLevelKey} onChange={setLevelKey} rawCalculationOff={allRawOff(shownSensors, toolbarSelection)} />
           </div>
         )}
 

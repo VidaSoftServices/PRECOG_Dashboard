@@ -29,7 +29,8 @@ import { EnabledPill } from '@/components/StatusPill';
 import { DateTimeField } from '@/components/DateTimeField';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useAppToast } from '@/components/ToastProvider';
-import { useSensor } from '@/api/hooks/sensors';
+import { useSensor, type SensorDto } from '@/api/hooks/sensors';
+import { RawCalculationDialog } from './RawCalculationDialog';
 import { MetricDefinitionCard } from './MetricDefinitionCard';
 import { DeleteSetpointsDialog } from './DeleteSetpointsDialog';
 import { DeleteAggregationLevelsDialog } from './DeleteAggregationLevelsDialog';
@@ -115,7 +116,7 @@ function minEvaluationValid(text: string): boolean {
   return text.trim() === '' || (/^\d+$/.test(text.trim()) && Number(text) <= 100);
 }
 
-function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId: number; policy: SensorAggregationPolicyDto }) {
+function PolicyCard({ deviceId, sensorId, policy, sensor }: { deviceId: number; sensorId: number; policy: SensorAggregationPolicyDto; sensor?: SensorDto }) {
   const t = useT();
   const styles = useStyles();
   const { isAdmin } = useAuth();
@@ -128,7 +129,9 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
   const [calculate, setCalculate] = useState(policy.calculationEnabled !== false);
   const [retrainConfirmOpen, setRetrainConfirmOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [rawSwitchOpen, setRawSwitchOpen] = useState(false);
   const isRaw = isRawPolicy(policy);
+  const rawCalculating = sensor?.processingEnabled !== false;
 
   const applyUpdate = () => {
     update.mutate(
@@ -171,6 +174,11 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
             <Input value={minEvaluation} onChange={(_, d) => setMinEvaluation(d.value)} disabled={!isAdmin} type="number" min="0" max="100" />
           </Field>
         )}
+        {isRaw && sensor && (
+          <Field label={t('Calculate')} hint={t('The raw values. Off: they are only stored - no anomaly, no Issue and no training from them. The other levels have their own switches.')}>
+            <Switch checked={rawCalculating} onChange={() => setRawSwitchOpen(true)} disabled={!isAdmin} label={rawCalculating ? t('On') : t('Off')} />
+          </Field>
+        )}
         {!isRaw && (
           <Field label={t('Calculate')} hint={t('Off: the level is only aggregated, to look at the data - no anomaly, no Issue from it')}>
             <Switch checked={calculate} onChange={(_, d) => setCalculate(d.checked)} disabled={!isAdmin} label={calculate ? t('On') : t('Off')} />
@@ -196,6 +204,7 @@ function PolicyCard({ deviceId, sensorId, policy }: { deviceId: number; sensorId
           <MessageBarBody>{t('Editing Lookback, Scale, or Enabled on the raw policy schedules retraining for this Sensor.')}</MessageBarBody>
         </MessageBar>
       )}
+      {isRaw && sensor && isAdmin && rawSwitchOpen && <RawCalculationDialog deviceId={deviceId} sensor={sensor} open onClose={() => setRawSwitchOpen(false)} />}
       <ConfirmDialog
         open={retrainConfirmOpen}
         title={t('This will trigger retraining')}
@@ -528,7 +537,7 @@ export function SensorPoliciesPage() {
       {isAdmin && <NewPolicyForm deviceId={dId} sensorId={sId} />}
       {policiesQuery.data && policiesQuery.data.length === 0 && <EmptyState title={t('No aggregation policies')} />}
       {policiesQuery.data?.map((policy) => (
-        <PolicyCard key={policy.id} deviceId={dId} sensorId={sId} policy={policy} />
+        <PolicyCard key={policy.id} deviceId={dId} sensorId={sId} policy={policy} sensor={sensorQuery.data} />
       ))}
 
       {sensorQuery.data && (

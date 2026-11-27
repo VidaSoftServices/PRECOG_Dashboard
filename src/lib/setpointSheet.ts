@@ -95,9 +95,9 @@ export function buildSetpointsExportCsv(sensors: readonly { id: number; external
   return BOM + [SETPOINT_SHEET_HEADERS.join(','), ...lines].join('\r\n') + '\r\n';
 }
 
-/** The file name of the export: the Device's number and its Device ID (externalDeviceId), e.g. "setpoints-device-2-KS4.csv". */
-export function setpointsExportFileName(deviceId: number, externalDeviceId?: string | null): string {
-  return `setpoints-${deviceFilePart(deviceId, externalDeviceId)}.csv`;
+/** The file name of the download: the Device's number and its name, e.g. "setpoints-device-2-KS4.csv". */
+export function setpointsExportFileName(deviceId: number, deviceName?: string | null): string {
+  return `setpoints-${deviceFilePart(deviceId, deviceName)}.csv`;
 }
 
 // ---- import: parsing -------------------------------------------------------------------------------------------------------------

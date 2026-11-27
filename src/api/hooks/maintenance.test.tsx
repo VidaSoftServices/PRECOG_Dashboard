@@ -142,11 +142,11 @@ describe('ProcessingOffPill', () => {
 
   it('shows a labelled badge only when calculation is switched off', () => {
     renderPill(false);
-    expect(screen.getByText('Calculation off')).toBeInTheDocument();
+    expect(screen.getByText('Raw calculation off')).toBeInTheDocument();
   });
 
   it.each([true, undefined])('stays quiet when processingEnabled is %s (the default, calculating)', (value) => {
     renderPill(value);
-    expect(screen.queryByText('Calculation off')).not.toBeInTheDocument();
+    expect(screen.queryByText('Raw calculation off')).not.toBeInTheDocument();
   });
 });

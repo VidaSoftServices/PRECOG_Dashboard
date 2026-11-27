@@ -11,16 +11,22 @@ export function AggregationSelect({
   value,
   onChange,
   ariaLabel,
+  rawCalculationOff = false,
 }: {
   levels: readonly AggregationLevel[];
   value: string;
   onChange: (key: string) => void;
   ariaLabel?: string;
+  /** True when the RAW calculation of the shown Sensor(s) is off: "Raw readings" says so, like a level whose calculation is off. */
+  rawCalculationOff?: boolean;
 }) {
   const t = useT();
   return (
     <Select aria-label={ariaLabel ?? t('Aggregation')} value={value} onChange={(_, d) => onChange(d.value)} size="small">
-      <option value="">{t('Raw readings')}</option>
+      <option value="">
+        {t('Raw readings')}
+        {rawCalculationOff ? ` · ${t('Calculation off')}` : ''}
+      </option>
       {levels.map((level) => (
         <option key={level.key} value={level.key}>
           {t(level.label)}
