@@ -37,3 +37,7 @@ endpoint exists at all** (see "Missing backend capabilities" below) — the
 Training page shows only what `TrainingRequestDto`/`ModelQueryResponse`
 actually return, with an explicit in-page note that "previous versions"
 browsing isn't currently possible, rather than a fabricated history list.
+
+## Aggregation levels are trained (2026-11-27)
+
+An API change (see the API's `training.md`): the calculated aggregation levels that signalled for a reviewed Issue are part of the model, also for Sensors whose raw calculation is off. Switching a level's Calculate schedules retraining. No Dashboard change.
